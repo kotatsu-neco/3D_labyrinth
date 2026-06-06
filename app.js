@@ -740,7 +740,7 @@
   }
   function renderDungeon(){
     const v = dungeonViewSummary();
-    app.innerHTML = header('地下1階') + `<div class="main"><div class="view-wrap"><canvas id="dungeonCanvas"></canvas><div class="view-caption">${esc(state.location.floor)} / ${esc(DIRS[state.location.dir])} / X${state.location.x} Y${state.location.y}</div><div class="view-status"><span>前: ${esc(v.front)}</span><span>左: ${esc(v.left)}</span><span>右: ${esc(v.right)}</span></div></div>${partySummary()}${logHtml()}</div>${dungeonActions()}`;
+    app.innerHTML = header('地下1階') + `<div class="main"><div class="view-wrap"><canvas id="dungeonCanvas"></canvas><div class="view-caption">${esc(state.location.floor)} / ${esc(DIRS[state.location.dir])} / X${state.location.x} Y${state.location.y}</div><div class="view-status"><span>左: ${esc(v.left)}</span><span>前: ${esc(v.front)}</span><span>右: ${esc(v.right)}</span></div></div>${partySummary()}${logHtml()}</div>${dungeonActions()}`;
     requestAnimationFrame(drawDungeon);
     scrollLog();
   }
@@ -839,227 +839,179 @@
     ctx.setTransform(dpr,0,0,dpr,0,0);
     const w = box.width;
     const h = box.height;
-    ctx.clearRect(0,0,w,h);
     const lineColor = getComputedStyle(document.documentElement).getPropertyValue('--line').trim() || '#a79b72';
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ecd676';
-
+    ctx.clearRect(0,0,w,h);
     ctx.fillStyle = '#000';
     ctx.fillRect(0,0,w,h);
 
-    const horizon = h * 0.46;
-    const ceil = ctx.createLinearGradient(0,0,0,horizon);
-    ceil.addColorStop(0,'#020202');
-    ceil.addColorStop(1,'#0d0c09');
-    ctx.fillStyle = ceil;
-    ctx.fillRect(0,0,w,horizon);
+    // outer frame
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(2,2,w-4,h-4);
+    ctx.strokeRect(10,10,w-20,h-20);
 
-    const floor = ctx.createLinearGradient(0,horizon,0,h);
-    floor.addColorStop(0,'#0f0d08');
-    floor.addColorStop(0.45,'#090806');
-    floor.addColorStop(1,'#010101');
-    ctx.fillStyle = floor;
-    ctx.fillRect(0,horizon,w,h-horizon);
+    const cx = w/2;
+    const horizon = h*0.53;
+    const frames = [
+      {l:22, r:w-22, t:18, b:h-34},
+      {l:w*0.18, r:w*0.82, t:h*0.18, b:h*0.80},
+      {l:w*0.32, r:w*0.68, t:h*0.32, b:h*0.68},
+      {l:w*0.42, r:w*0.58, t:h*0.42, b:h*0.58}
+    ];
 
-    ctx.strokeStyle = 'rgba(236,214,118,.14)';
-    for(let i=1;i<=5;i++){
-      const y = horizon + (h-horizon) * (i/6);
-      strokeSeg(12,y,w-12,y);
-    }
-
-    const frames = [];
-    for(let depth=0; depth<=4; depth++){
-      const t = depth / 4;
-      const mx = lerp(14,w*0.47,t);
-      const top = lerp(10,h*0.43,t);
-      const bottom = lerp(h-10,h*0.57,t);
-      frames.push({l:mx,r:w-mx,t:top,b:bottom});
-    }
-
-    ctx.strokeStyle = 'rgba(167,155,114,.65)';
+    // ceiling and floor perspective guides (reduced clutter)
+    ctx.strokeStyle = 'rgba(167,155,114,.52)';
     ctx.lineWidth = 1.6;
-    for(let i=0;i<4;i++){
-      const a = frames[i], b = frames[i+1];
+    for(let i=0;i<frames.length-1;i++){
+      const a=frames[i], b=frames[i+1];
       strokeSeg(a.l,a.t,b.l,b.t);
       strokeSeg(a.r,a.t,b.r,b.t);
       strokeSeg(a.l,a.b,b.l,b.b);
       strokeSeg(a.r,a.b,b.r,b.b);
-      ctx.strokeStyle = 'rgba(167,155,114,.32)';
-      strokeSeg(a.l,a.t,a.r,a.t);
-      strokeSeg(a.l,a.b,a.r,a.b);
-      ctx.strokeStyle = 'rgba(167,155,114,.65)';
+    }
+    // floor lines
+    ctx.strokeStyle = 'rgba(167,155,114,.22)';
+    for(let i=1;i<=4;i++){
+      const y = lerp(horizon+10, h-34, i/4);
+      strokeSeg(26,y,w-26,y);
+    }
+    // ceiling lines
+    for(let i=1;i<=2;i++){
+      const y = lerp(18, horizon-10, i/3);
+      strokeSeg(26,y,w-26,y);
     }
 
-    ctx.strokeStyle = 'rgba(167,155,114,.85)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(2,2,w-4,h-4);
-    ctx.lineWidth = 1.4;
-
     const loc = state.location;
-    for(let depth=0; depth<4; depth++){
-      const here = stepPos(loc.x,loc.y,loc.dir,depth);
+    let blocked = false;
+    for(let depth=0; depth<3 && !blocked; depth++){
+      const curr = stepPos(loc.x,loc.y,loc.dir,depth);
       const next = stepPos(loc.x,loc.y,loc.dir,depth+1);
-      const left = sidePos(here.x,here.y,loc.dir,-1);
-      const right = sidePos(here.x,here.y,loc.dir,1);
-      const f = frames[depth], n = frames[depth+1];
+      const left = sidePos(curr.x,curr.y,loc.dir,-1);
+      const right = sidePos(curr.x,curr.y,loc.dir,1);
+      const near = frames[depth];
+      const far = frames[depth+1];
 
-      if(isWall(left.x,left.y)) drawSideWall(f,n,'left',depth);
-      else drawOpening(f,n,'left',cellAt(left.x,left.y));
+      if(isWall(left.x,left.y)) drawSolidSide(near,far,'left');
+      else drawOpenSide(near,far,'left',cellAt(left.x,left.y));
+      if(isWall(right.x,right.y)) drawSolidSide(near,far,'right');
+      else drawOpenSide(near,far,'right',cellAt(right.x,right.y));
 
-      if(isWall(right.x,right.y)) drawSideWall(f,n,'right',depth);
-      else drawOpening(f,n,'right',cellAt(right.x,right.y));
-
-      if(isWall(next.x,next.y)){
-        drawFrontWall(n,depth+1);
-        break;
+      const frontCell = cellAt(next.x,next.y);
+      if(frontCell === '#'){
+        drawFrontWall(far, depth);
+        blocked = true;
+      }else{
+        if(frontCell === 'D') drawDoor(far);
+        if(frontCell === 'C') drawChest(far);
+        if(frontCell === 'R') drawStairs(far);
       }
-      const ch = cellAt(next.x,next.y);
-      if(ch === 'D') drawDoor(n,depth+1);
-      if(ch === 'C') drawChest(n,depth+1);
-      if(ch === 'R') drawStairs(n,depth+1);
     }
 
     drawCompass();
 
-    function drawSideWall(f,n,side,depth){
+    function drawSolidSide(near,far,side){
       const pts = side === 'left'
-        ? [[f.l,f.t],[n.l,n.t],[n.l,n.b],[f.l,f.b]]
-        : [[f.r,f.t],[n.r,n.t],[n.r,n.b],[f.r,f.b]];
-      fillPoly(pts, depth === 0 ? 'rgba(18,17,12,.82)' : 'rgba(10,10,8,.72)');
-      strokePoly(pts,'rgba(167,155,114,.72)');
-      ctx.strokeStyle = 'rgba(236,214,118,.10)';
-      const divs = depth === 0 ? 4 : 3;
-      for(let i=1;i<divs;i++){
-        const t = i / divs;
-        const x1 = lerp(pts[0][0],pts[1][0],t);
-        const y1 = lerp(pts[0][1],pts[1][1],t);
-        const x2 = lerp(pts[3][0],pts[2][0],t);
-        const y2 = lerp(pts[3][1],pts[2][1],t);
-        strokeSeg(x1,y1,x2,y2);
-      }
+        ? [[near.l,near.t],[far.l,far.t],[far.l,far.b],[near.l,near.b]]
+        : [[near.r,near.t],[far.r,far.t],[far.r,far.b],[near.r,near.b]];
+      fillPoly(pts, 'rgba(8,8,7,.38)');
+      strokePoly(pts, 'rgba(167,155,114,.72)');
     }
-    function drawOpening(f,n,side,ch){
-      const nearX = side === 'left' ? f.l : f.r;
-      const farX = side === 'left' ? n.l : n.r;
-      const midNear = (f.t + f.b) / 2;
-      const midFar = (n.t + n.b) / 2;
-      ctx.strokeStyle = 'rgba(236,214,118,.86)';
-      strokeSeg(nearX,f.t,farX,n.t);
-      strokeSeg(nearX,f.b,farX,n.b);
-      strokeSeg(nearX,midNear,farX,midFar);
-      ctx.strokeStyle = 'rgba(236,214,118,.22)';
-      const offset = side === 'left' ? 1 : -1;
-      strokeSeg(nearX+offset*8,midNear-18,nearX+offset*8,midNear+18);
-      if(ch === 'D'){
-        ctx.fillStyle = 'rgba(236,214,118,.65)';
-        ctx.fillRect(nearX + (side === 'left' ? 6 : -8), midNear - 10, 3, 20);
-      }
-      if(ch === 'C'){
-        ctx.fillStyle = 'rgba(236,214,118,.60)';
-        ctx.fillRect(nearX + (side === 'left' ? 6 : -14), midNear + 10, 8, 6);
-      }
-      if(ch === 'R'){
-        ctx.strokeStyle = 'rgba(174,230,170,.75)';
-        strokeSeg(nearX,midNear+10,farX,midFar+16);
+    function drawOpenSide(near,far,side,cell){
+      const nx = side==='left' ? near.l : near.r;
+      const fx = side==='left' ? far.l : far.r;
+      ctx.strokeStyle='rgba(236,214,118,.76)';
+      strokeSeg(nx,near.t,fx,far.t);
+      strokeSeg(nx,near.b,fx,far.b);
+      // doorway edge
+      const midN=(near.t+near.b)/2, midF=(far.t+far.b)/2;
+      ctx.strokeStyle='rgba(167,155,114,.54)';
+      strokeSeg(nx,midN-28,fx,midF-18);
+      strokeSeg(nx,midN+28,fx,midF+18);
+      if(cell === 'D'){
+        ctx.strokeStyle=accent;
+        const x=side==='left'? nx+10 : nx-10;
+        strokeSeg(x,midN-22,x,midN+22);
+      }else if(cell === 'C'){
+        ctx.fillStyle=accent;
+        const x=side==='left'? nx+8 : nx-14;
+        ctx.fillRect(x,midN+18,8,6);
+      }else if(cell === 'R'){
+        ctx.strokeStyle='rgba(174,230,170,.88)';
+        strokeSeg(nx,midN+16,fx,midF+24);
       }
     }
     function drawFrontWall(fr,depth){
-      fillPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], depth < 2 ? 'rgba(17,16,12,.92)' : 'rgba(8,8,7,.92)');
-      strokePoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], 'rgba(167,155,114,.86)');
-      ctx.strokeStyle = 'rgba(236,214,118,.14)';
-      const cols = depth === 1 ? 4 : 2;
-      const rows = depth === 1 ? 4 : 2;
-      for(let i=1;i<cols;i++){
-        const x = lerp(fr.l,fr.r,i/cols);
-        strokeSeg(x,fr.t,x,fr.b);
-      }
-      for(let i=1;i<rows;i++){
-        const y = lerp(fr.t,fr.b,i/rows);
-        strokeSeg(fr.l,y,fr.r,y);
-      }
+      fillPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], 'rgba(8,8,7,.46)');
+      strokePoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], lineColor);
+      ctx.strokeStyle='rgba(167,155,114,.36)';
+      const split = (fr.l+fr.r)/2;
+      strokeSeg(split,fr.t,split,fr.b);
     }
-    function drawDoor(fr,depth){
-      const ww = (fr.r-fr.l) * (depth < 2 ? 0.3 : 0.4);
-      const hh = (fr.b-fr.t) * (depth < 2 ? 0.58 : 0.66);
-      const x = (fr.l+fr.r)/2 - ww/2;
-      const y = fr.t + (fr.b-fr.t)*0.19;
-      ctx.fillStyle = 'rgba(8,7,5,.86)';
-      ctx.fillRect(x,y,ww,hh);
-      ctx.strokeStyle = 'rgba(236,214,118,.95)';
+    function drawDoor(fr){
+      const ww=(fr.r-fr.l)*0.46, hh=(fr.b-fr.t)*0.72;
+      const x=cx-ww/2, y=fr.b-hh;
+      ctx.strokeStyle=accent;
+      ctx.lineWidth=2;
       ctx.strokeRect(x,y,ww,hh);
-      strokeSeg(x+ww/2,y,x+ww/2,y+hh);
-      ctx.fillStyle = 'rgba(236,214,118,.9)';
+      strokeSeg(cx,y,cx,y+hh);
+      ctx.fillStyle='rgba(236,214,118,.5)';
       ctx.beginPath();
-      ctx.arc(x+ww*0.72,y+hh*0.54,Math.max(2,ww*0.025),0,Math.PI*2);
+      ctx.arc(x+ww*0.72, y+hh*0.58, 3, 0, Math.PI*2);
       ctx.fill();
+      ctx.lineWidth=1.6;
     }
-    function drawChest(fr,depth){
-      const ww = Math.max(20,(fr.r-fr.l)*(depth < 2 ? 0.17 : 0.24));
-      const hh = Math.max(12,(fr.b-fr.t)*0.10);
-      const x = (fr.l+fr.r)/2 - ww/2;
-      const y = fr.b - (fr.b-fr.t)*0.20;
-      ctx.fillStyle = 'rgba(23,16,8,.90)';
-      ctx.fillRect(x,y-hh,ww,hh);
-      ctx.strokeStyle = accent;
-      ctx.strokeRect(x,y-hh,ww,hh);
+    function drawChest(fr){
+      const ww=Math.max(24,(fr.r-fr.l)*0.24), hh=Math.max(14,(fr.b-fr.t)*0.14);
+      const x=cx-ww/2, y=fr.b-hh-8;
+      ctx.fillStyle='rgba(22,15,8,.90)';
+      ctx.strokeStyle=accent;
+      ctx.fillRect(x,y,ww,hh);
+      ctx.strokeRect(x,y,ww,hh);
       ctx.beginPath();
-      ctx.moveTo(x,y-hh);
-      ctx.quadraticCurveTo(x+ww/2,y-hh*1.8,x+ww,y-hh);
+      ctx.moveTo(x,y);
+      ctx.quadraticCurveTo(cx,y-hh*0.85,x+ww,y);
       ctx.stroke();
-      ctx.fillStyle = accent;
-      ctx.fillRect(x+ww/2-2,y-hh*0.68,4,4);
+      ctx.fillStyle=accent;
+      ctx.fillRect(cx-2,y+hh*0.35,4,4);
     }
-    function drawStairs(fr,depth){
-      const cx = (fr.l+fr.r)/2;
-      const base = fr.b - (fr.b-fr.t)*0.12;
-      ctx.strokeStyle = 'rgba(174,230,170,.90)';
+    function drawStairs(fr){
+      const baseY=fr.b-10;
+      ctx.strokeStyle='rgba(174,230,170,.94)';
       for(let i=0;i<5;i++){
-        const y = base - i*(fr.b-fr.t)*0.08;
-        const ww = (fr.r-fr.l)*(0.18+i*0.06);
+        const y=baseY-i*8;
+        const ww=26+i*16;
         strokeSeg(cx-ww/2,y,cx+ww/2,y);
       }
-      ctx.strokeStyle = 'rgba(174,230,170,.45)';
-      strokeSeg(cx-(fr.r-fr.l)*0.20,base,cx,fr.t+(fr.b-fr.t)*0.30);
-      strokeSeg(cx+(fr.r-fr.l)*0.20,base,cx,fr.t+(fr.b-fr.t)*0.30);
+      strokeSeg(cx-38,baseY,cx,fr.t+10);
+      strokeSeg(cx+38,baseY,cx,fr.t+10);
     }
     function drawCompass(){
-      const cx = w - 26, cy = 24;
-      ctx.fillStyle = 'rgba(0,0,0,.62)';
-      ctx.strokeStyle = 'rgba(236,214,118,.80)';
-      ctx.beginPath();
-      ctx.arc(cx,cy,15,0,Math.PI*2);
-      ctx.fill();
-      ctx.stroke();
-      const a = (-Math.PI/2) + state.location.dir * Math.PI/2;
-      ctx.strokeStyle = 'rgba(236,214,118,.94)';
-      strokeSeg(cx,cy,cx+Math.cos(a)*10,cy+Math.sin(a)*10);
-      ctx.fillStyle = 'rgba(238,232,208,.86)';
-      ctx.font = '11px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText(DIRS[state.location.dir],cx,cy+29);
+      const cx2 = w - 34, cy = 34;
+      ctx.strokeStyle=accent;
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(cx2,cy,18,0,Math.PI*2); ctx.stroke();
+      const a=(-Math.PI/2)+(state.location.dir*Math.PI/2);
+      strokeSeg(cx2,cy,cx2+Math.cos(a)*12,cy+Math.sin(a)*12);
+      ctx.fillStyle='rgba(238,232,208,.88)';
+      ctx.font='bold 13px system-ui';
+      ctx.textAlign='center';
+      ctx.fillText(DIRS[state.location.dir],cx2,cy+30);
     }
     function strokeSeg(x1,y1,x2,y2){
-      ctx.beginPath();
-      ctx.moveTo(x1,y1);
-      ctx.lineTo(x2,y2);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
     }
     function fillPoly(points,color){
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(points[0][0],points[0][1]);
+      ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]);
       for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]);
-      ctx.closePath();
-      ctx.fill();
+      ctx.closePath(); ctx.fill();
     }
     function strokePoly(points,color){
-      ctx.strokeStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(points[0][0],points[0][1]);
+      ctx.strokeStyle=color; ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]);
       for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]);
-      ctx.closePath();
-      ctx.stroke();
+      ctx.closePath(); ctx.stroke();
     }
-    function lerp(a,b,t){ return a + (b-a) * t; }
+    function lerp(a,b,t){ return a+(b-a)*t; }
   }
 
   function setScreen(name){
