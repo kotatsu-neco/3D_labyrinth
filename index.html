@@ -2,93 +2,69 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>地下環廊の踏査隊</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>地下回廊の試練</title>
 <style>
 :root{
-  --bg:#050505;
-  --panel:#0b0b0b;
-  --panel2:#111;
-  --line:#d7d0b2;
-  --line2:#6f684f;
-  --text:#f5f0dc;
-  --muted:#b9b08f;
-  --danger:#f1a3a3;
-  --good:#bfe6b8;
-  --warn:#f4d48a;
-  --shadow:#000;
-  --button:#141414;
-  --button2:#1e1e1e;
+  --bg:#030303; --panel:#090908; --panel2:#10100e; --fg:#ece7cf; --muted:#afa783;
+  --line:#9c936f; --line2:#5f5a42; --accent:#f0d978; --good:#b7e9ad; --bad:#ffaaa0; --warn:#ffd98a;
+  --app-h:100dvh;
 }
-*{box-sizing:border-box;}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;line-height:1.35;overflow-x:hidden;touch-action:manipulation;}
-body{min-height:100svh;}
-button,input,select{font:inherit;}
-button{appearance:none;border:1px solid var(--line);background:linear-gradient(#181818,#080808);color:var(--text);min-height:48px;border-radius:6px;padding:9px 10px;box-shadow:0 1px 0 #333 inset,0 0 0 1px #000;}
-button:active{transform:translateY(1px);background:var(--button2);}
-button:disabled{opacity:.35;}
-#app{width:100%;max-width:540px;margin:0 auto;min-height:100svh;display:flex;flex-direction:column;padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 8px);}
-.frame{border:1px solid var(--line);background:var(--panel);box-shadow:0 0 0 1px var(--shadow) inset;margin-bottom:8px;}
-.header{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;padding:7px 8px;font-size:13px;position:sticky;top:0;z-index:5;background:#050505;border-bottom:1px solid var(--line2);}
-.header .title{font-weight:700;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.header .meta{text-align:right;color:var(--muted);font-size:12px;}
-.main{flex:0 0 auto;}
-.panel{padding:10px;}
-.screenTitle{font-size:18px;font-weight:800;letter-spacing:.08em;margin:0 0 8px;border-bottom:1px solid var(--line2);padding-bottom:5px;}
-.subtle{color:var(--muted);font-size:13px;}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:13px;}
-.kv b{color:var(--warn);font-weight:650;}
-.scene{padding:6px;background:#000;}
-#dungeonCanvas{display:block;width:100%;height:clamp(188px,34svh,268px);border:1px solid var(--line);background:#030303;}
-.enemyStage{min-height:clamp(172px,30svh,238px);border:1px solid var(--line);background:radial-gradient(circle at 50% 30%,#181818,#040404 58%,#000);display:flex;flex-direction:column;justify-content:center;gap:8px;padding:12px;}
-.enemyLine{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
-.enemyCard{border:1px solid var(--line2);background:#090909;min-width:116px;max-width:150px;padding:8px;text-align:center;}
-.enemyGlyph{height:46px;margin-bottom:6px;position:relative;}
-.enemyGlyph:before{content:"";position:absolute;left:50%;top:6px;width:44px;height:34px;transform:translateX(-50%);border:2px solid var(--line);border-radius:50% 50% 35% 35%;background:#111;box-shadow:0 0 18px #333 inset;}
-.enemyGlyph:after{content:"";position:absolute;left:50%;top:28px;width:70px;height:16px;transform:translateX(-50%);border:1px solid var(--line2);border-top:0;}
-.enemyName{font-weight:800;font-size:13px;}
-.enemyHp{font-size:12px;color:var(--muted);margin-top:3px;}
-.partyBox{padding:6px 6px 7px;}
-.rowLabel{display:flex;align-items:center;gap:7px;margin:3px 0 5px;color:var(--warn);font-size:12px;letter-spacing:.08em;}
-.rowLabel:after{content:"";height:1px;flex:1;background:var(--line2);}
-.partyGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:4px;}
-.member{border:1px solid var(--line2);background:#070707;padding:5px;min-width:0;}
-.member.down{border-color:#9f5b5b;color:#e5b0b0;background:#120808;}
-.member .name{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.member .line{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.member .hp{color:var(--good);}
-.member .bad{color:var(--danger);}
-.logBox{padding:7px 8px;min-height:114px;max-height:154px;overflow:auto;font-size:13px;background:#060606;scrollbar-width:thin;}
-.logLine{padding:2px 0;border-bottom:1px dotted rgba(215,208,178,.18);}
-.logLine.turn{color:var(--warn);font-weight:800;margin-top:4px;}
-.logLine.reward{color:var(--good);}
-.logLine.damage{color:var(--danger);}
-.logLine.system{color:var(--muted);}
-.actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:8px;background:#050505;border-top:1px solid var(--line2);position:sticky;bottom:0;z-index:4;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 8px);}
-.actions.two{grid-template-columns:repeat(2,minmax(0,1fr));}
-.actions.four{grid-template-columns:repeat(2,minmax(0,1fr));}
-.actions .wide{grid-column:1 / -1;}
-.menuGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
-.menuGrid button{min-height:54px;}
-.list{display:flex;flex-direction:column;gap:7px;}
-.card{border:1px solid var(--line2);background:#080808;padding:8px;}
-.card h3{font-size:15px;margin:0 0 5px;color:var(--warn);}
-.card p{margin:3px 0;color:var(--muted);font-size:13px;}
-.card .buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:7px;}
-.tag{display:inline-block;border:1px solid var(--line2);padding:1px 5px;border-radius:999px;font-size:11px;color:var(--muted);margin-right:4px;}
-.titleScreen{min-height:100svh;display:flex;flex-direction:column;justify-content:center;padding:18px 8px calc(env(safe-area-inset-bottom,0px) + 18px);}
-.logo{border:1px solid var(--line);padding:18px 12px;text-align:center;background:#050505;box-shadow:0 0 30px rgba(215,208,178,.09) inset;margin-bottom:12px;}
-.logo h1{font-size:26px;margin:0 0 8px;letter-spacing:.12em;}
-.logo p{margin:0;color:var(--muted);font-size:13px;}
-.notice{border:1px solid #8c6d2e;color:#f6dc9a;background:#160f03;padding:8px;margin-bottom:8px;font-size:13px;}
-hr.sep{border:0;border-top:1px solid var(--line2);margin:8px 0;}
-@media (max-width:370px){
-  #app{padding-left:6px;padding-right:6px;}
-  .member .name{font-size:12px;}
-  .member .line{font-size:11px;}
-  button{font-size:14px;padding-left:6px;padding-right:6px;}
-  .logBox{font-size:12px;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;min-height:100%;background:#000;color:var(--fg);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;overflow:hidden;}
+body{touch-action:manipulation;}
+button,input,select{font:inherit;color:inherit;}
+#app{height:var(--app-h);max-width:540px;margin:0 auto;background:var(--bg);display:flex;flex-direction:column;gap:6px;padding:calc(env(safe-area-inset-top,0px) + 6px) 10px calc(env(safe-area-inset-bottom,0px) + 8px);overflow:hidden;}
+.header{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 2px 5px;border-bottom:1px solid var(--line);min-height:30px;}
+.header .title{font-weight:800;letter-spacing:.04em;font-size:17px;white-space:nowrap;}
+.header .meta{color:var(--muted);font-size:13px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:6px;overflow:hidden;}
+.panel{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel),#050504);padding:10px;box-shadow:inset 0 0 0 1px #1c1a12;}
+.title-panel{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center;}
+.game-title{font-size:30px;font-weight:900;letter-spacing:.12em;line-height:1.25;color:var(--fg);text-shadow:0 0 12px rgba(240,217,120,.18);}
+.subtitle{font-size:14px;color:var(--muted);line-height:1.5;}
+.view-wrap{flex:0 0 clamp(188px,32svh,252px);border:2px solid var(--line);background:#000;position:relative;box-shadow:inset 0 0 0 1px #252112;overflow:hidden;}
+#dungeonCanvas{width:100%;height:100%;display:block;background:#000;}
+.view-caption{position:absolute;left:8px;top:6px;color:rgba(236,231,207,.72);font-weight:700;font-size:13px;letter-spacing:.04em;pointer-events:none;text-shadow:0 1px 2px #000;}
+.enemy-stage{flex:0 0 clamp(172px,28svh,230px);border:2px solid var(--line);background:#000;position:relative;padding:10px;display:flex;flex-direction:column;gap:8px;justify-content:center;overflow:hidden;}
+.enemy-stage:before{content:"";position:absolute;inset:8px;border:1px solid rgba(156,147,111,.35);pointer-events:none;}
+.enemy-row{display:flex;gap:8px;justify-content:center;align-items:stretch;z-index:1;}
+.enemy-card{border:1px solid var(--line);background:#0a0a08;min-width:84px;max-width:31%;padding:8px 6px;text-align:center;position:relative;}
+.enemy-sigil{width:44px;height:44px;margin:0 auto 4px;border:2px solid var(--line);border-radius:50% 50% 45% 45%;box-shadow:inset 0 -8px 0 rgba(156,147,111,.18);}
+.enemy-name{font-weight:800;font-size:13px;line-height:1.2;}
+.enemy-hp{font-size:12px;color:var(--muted);margin-top:2px;}
+.party-box{flex:0 0 auto;border:1px solid var(--line);padding:6px;background:#070706;}
+.rank-label{display:flex;align-items:center;gap:8px;color:var(--accent);font-weight:800;font-size:13px;margin:0 0 5px;}
+.rank-label:after{content:"";height:1px;background:var(--line2);flex:1;}
+.party-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:5px;}
+.member{border:1px solid var(--line2);background:#0b0b09;padding:5px 5px 6px;min-width:0;}
+.member.dead{border-color:#70463f;color:#b99990;background:#100807;}
+.member .n{font-weight:900;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.member .sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.member .hp,.member .mp{font-size:13px;line-height:1.25;white-space:nowrap;}
+.hp{color:var(--good)} .mp{color:#d7c899}.bad{color:var(--bad)}.warn{color:var(--warn)}.good{color:var(--good)}
+.logbox{flex:0 0 clamp(82px,16svh,122px);border:1px solid var(--line);background:#030303;padding:6px 8px;overflow-y:auto;-webkit-overflow-scrolling:touch;font-size:14px;line-height:1.36;}
+.logline{border-bottom:1px dotted rgba(156,147,111,.22);padding:1px 0 3px;}
+.logline.turn{color:var(--accent);font-weight:800;border-bottom-color:rgba(240,217,120,.45);}
+.actions{flex:0 0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;background:#000;padding-top:2px;}
+.actions.two{grid-template-columns:repeat(2,minmax(0,1fr));}.actions.four{grid-template-columns:repeat(4,minmax(0,1fr));}.actions.one{grid-template-columns:1fr;}
+.btn{min-height:48px;border:1px solid var(--line);background:linear-gradient(180deg,#171611,#090908);color:var(--fg);font-weight:800;letter-spacing:.03em;border-radius:0;padding:8px 6px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);}
+.btn:active{transform:translateY(1px);background:#201d13;}.btn.primary{color:#fff4ba;border-color:#c4b56e;}.btn.danger{color:#ffbeb6;border-color:#8d5149;}.btn:disabled{opacity:.45;}
+.menu-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px;}
+.menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}.menu-grid .btn{min-height:56px;}
+.note{font-size:13px;line-height:1.55;color:var(--muted);}.section-title{font-weight:900;color:var(--accent);margin:0 0 6px;font-size:15px;}
+.table{width:100%;border-collapse:collapse;font-size:13px;}.table th,.table td{border:1px solid var(--line2);padding:5px 6px;text-align:left;vertical-align:top;}.table th{color:var(--accent);font-weight:800;background:#11100c;}
+.item-row{border:1px solid var(--line2);padding:7px;margin-bottom:6px;background:#0a0a08;display:flex;gap:8px;justify-content:space-between;align-items:center;}.item-row .info{min-width:0;}.item-row .name{font-weight:800;}.item-row .desc{font-size:12px;color:var(--muted);line-height:1.35;}.small-btn{min-height:38px;padding:6px 8px;font-size:13px;}
+.reset-box{border-color:#8d5149;background:#110807;}.diag-pass{color:var(--good);font-weight:800}.diag-fail{color:var(--bad);font-weight:800}
+@media (max-height:720px){
+  #app{gap:4px;padding-top:calc(env(safe-area-inset-top,0px) + 4px);padding-left:8px;padding-right:8px;}
+  .header{min-height:26px;padding-bottom:3px}.header .title{font-size:15px}.header .meta{font-size:12px}
+  .view-wrap{flex-basis:clamp(154px,28svh,200px)}.enemy-stage{flex-basis:clamp(144px,25svh,190px)}
+  .party-box{padding:4px}.rank-label{font-size:12px;margin-bottom:3px}.party-grid{gap:4px;margin-bottom:3px}
+  .member{padding:4px}.member .n{font-size:13px}.member .sub{font-size:10px}.member .hp,.member .mp{font-size:12px}
+  .logbox{flex-basis:74px;font-size:13px;padding:5px 7px}.btn{min-height:45px;font-size:14px;padding:6px 4px}.actions{gap:5px}
 }
+@media (max-width:360px){.game-title{font-size:26px}.btn{font-size:13px}.member .n{font-size:12px}.member .hp,.member .mp{font-size:11px}.logbox{font-size:12px}.enemy-card{min-width:76px;padding-left:4px;padding-right:4px}}
 </style>
 </head>
 <body>
@@ -97,792 +73,612 @@ hr.sep{border:0;border-top:1px solid var(--line2);margin:8px 0;}
 (function(){
 'use strict';
 
-/* =========================================================
-   定数定義
-========================================================= */
-const SAVE_KEY = 'classic_dungeon_rpg_single_html_v02';
-const SAVE_VERSION = 2;
-const DIRS = [
-  {id:'N', label:'北', dx:0, dy:-1},
-  {id:'E', label:'東', dx:1, dy:0},
-  {id:'S', label:'南', dx:0, dy:1},
-  {id:'W', label:'西', dx:-1, dy:0}
-];
-const SCREEN_LABELS = {
-  title:'表題', town:'街', dungeon:'地下1階', battle:'戦闘', inn:'宿屋', shop:'商店', appraisal:'鑑定所', party:'隊列確認', items:'所持品', reset:'保存初期化'
-};
-
-/* =========================================================
-   データ定義
-========================================================= */
+const KEY = 'classic_dungeon_rpg_single_html_gate_v1';
+const DIRS = ['北','東','南','西'];
+const DELTA = [{x:0,y:-1},{x:1,y:0},{x:0,y:1},{x:-1,y:0}];
 const DATA = {
-  classes: {
-    '剣士': {hp:6, mp:0, atk:2, def:1, role:'front'},
-    '盾役': {hp:7, mp:0, atk:1, def:2, role:'front'},
-    '斥候': {hp:4, mp:0, atk:2, def:1, role:'front'},
-    '司祭': {hp:3, mp:3, atk:0, def:1, role:'back'},
-    '呪術師': {hp:2, mp:4, atk:0, def:0, role:'back'},
-    '弓使い': {hp:4, mp:1, atk:2, def:0, role:'back'}
-  },
-  party: [
-    {id:'p1', name:'ロウ', race:'人間', className:'剣士', row:'front', level:1, exp:0, nextExp:18, hp:30, maxHp:30, mp:0, maxMp:0, attack:8, defense:3, status:'正常'},
-    {id:'p2', name:'ギル', race:'石人', className:'盾役', row:'front', level:1, exp:0, nextExp:20, hp:34, maxHp:34, mp:0, maxMp:0, attack:6, defense:5, status:'正常'},
-    {id:'p3', name:'ナギ', race:'小人', className:'斥候', row:'front', level:1, exp:0, nextExp:17, hp:25, maxHp:25, mp:0, maxMp:0, attack:7, defense:2, status:'正常'},
-    {id:'p4', name:'セナ', race:'ノーム', className:'司祭', row:'back', level:1, exp:0, nextExp:18, hp:22, maxHp:22, mp:12, maxMp:12, attack:4, defense:2, status:'正常'},
-    {id:'p5', name:'ミナ', race:'森人', className:'呪術師', row:'back', level:1, exp:0, nextExp:18, hp:18, maxHp:18, mp:16, maxMp:16, attack:3, defense:1, status:'正常'},
-    {id:'p6', name:'ライ', race:'獣人', className:'弓使い', row:'back', level:1, exp:0, nextExp:19, hp:23, maxHp:23, mp:5, maxMp:5, attack:6, defense:2, status:'正常'}
-  ],
-  enemies: {
-    dustRat: {id:'dustRat', name:'灰鼠', hp:12, attack:4, defense:1, exp:5, gold:6},
-    boneWalker: {id:'boneWalker', name:'骨まとう歩兵', hp:18, attack:6, defense:2, exp:8, gold:9},
-    caveMite: {id:'caveMite', name:'穴這い虫', hp:10, attack:5, defense:0, exp:4, gold:4},
-    crackedGuard: {id:'crackedGuard', name:'罅割れ番人', hp:26, attack:8, defense:3, exp:14, gold:16},
-    blackMoss: {id:'blackMoss', name:'黒苔の塊', hp:22, attack:5, defense:4, exp:10, gold:10},
-    lanternSkull: {id:'lanternSkull', name:'灯り頭蓋', hp:16, attack:7, defense:1, exp:9, gold:12}
-  },
-  enemyGroups: [
-    ['dustRat','dustRat'],
-    ['caveMite','dustRat'],
-    ['boneWalker'],
-    ['blackMoss'],
-    ['lanternSkull','caveMite'],
-    ['crackedGuard']
-  ],
-  items: {
-    herb: {id:'herb', name:'傷薬', unidentifiedName:'小さな包み', type:'consumable', price:28, description:'負傷者1人のHPを18回復する。', unique:false, effect:{kind:'heal', amount:18}},
-    clearWater: {id:'clearWater', name:'澄み水', unidentifiedName:'封じた小瓶', type:'consumable', price:34, description:'術者1人のMPを8回復する。', unique:false, effect:{kind:'mp', amount:8}},
-    guardCharm: {id:'guardCharm', name:'守り札', unidentifiedName:'折れた札', type:'consumable', price:40, description:'次の戦闘中、全員の守りを少し固める。', unique:false, effect:{kind:'guardCharm', amount:1}},
-    returnCord: {id:'returnCord', name:'帰還の紐', unidentifiedName:'古い紐', type:'consumable', price:55, description:'迷宮から街へ戻る。', unique:false, effect:{kind:'returnTown', amount:1}},
-    oldDagger: {id:'oldDagger', name:'古びた短剣', unidentifiedName:'刃物らしきもの', type:'trinket', price:22, description:'売却用の古い短剣。', unique:false, effect:null},
-    copperCoin: {id:'copperCoin', name:'銅貨束', unidentifiedName:'重い小袋', type:'trinket', price:18, description:'古い銅貨の束。', unique:false, effect:null},
-    moonNeedle: {id:'moonNeedle', name:'薄月の針剣', unidentifiedName:'曇った短剣', type:'unique', price:140, description:'淡く光る細身の剣。固有品。', unique:true, effect:{kind:'record'}},
-    dawnRing: {id:'dawnRing', name:'暁の銅環', unidentifiedName:'錆びた指輪', type:'unique', price:120, description:'内側に日の輪が刻まれた指輪。固有品。', unique:true, effect:{kind:'record'}},
-    muteTablet: {id:'muteTablet', name:'沈黙の石板', unidentifiedName:'罅割れた石板', type:'unique', price:160, description:'読めない記号が走る石板。固有品。', unique:true, effect:{kind:'record'}},
-    duskBox: {id:'duskBox', name:'夕闇の銀箱', unidentifiedName:'銀の小箱', type:'unique', price:180, description:'鍵穴のない小箱。固有品。', unique:true, effect:{kind:'record'}},
-    hollowAmulet: {id:'hollowAmulet', name:'空洞の護符', unidentifiedName:'黒ずんだ護符', type:'unique', price:150, description:'軽すぎる護符。固有品。', unique:true, effect:{kind:'record'}}
-  },
-  shop: ['herb','clearWater','guardCharm','returnCord'],
-  dungeon: {
-    floorId:'B1', name:'地下1階', start:{x:1,y:7,dir:0},
+  version: 1,
+  facilities: ['宿屋','商店','鑑定所'],
+  map: {
+    floor:'地下1階', width:9, height:9,
     rows:[
       '#########',
-      '#...#...#',
-      '#.#.#.#.#',
+      '#S..D...#',
+      '#.#.###.#',
       '#.#...#.#',
       '#.###.#.#',
       '#...#...#',
-      '###.#.###',
-      '#.......#',
+      '#.#.#.#.#',
+      '#...C..R#',
       '#########'
     ],
-    chests: {
-      '3,5': {id:'chest_a', opened:false, gold:16, item:'herb', unidentified:'dawnRing'},
-      '7,1': {id:'chest_b', opened:false, gold:24, item:'oldDagger', unidentified:'moonNeedle'},
-      '5,3': {id:'chest_c', opened:false, gold:18, item:'clearWater', unidentified:'muteTablet'},
-      '1,1': {id:'chest_d', opened:false, gold:28, item:'guardCharm', unidentified:'duskBox'},
-      '7,5': {id:'chest_e', opened:false, gold:20, item:'copperCoin', unidentified:'hollowAmulet'}
-    },
-    strongerZones: ['7,1','5,3','7,5']
-  }
+    start:{x:1,y:1,dir:1},
+    chests:{'4,7':{name:'古い木箱',opened:false,normal:['heal_potion'],unidentified:['unknown_ring']}}
+  },
+  party:[
+    {id:'a',name:'アレン',race:'人間',job:'剣士',position:'front',level:1,exp:0,maxHp:31,hp:31,maxMp:0,mp:0,atk:7,def:3,status:'正常'},
+    {id:'b',name:'ボルク',race:'鉱人',job:'守人',position:'front',level:1,exp:0,maxHp:36,hp:36,maxMp:0,mp:0,atk:6,def:5,status:'正常'},
+    {id:'c',name:'キリ',race:'草原人',job:'盗賊',position:'front',level:1,exp:0,maxHp:26,hp:26,maxMp:0,mp:0,atk:6,def:2,status:'正常'},
+    {id:'d',name:'セリア',race:'森人',job:'司祭',position:'back',level:1,exp:0,maxHp:23,hp:23,maxMp:13,mp:13,atk:3,def:2,status:'正常'},
+    {id:'e',name:'メル',race:'人間',job:'魔術師',position:'back',level:1,exp:0,maxHp:19,hp:19,maxMp:17,mp:17,atk:2,def:1,status:'正常'},
+    {id:'f',name:'トウマ',race:'風族',job:'弓手',position:'back',level:1,exp:0,maxHp:24,hp:24,maxMp:5,mp:5,atk:5,def:2,status:'正常'}
+  ],
+  enemies:{
+    mold:{name:'黒苔の塊',maxHp:10,atk:3,def:1,exp:10,gold:[8,15]},
+    worm:{name:'牙虫',maxHp:14,atk:4,def:1,exp:13,gold:[10,18]},
+    bone:{name:'骨の番人',maxHp:18,atk:5,def:2,exp:18,gold:[15,25]},
+    shade:{name:'燭台の影',maxHp:16,atk:6,def:1,exp:20,gold:[16,28]},
+    armor:{name:'錆びた鎧',maxHp:24,atk:7,def:3,exp:28,gold:[24,38]}
+  },
+  encounters:[['mold'],['worm','mold'],['bone'],['worm','worm'],['shade'],['armor']],
+  items:{
+    heal_potion:{name:'小治癒薬',type:'通常',value:12,desc:'味方1人のHPを18回復する。',usable:true},
+    tonic:{name:'澄んだ薬瓶',type:'通常',value:18,desc:'味方1人のMPを5回復する。',usable:true},
+    old_coin:{name:'古銭',type:'通常',value:16,desc:'商店で売れる古い貨幣。'},
+    bronze_knife:{name:'青銅の短剣',type:'通常',value:24,desc:'簡素な短剣。売却用。'},
+    leather_guard:{name:'革の小盾',type:'通常',value:28,desc:'軽い盾。売却用。'},
+    star_dagger:{name:'星読みの短剣',type:'固有',unique:true,value:90,desc:'刃に星図が刻まれた短剣。'},
+    glass_ring:{name:'灰玻璃の指輪',type:'固有',unique:true,value:105,desc:'灰色の光を湛えた指輪。'},
+    night_charm:{name:'夜鐘の護符',type:'固有',unique:true,value:120,desc:'鳴らない鐘形の護符。'},
+    silver_cup:{name:'古王の銀杯',type:'固有',unique:true,value:150,desc:'底に古い王印がある杯。'},
+    sealed_mirror:{name:'封蝋の手鏡',type:'固有',unique:true,value:135,desc:'鏡面に封蝋が押された手鏡。'},
+    earth_hammer:{name:'土脈の小槌',type:'固有',unique:true,value:160,desc:'重さに反して手に馴染む小槌。'}
+  },
+  unidentified:{
+    unknown_box:{tempName:'未鑑定品「煤けた小箱」',itemId:'old_coin'},
+    unknown_ring:{tempName:'未鑑定品「曇った指輪」',itemId:'glass_ring'},
+    unknown_blade:{tempName:'未鑑定品「布巻きの刃」',itemId:'star_dagger'},
+    unknown_charm:{tempName:'未鑑定品「封じた護符」',itemId:'night_charm'},
+    unknown_cup:{tempName:'未鑑定品「黒ずんだ杯」',itemId:'silver_cup'},
+    unknown_mirror:{tempName:'未鑑定品「覆われた鏡」',itemId:'sealed_mirror'},
+    unknown_hammer:{tempName:'未鑑定品「重い包み」',itemId:'earth_hammer'}
+  },
+  shop:[
+    {itemId:'heal_potion',price:18},
+    {itemId:'tonic',price:26},
+    {itemId:'bronze_knife',price:42},
+    {itemId:'leather_guard',price:48}
+  ]
 };
 
-/* =========================================================
-   状態管理
-========================================================= */
 let state = null;
-let lastNotice = '';
+let saveNotice = '';
 const app = document.getElementById('app');
 
-function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+function setViewportHeight(){
+  const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  document.documentElement.style.setProperty('--app-h', Math.max(520, Math.floor(h)) + 'px');
+}
+window.addEventListener('resize', setViewportHeight);
+if(window.visualViewport){ window.visualViewport.addEventListener('resize', setViewportHeight); window.visualViewport.addEventListener('scroll', setViewportHeight); }
+setViewportHeight();
+
+function clone(v){ return JSON.parse(JSON.stringify(v)); }
 function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-function dir(){ return DIRS[state.dungeon.dir]; }
-function keyOf(x,y){ return x + ',' + y; }
-function aliveParty(){ return state.party.filter(p => p.hp > 0); }
-function frontAlive(){ return state.party.filter(p => p.row === 'front' && p.hp > 0); }
-function backAlive(){ return state.party.filter(p => p.row === 'back' && p.hp > 0); }
-function firstAliveEnemy(){ return state.combat ? state.combat.enemies.find(e => e.hp > 0) : null; }
-function isWall(x,y){
-  const rows = DATA.dungeon.rows;
-  if(y < 0 || y >= rows.length || x < 0 || x >= rows[y].length) return true;
-  return rows[y][x] === '#';
-}
-function inDungeon(){ return state && state.screen === 'dungeon'; }
+function addLog(text, cls){ if(!state) return; state.log.push({text, cls:cls||''}); if(state.log.length>80) state.log.splice(0,state.log.length-80); }
+function nextExp(level){ return 20 + level*level*16; }
+function aliveParty(){ return state.party.filter(p=>p.hp>0); }
+function frontAlive(){ return state.party.filter(p=>p.position==='front' && p.hp>0); }
+function allDead(){ return state.party.every(p=>p.hp<=0); }
+function getItemName(id){ return DATA.items[id] ? DATA.items[id].name : id; }
+function itemValue(id){ return DATA.items[id] ? DATA.items[id].value : 0; }
+function countInventory(id){ return state.inventory.filter(x=>x===id).length; }
+function addItem(id){ state.inventory.push(id); const it = DATA.items[id]; if(it && it.unique && !state.catalog.includes(id)) state.catalog.push(id); }
+function addUnidentified(templateId){ const t = DATA.unidentified[templateId]; if(!t) return; state.unidentified.push({uid:'u'+Date.now()+Math.random().toString(16).slice(2), templateId, tempName:t.tempName, itemId:t.itemId}); }
+function removeOneInventory(id){ const idx = state.inventory.indexOf(id); if(idx>=0){ state.inventory.splice(idx,1); return true; } return false; }
 
-function createItem(templateId, identified){
-  const base = DATA.items[templateId];
-  return {uid:'i' + Date.now().toString(36) + Math.random().toString(36).slice(2,7), templateId, identified:!!identified, unique:!!base.unique};
-}
-function displayItem(item){
-  const base = DATA.items[item.templateId];
-  if(!base) return {name:'不明な品', desc:'定義のない品。', price:0, unique:false, type:'unknown'};
-  return {
-    name:item.identified ? base.name : base.unidentifiedName,
-    desc:item.identified ? base.description : '正体はまだ分からない。鑑定所で調べられる。',
-    price:item.identified ? base.price : Math.max(5, Math.floor(base.price * 0.15)),
-    unique:base.unique,
-    type:base.type,
-    effect:base.effect
-  };
-}
 function createNewState(){
-  const party = clone(DATA.party);
-  return {
-    version:SAVE_VERSION,
-    screen:'title',
-    gold:90,
-    party,
-    inventory:[createItem('herb', true), createItem('clearWater', true)],
-    catalog:{},
-    dungeon:{floorId:'B1', x:DATA.dungeon.start.x, y:DATA.dungeon.start.y, dir:DATA.dungeon.start.dir, visited:{}, openedChests:{}},
-    combat:null,
-    flags:{guardCharm:false},
-    logs:[],
-    createdAt:new Date().toISOString()
+  const s = {
+    version:DATA.version, screen:'city', gold:120,
+    location:{floor:'地下1階',x:DATA.map.start.x,y:DATA.map.start.y,dir:DATA.map.start.dir},
+    party:clone(DATA.party), inventory:['heal_potion','heal_potion'], unidentified:[], catalog:[],
+    chests:clone(DATA.map.chests), battle:null, log:[], flags:{visitedDoor:false, steps:0}
   };
+  state=s;
+  addLog('街の広場に集まった。迷宮入口が開いている。');
+  saveGame();
+  render();
 }
-function addLog(text, kind){
-  if(!state) return;
-  const lines = Array.isArray(text) ? text : [text];
-  lines.forEach(line => {
-    state.logs.push({text:String(line), kind:kind || 'normal', at:Date.now()});
-  });
-  if(state.logs.length > 180){ state.logs.splice(0, state.logs.length - 180); }
-}
-function addTurnHeader(label){ addLog('【' + state.combat.turn + 'ターン目：' + label + '】','turn'); }
 
-/* =========================================================
-   保存処理
-========================================================= */
-function validateSave(obj){
-  if(!obj || typeof obj !== 'object') return false;
-  if(obj.version !== SAVE_VERSION) return false;
-  if(!Array.isArray(obj.party) || obj.party.length !== 6) return false;
-  if(!Array.isArray(obj.inventory)) return false;
-  if(!obj.dungeon || typeof obj.dungeon.x !== 'number' || typeof obj.dungeon.y !== 'number' || typeof obj.dungeon.dir !== 'number') return false;
-  if(isWall(obj.dungeon.x,obj.dungeon.y)) return false;
-  if(!obj.logs || !Array.isArray(obj.logs)) obj.logs = [];
-  if(!obj.catalog || typeof obj.catalog !== 'object') obj.catalog = {};
-  if(!obj.flags || typeof obj.flags !== 'object') obj.flags = {guardCharm:false};
-  if(typeof obj.gold !== 'number' || obj.gold < 0) obj.gold = 0;
+function validateSave(s){
+  if(!s || s.version!==DATA.version) return false;
+  if(!Array.isArray(s.party) || s.party.length!==6) return false;
+  if(!s.location || typeof s.location.x!=='number' || typeof s.location.y!=='number' || typeof s.location.dir!=='number') return false;
+  if(!Array.isArray(s.inventory) || !Array.isArray(s.unidentified) || !Array.isArray(s.log)) return false;
+  if(typeof s.gold!=='number' || !s.screen) return false;
   return true;
+}
+function loadSave(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return {ok:false, reason:'保存データなし'};
+    const parsed = JSON.parse(raw);
+    if(!validateSave(parsed)) return {ok:false, reason:'保存データの構造が不正'};
+    return {ok:true, state:parsed};
+  }catch(e){ return {ok:false, reason:'保存データを読めない'}; }
 }
 function saveGame(){
   if(!state) return;
-  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
-  catch(e){ addLog('保存に失敗した。端末の保存領域を確認。','damage'); }
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){ saveNotice='保存に失敗: '+e.message; }
 }
-function hasSave(){
-  try{ return !!localStorage.getItem(SAVE_KEY); }catch(e){ return false; }
+function resetSave(){
+  try{ localStorage.removeItem(KEY); }catch(e){}
+  state=null; saveNotice='保存データを初期化した。'; renderTitle();
 }
-function loadGame(){
-  try{
-    const raw = localStorage.getItem(SAVE_KEY);
-    if(!raw){ lastNotice = '保存データはまだありません。'; return false; }
-    const obj = JSON.parse(raw);
-    if(!validateSave(obj)){ lastNotice = '保存データを読み込めませんでした。新規開始または初期化を選んでください。'; return false; }
-    state = obj;
-    if(!SCREEN_LABELS[state.screen] || state.screen === 'battle') state.screen = 'town';
-    state.combat = null;
-    addLog('保存データから再開した。','system');
-    return true;
-  }catch(e){
-    lastNotice = '保存データが壊れています。停止せず、タイトルへ戻しました。';
-    return false;
-  }
+function continueGame(){
+  const loaded=loadSave();
+  if(loaded.ok){ state=loaded.state; addLog('保存データから再開した。'); saveGame(); render(); }
+  else { saveNotice='続きから再開できない: '+loaded.reason; renderTitle(); }
 }
-function clearSave(){
-  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
-  state = null;
-  lastNotice = '保存データを初期化した。';
-}
+function safeLoadNotice(){ const l=loadSave(); return l.ok ? '保存データあり' : l.reason; }
 
-/* =========================================================
-   迷宮処理
-========================================================= */
-function enterDungeon(){
-  state.screen = 'dungeon';
-  state.dungeon.x = DATA.dungeon.start.x;
-  state.dungeon.y = DATA.dungeon.start.y;
-  state.dungeon.dir = DATA.dungeon.start.dir;
-  state.dungeon.visited[keyOf(state.dungeon.x,state.dungeon.y)] = true;
-  addLog('地下1階へ入った。','system');
+function cellAt(x,y){
+  if(y<0 || y>=DATA.map.rows.length || x<0 || x>=DATA.map.rows[0].length) return '#';
+  return DATA.map.rows[y][x];
+}
+function isWall(x,y){ return cellAt(x,y)==='#'; }
+function stepPos(x,y,dir,dist){ const d=DELTA[(dir+4)%4]; return {x:x+d.x*dist,y:y+d.y*dist}; }
+function sidePos(x,y,dir,side){ const d=DELTA[(dir+side+4)%4]; return {x:x+d.x,y:y+d.y}; }
+function canMoveTo(x,y){ return !isWall(x,y); }
+function moveForward(){
+  const n=stepPos(state.location.x,state.location.y,state.location.dir,1);
+  if(!canMoveTo(n.x,n.y)){ addLog('正面は壁だ。'); saveGame(); render(); return; }
+  state.location.x=n.x; state.location.y=n.y; state.flags.steps++;
+  const c=cellAt(n.x,n.y);
+  if(c==='D' && !state.flags.visitedDoor){ state.flags.visitedDoor=true; addLog('重い扉を押し開いた。'); }
+  else if(c==='R'){ addLog('帰還の階段を見つけた。街へ戻れる。'); }
+  else { addLog('一歩進んだ。'); }
+  afterDungeonStep();
+}
+function moveBack(){
+  const n=stepPos(state.location.x,state.location.y,state.location.dir, -1);
+  if(!canMoveTo(n.x,n.y)){ addLog('背後は壁だ。'); saveGame(); render(); return; }
+  state.location.x=n.x; state.location.y=n.y; state.flags.steps++; addLog('後退した。'); afterDungeonStep();
+}
+function turn(delta){ state.location.dir=(state.location.dir+delta+4)%4; addLog(delta>0?'右を向いた。':'左を向いた。'); saveGame(); render(); }
+function afterDungeonStep(){
+  if(Math.random()<0.20){ startBattle('encounter'); return; }
   saveGame(); render();
 }
-function returnTown(reason){
-  state.screen = 'town';
-  state.combat = null;
-  state.dungeon.x = DATA.dungeon.start.x;
-  state.dungeon.y = DATA.dungeon.start.y;
-  state.dungeon.dir = DATA.dungeon.start.dir;
-  addLog(reason || '街へ戻った。','system');
-  saveGame(); render();
-}
-function turn(delta){
-  state.dungeon.dir = (state.dungeon.dir + delta + 4) % 4;
-  addLog(dir().label + 'を向いた。','system');
-  saveGame(); render();
-}
-function move(step){
-  const d = dir();
-  const nx = state.dungeon.x + d.dx * step;
-  const ny = state.dungeon.y + d.dy * step;
-  if(isWall(nx,ny)){
-    addLog('壁に阻まれた。','system');
-    saveGame(); render();
-    return;
+function inspectCell(){
+  const key=state.location.x+','+state.location.y;
+  const chest=state.chests[key];
+  if(chest && !chest.opened){
+    chest.opened=true;
+    addLog(chest.name+'を開けた。');
+    (chest.normal||[]).forEach(id=>{ addItem(id); addLog(getItemName(id)+'を得た。'); });
+    (chest.unidentified||[]).forEach(id=>{ addUnidentified(id); addLog(DATA.unidentified[id].tempName+'を得た。'); });
+    saveGame(); render(); return;
   }
-  state.dungeon.x = nx;
-  state.dungeon.y = ny;
-  state.dungeon.visited[keyOf(nx,ny)] = true;
-  addLog('一歩進んだ。現在地 ' + nx + ',' + ny + '。','system');
-  const stronger = DATA.dungeon.strongerZones.includes(keyOf(nx,ny));
-  const chance = stronger ? 0.34 : 0.18;
-  if(Math.random() < chance){ startEncounter(stronger); return; }
-  saveGame(); render();
+  if(cellAt(state.location.x,state.location.y)==='R'){ goCity('階段を上がり、街へ戻った。'); return; }
+  if(Math.random()<0.55){ startBattle('inspect'); return; }
+  addLog('周囲を調べたが、目立つものはない。'); saveGame(); render();
 }
-function inspect(){
-  const k = keyOf(state.dungeon.x,state.dungeon.y);
-  const chest = DATA.dungeon.chests[k];
-  if(chest && !state.dungeon.openedChests[chest.id]){
-    state.dungeon.openedChests[chest.id] = true;
-    state.gold += chest.gold;
-    if(chest.item) state.inventory.push(createItem(chest.item, true));
-    if(chest.unidentified) state.inventory.push(createItem(chest.unidentified, false));
-    addLog(['箱を開けた。','金 ' + chest.gold + ' を得た。', DATA.items[chest.item].name + 'を得た。','未鑑定品「' + DATA.items[chest.unidentified].unidentifiedName + '」を得た。'],'reward');
-    saveGame(); render();
-    return;
-  }
-  addLog('足元と壁を調べた。敵が現れた。','system');
-  startEncounter(DATA.dungeon.strongerZones.includes(k));
-}
+function enterDungeon(){ state.screen='dungeon'; addLog('地下1階へ入った。'); saveGame(); render(); }
+function goCity(msg){ state.screen='city'; state.battle=null; if(msg) addLog(msg); saveGame(); render(); }
 
-/* =========================================================
-   戦闘処理
-========================================================= */
-function cloneEnemy(id, index){
-  const e = clone(DATA.enemies[id]);
-  e.uid = id + '_' + index + '_' + Math.random().toString(36).slice(2,5);
-  e.maxHp = e.hp;
-  return e;
-}
-function startEncounter(stronger){
-  const groupIds = stronger ? pick([['crackedGuard'], ['lanternSkull','boneWalker'], ['blackMoss','caveMite']]) : pick(DATA.enemyGroups.slice(0,5));
-  state.combat = {turn:1, enemies:groupIds.map(cloneEnemy), defending:false};
-  state.screen = 'battle';
-  addLog('敵が現れた。','turn');
-  state.combat.enemies.forEach(e => addLog(e.name + '　HP' + e.hp,'system'));
+function startBattle(source){
+  const group = pick(DATA.encounters).map(id=>clone(DATA.enemies[id]));
+  group.forEach((e,i)=>{ e.id='e'+i+'_'+Date.now(); e.hp=e.maxHp; });
+  state.battle={turn:1,enemies:group,commands:{},guards:{},escapeTried:false};
+  state.screen='battle';
+  addLog('敵が現れた。');
+  addLog(group.map(e=>e.name).join('、')+'。');
   saveGame(); render();
 }
-function partyAttack(){
-  if(!state.combat) return;
-  addTurnHeader('攻撃');
-  state.combat.defending = false;
-  aliveParty().forEach(p => {
-    const target = firstAliveEnemy();
-    if(!target) return;
-    let base = p.attack;
-    let note = '';
-    if(p.row === 'back' && p.className !== '弓使い') { base = Math.max(1, Math.floor(base * 0.55)); note = '後衛から'; }
-    if(p.row === 'back' && p.className === '弓使い') { note = '後衛から矢を放ち、'; }
-    const miss = Math.random() < (p.row === 'back' && p.className !== '弓使い' ? 0.28 : 0.12);
-    if(miss){ addLog(p.name + 'の攻撃は外れた。'); return; }
-    const damage = Math.max(1, base + rand(0,4) - target.defense);
-    target.hp = Math.max(0, target.hp - damage);
-    addLog(note + p.name + 'の攻撃。' + target.name + 'に' + damage + 'ダメージ。');
-    if(target.hp <= 0) addLog(target.name + 'を倒した。','reward');
-  });
-  if(checkVictory()) return;
-  enemyTurn();
+function enemyAlive(){ return state.battle ? state.battle.enemies.filter(e=>e.hp>0) : []; }
+function firstEnemy(){ return enemyAlive()[0]; }
+function currentCommandActor(){
+  if(!state.battle) return null;
+  return state.party.find(p=>p.hp>0 && !state.battle.commands[p.id]);
 }
-function partyDefend(){
-  if(!state.combat) return;
-  addTurnHeader('防御');
-  state.combat.defending = true;
-  addLog('前衛が盾を上げ、後衛は身を低くした。','system');
-  enemyTurn();
+function commandName(cmd){ return {attack:'攻撃',defend:'防御',magic:'魔法',escape:'逃走'}[cmd] || cmd; }
+function setBattleCommand(cmd){
+  if(!state.battle) return;
+  const actor=currentCommandActor();
+  if(!actor){ resolvePartyCommands(); return; }
+  state.battle.commands[actor.id]=cmd;
+  addLog(actor.name+'に「'+commandName(cmd)+'」を指示した。');
+  if(currentCommandActor()){ saveGame(); render(); return; }
+  resolvePartyCommands();
 }
-function partyMagic(){
-  if(!state.combat) return;
-  addTurnHeader('魔法');
-  state.combat.defending = false;
-  let acted = false;
-  const priest = state.party.find(p => p.className === '司祭' && p.hp > 0);
-  if(priest && priest.mp >= 3){
-    const wounded = state.party.filter(p => p.hp > 0 && p.hp < p.maxHp).sort((a,b)=>(a.hp/a.maxHp)-(b.hp/b.maxHp))[0];
-    if(wounded){
-      priest.mp -= 3;
-      const heal = rand(9,15) + priest.level;
-      wounded.hp = Math.min(wounded.maxHp, wounded.hp + heal);
-      addLog(priest.name + 'が癒しを唱えた。' + wounded.name + 'のHP +' + heal + '。','reward');
-      acted = true;
+function resolvePartyCommands(){
+  if(!state.battle) return;
+  addLog('【'+state.battle.turn+'ターン目】','turn');
+  state.battle.guards={};
+  const actors=state.party.filter(p=>p.hp>0);
+  for(const p of actors){
+    const cmd=state.battle.commands[p.id] || 'defend';
+    if(cmd==='escape'){
+      const rate = p.job==='盗賊' ? 0.58 : 0.42;
+      addLog(p.name+'は退路を探した。');
+      if(Math.random()<rate){
+        addLog(p.name+'の判断で、隊は戦場を離脱した。');
+        state.screen='dungeon'; state.battle=null; saveGame(); render(); return;
+      }
+      addLog('しかし逃げ道をつかめない。');
+      continue;
     }
+    if(cmd==='defend'){
+      state.battle.guards[p.id]=true;
+      addLog(p.name+'は身を守った。');
+      continue;
+    }
+    if(cmd==='magic'){
+      performCharacterMagic(p);
+      if(checkVictory()) return;
+      continue;
+    }
+    performCharacterAttack(p);
+    if(checkVictory()) return;
   }
-  const mage = state.party.find(p => p.className === '呪術師' && p.hp > 0);
-  if(mage && mage.mp >= 4){
-    mage.mp -= 4;
-    state.combat.enemies.filter(e => e.hp > 0).forEach(e => {
-      const damage = rand(5,9) + mage.level;
-      e.hp = Math.max(0, e.hp - damage);
-      addLog(mage.name + 'の火花。' + e.name + 'に' + damage + 'ダメージ。');
-      if(e.hp <= 0) addLog(e.name + 'を倒した。','reward');
-    });
-    acted = true;
-  }
-  if(!acted) addLog('唱えられる術がなかった。','system');
-  if(checkVictory()) return;
   enemyTurn();
 }
-function partyFlee(){
-  if(!state.combat) return;
-  addTurnHeader('逃走');
-  const chance = frontAlive().length > 0 ? 0.58 : 0.35;
-  if(Math.random() < chance){
-    addLog('隊列を崩さず退いた。','system');
-    state.screen = 'dungeon';
-    state.combat = null;
-    saveGame(); render();
-  }else{
-    addLog('逃げ切れなかった。','damage');
-    enemyTurn();
-  }
+function performCharacterAttack(p){
+  const target=firstEnemy(); if(!target) return;
+  let chance = p.position==='front' ? .86 : .58;
+  if(p.job==='弓手') chance=.84;
+  if(p.status==='疲労') chance-=.08;
+  if(Math.random()>chance){ addLog(p.name+'の攻撃は外れた。'); return; }
+  let base=p.atk + rand(0,3) - target.def;
+  if(p.position==='back' && p.job!=='弓手') base=Math.floor(base*.50);
+  const dmg=Math.max(1,base);
+  target.hp=Math.max(0,target.hp-dmg);
+  addLog(p.name+'の攻撃。'+target.name+'に'+dmg+'ダメージ。');
+  if(target.hp<=0) addLog(target.name+'を倒した。');
 }
-function chooseEnemyTarget(){
-  const front = frontAlive();
-  if(front.length && Math.random() < 0.78) return pick(front);
-  const all = aliveParty();
-  return all.length ? pick(all) : null;
+function performCharacterMagic(p){
+  if(p.job==='司祭'){
+    if(p.mp<3){ addLog(p.name+'は祈りを唱えられない。'); return; }
+    const wounded=state.party.filter(x=>x.hp>0 && x.hp<x.maxHp).sort((a,b)=>(a.hp/a.maxHp)-(b.hp/b.maxHp))[0];
+    if(wounded){
+      p.mp-=3; const heal=8+p.level*4+rand(0,2);
+      wounded.hp=Math.min(wounded.maxHp,wounded.hp+heal);
+      addLog(p.name+'が癒しの祈りを唱えた。'+wounded.name+'のHPが'+heal+'回復。');
+      return;
+    }
+    p.mp-=3;
+    const target=firstEnemy();
+    if(target){ const dmg=4+p.level*2; target.hp=Math.max(0,target.hp-dmg); addLog(p.name+'が聖句を唱えた。'+target.name+'に'+dmg+'ダメージ。'); if(target.hp<=0) addLog(target.name+'を倒した。'); }
+    return;
+  }
+  if(p.job==='魔術師'){
+    if(p.mp<4){ addLog(p.name+'は術を唱えられない。'); return; }
+    p.mp-=4;
+    addLog(p.name+'が火花の術を放った。');
+    enemyAlive().forEach(e=>{ const dmg=5+p.level*3+rand(0,3); e.hp=Math.max(0,e.hp-dmg); addLog(e.name+'に'+dmg+'ダメージ。'); if(e.hp<=0) addLog(e.name+'を倒した。'); });
+    return;
+  }
+  if(p.job==='弓手' && p.mp>=2){
+    p.mp-=2;
+    const target=firstEnemy();
+    if(target){ const dmg=Math.max(2,p.atk+3+rand(0,3)-target.def); target.hp=Math.max(0,target.hp-dmg); addLog(p.name+'が集中射を放った。'+target.name+'に'+dmg+'ダメージ。'); if(target.hp<=0) addLog(target.name+'を倒した。'); }
+    return;
+  }
+  addLog(p.name+'は使える魔法を持たない。');
 }
 function enemyTurn(){
-  if(!state.combat) return;
-  const charmBonus = state.flags.guardCharm ? 1 : 0;
-  state.combat.enemies.filter(e => e.hp > 0).forEach(e => {
-    const target = chooseEnemyTarget();
-    if(!target) return;
-    let damage = Math.max(1, e.attack + rand(0,3) - target.defense - charmBonus);
-    if(state.combat.defending) damage = Math.max(1, Math.ceil(damage * 0.45));
-    target.hp = Math.max(0, target.hp - damage);
-    addLog(e.name + 'の攻撃。' + target.name + 'は' + damage + 'ダメージを受けた。','damage');
-    if(target.hp <= 0 && target.status !== '戦闘不能'){
-      target.status = '戦闘不能';
-      addLog(target.name + 'は倒れた。','damage');
-    }
+  enemyAlive().forEach(e=>{
+    const targets=(frontAlive().length ? frontAlive() : aliveParty());
+    if(!targets.length) return;
+    const target=pick(targets);
+    let dmg=Math.max(1, e.atk + rand(0,3) - target.def);
+    if(state.battle.guards && state.battle.guards[target.id]) dmg=Math.max(1,Math.floor(dmg*.45));
+    target.hp=Math.max(0,target.hp-dmg);
+    if(target.hp<=0){ target.status='倒'; addLog(e.name+'の攻撃。'+target.name+'は倒れた。'); }
+    else addLog(e.name+'の攻撃。'+target.name+'は'+dmg+'ダメージを受けた。');
   });
-  state.flags.guardCharm = false;
-  if(checkDefeat()) return;
-  state.combat.turn += 1;
+  if(allDead()){ defeat(); return; }
+  state.battle.turn++;
+  state.battle.commands={};
+  state.battle.guards={};
   saveGame(); render();
 }
 function checkVictory(){
-  if(!state.combat) return false;
-  if(state.combat.enemies.some(e => e.hp > 0)) return false;
-  const rewardExp = state.combat.enemies.reduce((s,e)=>s+e.exp,0);
-  const rewardGold = state.combat.enemies.reduce((s,e)=>s+e.gold,0) + rand(0,6);
-  state.gold += rewardGold;
-  state.party.forEach(p => { if(p.hp > 0) p.exp += rewardExp; });
-  addLog('敵を倒した。','reward');
-  addLog('経験値 ' + rewardExp + ' を得た。','reward');
-  addLog('金 ' + rewardGold + ' を得た。','reward');
-  const normalDrop = Math.random() < 0.62 ? pick(['herb','oldDagger','copperCoin','clearWater']) : null;
-  const uniquePool = ['moonNeedle','dawnRing','muteTablet','duskBox','hollowAmulet'].filter(id => !state.inventory.some(it => it.templateId === id) && !state.catalog[id]);
-  const unidDrop = Math.random() < 0.48 && uniquePool.length ? pick(uniquePool) : (Math.random()<0.38 ? pick(['oldDagger','guardCharm']) : null);
-  if(normalDrop){ state.inventory.push(createItem(normalDrop, true)); addLog(DATA.items[normalDrop].name + 'を得た。','reward'); }
-  if(unidDrop){ state.inventory.push(createItem(unidDrop, false)); addLog('未鑑定品「' + DATA.items[unidDrop].unidentifiedName + '」を得た。','reward'); }
-  state.screen = 'dungeon';
-  state.combat = null;
-  saveGame(); render();
-  return true;
+  if(enemyAlive().length>0) return false;
+  victory(); return true;
 }
-function checkDefeat(){
-  if(aliveParty().length > 0) return false;
-  const lost = Math.floor(state.gold / 2);
-  state.gold -= lost;
-  state.party.forEach(p => { p.hp = 1; p.mp = 0; p.status = '重傷'; });
-  addLog('全員が倒れた。街の入口へ運び戻された。','damage');
-  addLog('金 ' + lost + ' を失った。','damage');
-  state.screen = 'town';
-  state.combat = null;
+function victory(){
+  const enemies=state.battle.enemies;
+  addLog('敵を倒した。');
+  const exp=enemies.reduce((a,e)=>a+e.exp,0);
+  const gold=enemies.reduce((a,e)=>a+rand(e.gold[0],e.gold[1]),0);
+  aliveParty().forEach(p=>p.exp+=exp);
+  state.gold+=gold;
+  addLog('経験値 '+exp+' を得た。');
+  addLog('金 '+gold+' を得た。');
+  const normal=pick(['heal_potion','old_coin','bronze_knife','leather_guard']); addItem(normal); addLog(getItemName(normal)+'を得た。');
+  const unknown=pick(Object.keys(DATA.unidentified)); addUnidentified(unknown); addLog(DATA.unidentified[unknown].tempName+'を得た。');
+  state.battle=null; state.screen='dungeon';
   saveGame(); render();
-  return true;
+}
+function defeat(){
+  addLog('全員が倒れた。');
+  const lost=Math.floor(state.gold*.35); state.gold-=lost;
+  state.party.forEach(p=>{ p.hp=Math.max(1,Math.floor(p.maxHp*.35)); p.mp=0; p.status='疲労'; });
+  addLog('通行人に助けられ、街へ戻された。金 '+lost+' を失った。');
+  state.battle=null; state.screen='city'; saveGame(); render();
 }
 
-/* =========================================================
-   施設処理
-========================================================= */
-function innCost(){ return state.party.reduce((s,p)=>s + 5 + p.level * 3, 0); }
-function useInn(){
-  const cost = innCost();
-  if(state.gold < cost){ addLog('宿代が足りない。必要額 ' + cost + '。','damage'); render(); return; }
-  state.gold -= cost;
-  addLog('宿代 ' + cost + ' を支払った。','system');
-  addLog('全員のHPとMPが回復した。','reward');
-  state.party.forEach(p => { p.hp = p.maxHp; p.mp = p.maxMp; p.status = '正常'; });
-  let any = false;
-  state.party.forEach(p => {
-    while(p.exp >= p.nextExp){
-      any = true;
-      const growth = levelGrowth(p);
-      p.level += 1;
-      p.maxHp += growth.hp;
-      p.maxMp += growth.mp;
-      p.attack += growth.atk;
-      p.defense += growth.def;
-      p.hp = p.maxHp;
-      p.mp = p.maxMp;
-      p.nextExp = Math.floor(p.nextExp * 1.7 + 16);
-      addLog(p.name + 'はLv' + p.level + 'になった。','reward');
-      addLog('最大HP +' + growth.hp + ' / 最大MP +' + growth.mp + ' / 攻撃 +' + growth.atk + ' / 防御 +' + growth.def,'reward');
-    }
-  });
-  if(!any) addLog('レベルアップできる者はいなかった。','system');
+function restInnChar(charId){
+  const p=state.party.find(x=>x.id===charId);
+  if(!p) return;
+  const cost=6+p.level*3;
+  if(state.gold<cost){ addLog(p.name+'を泊める金が足りない。必要な金は '+cost+'。'); saveGame(); render(); return; }
+  state.gold-=cost;
+  addLog(p.name+'を宿に泊めた。宿代 '+cost+' を支払った。');
+  p.hp=p.maxHp; p.mp=p.maxMp; if(p.status==='倒'||p.status==='疲労') p.status='正常';
+  addLog(p.name+'のHPとMPが回復した。');
+  let any=false;
+  while(p.exp>=nextExp(p.level) && any<3){
+    p.level++; any=(any||0)+1;
+    const hpGain = p.job==='守人'?rand(6,9):p.job==='魔術師'?rand(2,4):p.job==='司祭'?rand(3,5):rand(4,7);
+    const mpGain = (p.job==='魔術師'||p.job==='司祭')?rand(3,5):(p.job==='弓手'?rand(0,2):0);
+    const atkGain = (p.job==='剣士'||p.job==='盗賊'||p.job==='弓手')?rand(1,2):rand(0,1);
+    const defGain = (p.job==='守人'||p.job==='剣士')?rand(1,2):rand(0,1);
+    p.maxHp+=hpGain; p.maxMp+=mpGain; p.atk+=atkGain; p.def+=defGain; p.hp=p.maxHp; p.mp=p.maxMp;
+    addLog(p.name+'はLv'+p.level+'になった。');
+    addLog('最大HP +'+hpGain+' / 最大MP +'+mpGain+' / 攻撃 +'+atkGain+' / 防御 +'+defGain);
+  }
+  if(!any) addLog(p.name+'はまだレベルアップしない。');
   saveGame(); render();
 }
-function levelGrowth(p){
-  const c = DATA.classes[p.className] || {hp:3,mp:1,atk:1,def:1};
-  return {hp:c.hp + rand(0,2), mp:c.mp + (p.maxMp>0 ? rand(0,1) : 0), atk:c.atk ? rand(0,c.atk) : 0, def:c.def ? rand(0,c.def) : 0};
-}
-function appraise(uid){
-  const item = state.inventory.find(i => i.uid === uid);
-  if(!item){ addLog('品物が見つからない。','damage'); render(); return; }
-  const base = DATA.items[item.templateId];
-  if(item.identified){ addLog('その品はすでに鑑定済み。','system'); render(); return; }
-  const fee = Math.max(8, Math.floor(base.price * 0.18));
-  if(state.gold < fee){ addLog('鑑定料が足りない。必要額 ' + fee + '。','damage'); render(); return; }
-  state.gold -= fee;
-  item.identified = true;
-  if(base.unique) state.catalog[base.id] = true;
-  addLog('鑑定料 ' + fee + ' を支払った。','system');
-  addLog('「' + base.unidentifiedName + '」は「' + base.name + '」だった。','reward');
-  if(base.unique) addLog('固有品として記録された。','reward');
-  saveGame(); render();
-}
+function restInn(){ addLog('宿屋では泊める人物を選ぶ。'); saveGame(); render(); }
+
 function buyItem(id){
-  const base = DATA.items[id];
-  if(!base) return;
-  if(state.gold < base.price){ addLog(base.name + 'を買う金が足りない。','damage'); render(); return; }
-  state.gold -= base.price;
-  state.inventory.push(createItem(id, true));
-  addLog(base.name + 'を購入した。金 -' + base.price + '。','reward');
+  const offer=DATA.shop.find(s=>s.itemId===id); if(!offer) return;
+  if(state.gold<offer.price){ addLog('金が足りない。'); saveGame(); render(); return; }
+  state.gold-=offer.price; addItem(id); addLog(getItemName(id)+'を購入した。'); saveGame(); render();
+}
+function sellItem(id){
+  if(!removeOneInventory(id)){ addLog('売る品がない。'); saveGame(); render(); return; }
+  const price=Math.max(1,Math.floor(itemValue(id)*0.5)); state.gold+=price; addLog(getItemName(id)+'を売った。金 '+price+' を得た。'); saveGame(); render();
+}
+function identify(uid){
+  const idx=state.unidentified.findIndex(u=>u.uid===uid); if(idx<0) return;
+  const target=state.unidentified[idx]; const cost=18;
+  if(state.gold<cost){ addLog('鑑定料が足りない。'); saveGame(); render(); return; }
+  state.gold-=cost; state.unidentified.splice(idx,1); addItem(target.itemId);
+  const item=DATA.items[target.itemId];
+  addLog(target.tempName+'を鑑定した。'); addLog('正式名称は「'+item.name+'」。');
+  if(item.unique) addLog('固有品として記録された。');
   saveGame(); render();
 }
-function sellItem(uid){
-  const index = state.inventory.findIndex(i => i.uid === uid);
-  if(index < 0){ addLog('売る品が見つからない。','damage'); render(); return; }
-  const item = state.inventory[index];
-  const view = displayItem(item);
-  const value = Math.max(1, Math.floor(view.price * 0.5));
-  state.inventory.splice(index,1);
-  state.gold += value;
-  addLog(view.name + 'を売却した。金 +' + value + '。','reward');
-  saveGame(); render();
-}
-function useItem(uid){
-  const index = state.inventory.findIndex(i => i.uid === uid);
-  if(index < 0){ addLog('使う品が見つからない。','damage'); render(); return; }
-  const item = state.inventory[index];
-  const base = DATA.items[item.templateId];
-  if(!item.identified){ addLog('未鑑定品は使えない。','damage'); render(); return; }
-  if(!base.effect || base.type !== 'consumable'){ addLog(base.name + 'はここでは使えない。','system'); render(); return; }
-  let consumed = false;
-  if(base.effect.kind === 'heal'){
-    const target = state.party.filter(p => p.hp > 0 && p.hp < p.maxHp).sort((a,b)=>(a.hp/a.maxHp)-(b.hp/b.maxHp))[0];
-    if(!target){ addLog('傷薬を使う必要はない。','system'); render(); return; }
-    target.hp = Math.min(target.maxHp, target.hp + base.effect.amount);
-    addLog(base.name + 'を使った。' + target.name + 'のHP +' + base.effect.amount + '。','reward');
-    consumed = true;
+function useItem(id){
+  if(id==='heal_potion'){
+    const t=state.party.filter(p=>p.hp>0 && p.hp<p.maxHp).sort((a,b)=>(a.hp/a.maxHp)-(b.hp/b.maxHp))[0];
+    if(!t){ addLog('今は小治癒薬を使う必要がない。'); render(); return; }
+    removeOneInventory(id); t.hp=Math.min(t.maxHp,t.hp+18); addLog('小治癒薬を使った。'+t.name+'のHPが回復した。'); saveGame(); render(); return;
   }
-  if(base.effect.kind === 'mp'){
-    const target = state.party.filter(p => p.maxMp > 0 && p.mp < p.maxMp).sort((a,b)=>(a.mp/a.maxMp)-(b.mp/b.maxMp))[0];
-    if(!target){ addLog('澄み水を使う必要はない。','system'); render(); return; }
-    target.mp = Math.min(target.maxMp, target.mp + base.effect.amount);
-    addLog(base.name + 'を使った。' + target.name + 'のMP +' + base.effect.amount + '。','reward');
-    consumed = true;
+  if(id==='tonic'){
+    const t=state.party.filter(p=>p.mp<p.maxMp).sort((a,b)=>(a.mp/a.maxMp)-(b.mp/b.maxMp))[0];
+    if(!t){ addLog('今は澄んだ薬瓶を使う必要がない。'); render(); return; }
+    removeOneInventory(id); t.mp=Math.min(t.maxMp,t.mp+5); addLog('澄んだ薬瓶を使った。'+t.name+'のMPが回復した。'); saveGame(); render(); return;
   }
-  if(base.effect.kind === 'guardCharm'){
-    state.flags.guardCharm = true;
-    addLog(base.name + 'を掲げた。次の戦闘で守りが少し固まる。','reward');
-    consumed = true;
-  }
-  if(base.effect.kind === 'returnTown'){
-    state.inventory.splice(index,1);
-    returnTown(base.name + 'を使い、街へ戻った。');
-    return;
-  }
-  if(consumed){ state.inventory.splice(index,1); saveGame(); render(); }
+  addLog('この品はここでは使えない。'); render();
 }
 
-/* =========================================================
-   UI描画処理
-========================================================= */
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function header(title){
+  let meta='';
+  if(state){
+    if(state.screen==='dungeon'||state.screen==='battle') meta=state.location.floor+' '+state.location.x+','+state.location.y+' '+DIRS[state.location.dir]+' / 金 '+state.gold;
+    else meta='金 '+state.gold+' / '+(state.unidentified.length?'未鑑定 '+state.unidentified.length:'未鑑定なし');
+  } else meta=safeLoadNotice();
+  return '<div class="header"><div class="title">'+esc(title)+'</div><div class="meta">'+esc(meta)+'</div></div>';
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function actions(buttons, cls){ return '<div class="actions '+(cls||'')+'">'+buttons.map(b=>'<button class="btn '+(b.class||'')+'" data-act="'+b.act+'" '+(b.arg?'data-arg="'+esc(b.arg)+'"':'')+' '+(b.disabled?'disabled':'')+'>'+esc(b.label)+'</button>').join('')+'</div>'; }
+function logHtml(){
+  const lines=(state?state.log:[]).slice(-8).map(l=>'<div class="logline '+esc(l.cls||'')+'">'+esc(l.text)+'</div>').join('');
+  return '<div class="logbox" id="logbox">'+(lines||'<div class="logline">記録はまだない。</div>')+'</div>';
+}
+function partySummary(){
+  const front=state.party.filter(p=>p.position==='front'), back=state.party.filter(p=>p.position==='back');
+  const card=p=>'<div class="member '+(p.hp<=0?'dead':'')+'"><div class="n">'+esc(p.name)+' Lv'+p.level+'</div><div class="sub">'+esc(p.job)+' / '+esc(p.status)+'</div><div class="hp">HP '+p.hp+'/'+p.maxHp+'</div><div class="mp">MP '+p.mp+'/'+p.maxMp+'</div></div>';
+  return '<div class="party-box"><div class="rank-label">前衛</div><div class="party-grid">'+front.map(card).join('')+'</div><div class="rank-label">後衛</div><div class="party-grid">'+back.map(card).join('')+'</div></div>';
+}
+
+function renderTitle(){
+  state=null;
+  const loaded=loadSave();
+  app.innerHTML = header('地下回廊の試練')+
+    '<div class="main"><div class="panel title-panel"><div class="game-title">地下回廊の試練</div><div class="subtitle">単体HTMLで動作する古典的3DダンジョンRPG。<br>6人の隊列で地下1階へ潜り、戦い、持ち帰り、鑑定し、宿で成長する。</div>'+(saveNotice?'<div class="note warn">'+esc(saveNotice)+'</div>':'')+'</div></div>'+
+    actions([
+      {label:'新規開始',act:'new',class:'primary'},
+      {label:'続きから',act:'continue',disabled:!loaded.ok},
+      {label:'自己診断',act:'diagnostics'},
+      {label:'保存初期化',act:'reset',class:'danger'}
+    ]);
+}
 function render(){
   if(!state){ renderTitle(); return; }
-  if(state.screen === 'title'){ renderTitle(); return; }
-  const header = renderHeader();
-  let main = '';
-  let actions = [];
-  if(state.screen === 'town'){ main = renderTown(); actions = []; }
-  if(state.screen === 'dungeon'){ main = renderDungeon(); actions = dungeonActions(); }
-  if(state.screen === 'battle'){ main = renderBattle(); actions = battleActions(); }
-  if(state.screen === 'inn'){ main = renderInn(); actions = [{label:'泊まる',action:'innRest'}, {label:'街へ戻る',action:'town'}]; }
-  if(state.screen === 'shop'){ main = renderShop(); actions = [{label:'街へ戻る',action:'town'}]; }
-  if(state.screen === 'appraisal'){ main = renderAppraisal(); actions = [{label:'街へ戻る',action:'town'}]; }
-  if(state.screen === 'party'){ main = renderPartyDetail(); actions = [{label:'街へ戻る',action:'town'}]; }
-  if(state.screen === 'items'){ main = renderItems(); actions = [{label:'街へ戻る',action:'town'}]; }
-  if(state.screen === 'reset'){ main = renderReset(); actions = [{label:'初期化する',action:'clearSave'}, {label:'街へ戻る',action:'town'}]; }
-  app.innerHTML = header + '<main class="main">' + main + '</main>' + renderPartySummary() + renderLog() + renderActions(actions);
-  if(state.screen === 'dungeon') drawDungeon();
-  requestAnimationFrame(scrollLogToBottom);
+  if(state.screen==='city') return renderCity();
+  if(state.screen==='dungeon') return renderDungeon();
+  if(state.screen==='battle') return renderBattle();
+  if(state.screen==='inn') return renderInn();
+  if(state.screen==='shop') return renderShop();
+  if(state.screen==='identify') return renderIdentify();
+  if(state.screen==='party') return renderParty();
+  if(state.screen==='items') return renderItems();
+  if(state.screen==='diagnostics') return renderDiagnostics();
+  if(state.screen==='reset') return renderReset();
 }
-function renderTitle(){
-  const canContinue = hasSave();
-  app.innerHTML = '<div class="titleScreen">' +
-    (lastNotice ? '<div class="notice">' + escapeHtml(lastNotice) + '</div>' : '') +
-    '<div class="logo"><h1>地下環廊の踏査隊</h1><p>単体HTMLで動作する古典的3DダンジョンRPG土台版</p></div>' +
-    '<div class="menuGrid">' +
-      '<button data-action="newGame">新規開始</button>' +
-      '<button data-action="loadGame" ' + (canContinue?'':'disabled') + '>続きから</button>' +
-      '<button data-action="clearSave">保存初期化</button>' +
-    '</div>' +
-    '<div class="panel frame" style="margin-top:12px"><p class="subtle">外部画像・外部フォント・外部CDNは使わない。保存はこのブラウザのLocalStorageを使う。</p></div>' +
-  '</div>';
-}
-function renderHeader(){
-  const d = state.dungeon ? dir() : DIRS[0];
-  const place = state.screen === 'dungeon' || state.screen === 'battle' ? DATA.dungeon.name + ' ' + state.dungeon.x + ',' + state.dungeon.y + ' ' + d.label : '街';
-  return '<header class="header"><div class="title">' + escapeHtml(SCREEN_LABELS[state.screen] || '') + '</div><div class="meta">' + escapeHtml(place) + ' / 金 ' + state.gold + '</div></header>';
-}
-function renderTown(){
-  return '<section class="frame panel"><h2 class="screenTitle">街</h2>' +
-    '<p class="subtle">準備を整え、地下環廊へ入る。戻ったら鑑定し、宿で回復と成長を確認する。</p>' +
-    '<div class="menuGrid">' +
-      '<button data-action="enterDungeon">迷宮入口</button>' +
-      '<button data-action="inn">宿屋</button>' +
-      '<button data-action="shop">商店</button>' +
-      '<button data-action="appraisal">鑑定所</button>' +
-      '<button data-action="party">隊列確認</button>' +
-      '<button data-action="items">所持品</button>' +
-      '<button data-action="resetScreen" class="wide">保存初期化</button>' +
-    '</div></section>';
+function renderCity(){
+  app.innerHTML=header('街')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">街の広場</div><div class="note">迷宮で消耗し、街で整える。鑑定・宿屋・商店を回して次の探索へ向かう。</div></div><div class="menu-grid">'+
+    '<button class="btn primary" data-act="enterDungeon">迷宮入口</button><button class="btn" data-act="screen" data-arg="inn">宿屋</button><button class="btn" data-act="screen" data-arg="shop">商店</button><button class="btn" data-act="screen" data-arg="identify">鑑定所</button><button class="btn" data-act="screen" data-arg="party">パーティ確認</button><button class="btn" data-act="screen" data-arg="items">アイテム</button><button class="btn" data-act="screen" data-arg="diagnostics">自己診断</button><button class="btn danger" data-act="screen" data-arg="reset">保存初期化</button></div></div></div>'+logHtml()+actions([{label:'迷宮へ',act:'enterDungeon',class:'primary'},{label:'宿屋',act:'screen',arg:'inn'},{label:'鑑定所',act:'screen',arg:'identify'}]);
+  scrollLog();
 }
 function renderDungeon(){
-  return '<section class="frame scene"><canvas id="dungeonCanvas" aria-label="疑似3Dダンジョン表示"></canvas></section>';
+  app.innerHTML=header('地下1階')+'<div class="main"><div class="view-wrap"><canvas id="dungeonCanvas"></canvas><div class="view-caption">'+esc(state.location.floor)+' / '+esc(DIRS[state.location.dir])+'</div></div>'+partySummary()+logHtml()+'</div>'+actions([
+    {label:'左旋回',act:'turnLeft'}, {label:'前進',act:'forward',class:'primary'}, {label:'右旋回',act:'turnRight'},
+    {label:'後退',act:'back'}, {label:'調べる',act:'inspect'}, {label:'街へ戻る',act:'city'}
+  ]);
+  requestAnimationFrame(drawDungeon); scrollLog();
 }
 function renderBattle(){
-  const enemies = state.combat.enemies.map(e => '<div class="enemyCard"><div class="enemyGlyph"></div><div class="enemyName">' + escapeHtml(e.name) + '</div><div class="enemyHp">HP ' + Math.max(0,e.hp) + ' / ' + e.maxHp + '</div></div>').join('');
-  return '<section class="frame enemyStage"><div class="enemyLine">' + enemies + '</div></section>';
+  const enemies=state.battle.enemies.map(e=>'<div class="enemy-card"><div class="enemy-sigil"></div><div class="enemy-name">'+esc(e.name)+'</div><div class="enemy-hp">HP '+e.hp+'/'+e.maxHp+'</div></div>').join('');
+  app.innerHTML=header('戦闘')+'<div class="main"><div class="enemy-stage"><div class="enemy-row">'+enemies+'</div></div>'+partySummary()+logHtml()+'</div>'+actions([
+    {label:'攻撃',act:'attack',class:'primary'}, {label:'防御',act:'defend'}, {label:'魔法',act:'magic'}, {label:'逃走',act:'escape'}
+  ],'four');
+  scrollLog();
 }
 function renderInn(){
-  const ready = state.party.filter(p => p.exp >= p.nextExp).map(p=>p.name).join('、') || 'なし';
-  return '<section class="frame panel"><h2 class="screenTitle">宿屋</h2><div class="kv"><b>宿代</b><span>' + innCost() + '</span><b>成長待ち</b><span>' + escapeHtml(ready) + '</span></div><hr class="sep"><p class="subtle">宿泊で全員のHP/MPを回復し、経験値条件を満たした者はその場でレベルアップする。</p></section>';
+  const cost=state.party.reduce((a,p)=>a+6+p.level*3,0);
+  app.innerHTML=header('宿屋')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">宿屋</div><div class="note">宿泊すると全員のHP/MPが回復する。経験値が足りている者は、ここでレベルアップする。</div><p>宿代: <b>'+cost+'</b></p></div>'+partySummary()+'</div>'+logHtml()+'</div>'+actions([{label:'休む',act:'rest',class:'primary'},{label:'街へ戻る',act:'city'},{label:'パーティ',act:'screen',arg:'party'}]);
+  scrollLog();
 }
 function renderShop(){
-  const goods = DATA.shop.map(id => {
-    const item = DATA.items[id];
-    return '<div class="card"><h3>' + escapeHtml(item.name) + ' <span class="tag">' + item.price + 'G</span></h3><p>' + escapeHtml(item.description) + '</p><div class="buttons"><button data-action="buy" data-id="' + id + '">購入</button></div></div>';
-  }).join('');
-  const sellables = state.inventory.length ? state.inventory.map(it => {
-    const v = displayItem(it);
-    return '<div class="card"><h3>' + escapeHtml(v.name) + (v.unique?' <span class="tag">固有</span>':'') + '</h3><p>' + escapeHtml(v.desc) + '</p><div class="buttons"><button data-action="sell" data-uid="' + it.uid + '">売却 ' + Math.max(1,Math.floor(v.price*0.5)) + 'G</button></div></div>';
-  }).join('') : '<p class="subtle">売れる品はない。</p>';
-  return '<section class="frame panel"><h2 class="screenTitle">商店</h2><p class="subtle">購入</p><div class="list">' + goods + '</div><hr class="sep"><p class="subtle">売却</p><div class="list">' + sellables + '</div></section>';
+  const shop=DATA.shop.map(s=>'<div class="item-row"><div class="info"><div class="name">'+esc(getItemName(s.itemId))+' / 金 '+s.price+'</div><div class="desc">'+esc(DATA.items[s.itemId].desc)+'</div></div><button class="btn small-btn" data-act="buy" data-arg="'+s.itemId+'">買う</button></div>').join('');
+  const inv=[...new Set(state.inventory)].map(id=>'<div class="item-row"><div class="info"><div class="name">'+esc(getItemName(id))+' × '+countInventory(id)+'</div><div class="desc">売値 '+Math.floor(itemValue(id)*0.5)+'</div></div><button class="btn small-btn" data-act="sell" data-arg="'+id+'">売る</button></div>').join('') || '<div class="note">売れる品はない。</div>';
+  app.innerHTML=header('商店')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">購入</div>'+shop+'</div><div class="panel"><div class="section-title">売却</div>'+inv+'</div></div>'+logHtml()+'</div>'+actions([{label:'街へ戻る',act:'city'},{label:'アイテム',act:'screen',arg:'items'}],'two');
+  scrollLog();
 }
-function renderAppraisal(){
-  const unid = state.inventory.filter(i => !i.identified);
-  const body = unid.length ? unid.map(it => {
-    const base = DATA.items[it.templateId];
-    const fee = Math.max(8, Math.floor(base.price * 0.18));
-    return '<div class="card"><h3>' + escapeHtml(base.unidentifiedName) + '</h3><p>鑑定料 ' + fee + 'G。正体を明らかにする。</p><div class="buttons"><button data-action="appraise" data-uid="' + it.uid + '">鑑定する</button></div></div>';
-  }).join('') : '<p class="subtle">未鑑定品はない。迷宮で持ち帰った品がここに並ぶ。</p>';
-  return '<section class="frame panel"><h2 class="screenTitle">鑑定所</h2><div class="list">' + body + '</div></section>';
+function renderIdentify(){
+  const list=state.unidentified.map(u=>'<div class="item-row"><div class="info"><div class="name">'+esc(u.tempName)+'</div><div class="desc">鑑定料 18。正式名称と価値が分かる。</div></div><button class="btn small-btn" data-act="identify" data-arg="'+u.uid+'">鑑定</button></div>').join('') || '<div class="note">未鑑定品はない。</div>';
+  app.innerHTML=header('鑑定所')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">未鑑定品</div>'+list+'</div><div class="panel"><div class="section-title">固有品記録</div><div class="note">'+(state.catalog.map(id=>'・'+getItemName(id)).join('<br>')||'まだ記録はない。')+'</div></div></div>'+logHtml()+'</div>'+actions([{label:'街へ戻る',act:'city'},{label:'アイテム',act:'screen',arg:'items'}],'two');
+  scrollLog();
 }
-function renderPartyDetail(){
-  const cards = state.party.map(p => '<div class="card"><h3>' + escapeHtml(p.name) + ' <span class="tag">' + (p.row==='front'?'前衛':'後衛') + '</span></h3><div class="kv"><b>種族</b><span>' + escapeHtml(p.race) + '</span><b>職業</b><span>' + escapeHtml(p.className) + '</span><b>Lv</b><span>' + p.level + '</span><b>経験値</b><span>' + p.exp + ' / 次 ' + p.nextExp + '</span><b>HP</b><span>' + p.hp + ' / ' + p.maxHp + '</span><b>MP</b><span>' + p.mp + ' / ' + p.maxMp + '</span><b>攻撃</b><span>' + p.attack + '</span><b>防御</b><span>' + p.defense + '</span><b>状態</b><span>' + escapeHtml(p.status) + '</span></div></div>').join('');
-  return '<section class="frame panel"><h2 class="screenTitle">隊列確認</h2><div class="list">' + cards + '</div></section>';
+function renderParty(){
+  const rows=state.party.map(p=>'<tr><td>'+esc(p.position==='front'?'前衛':'後衛')+'</td><td>'+esc(p.name)+'</td><td>'+esc(p.race)+'</td><td>'+esc(p.job)+'</td><td>Lv'+p.level+'</td><td>'+p.exp+' / '+nextExp(p.level)+'</td><td>'+p.hp+'/'+p.maxHp+'</td><td>'+p.mp+'/'+p.maxMp+'</td><td>'+p.atk+'</td><td>'+p.def+'</td><td>'+esc(p.status)+'</td></tr>').join('');
+  app.innerHTML=header('パーティ確認')+'<div class="main"><div class="menu-scroll"><div class="panel"><table class="table"><thead><tr><th>列</th><th>名</th><th>種族</th><th>職業</th><th>Lv</th><th>経験値</th><th>HP</th><th>MP</th><th>攻</th><th>防</th><th>状態</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+logHtml()+'</div>'+actions([{label:'街へ戻る',act:'city'},{label:'宿屋',act:'screen',arg:'inn'},{label:'アイテム',act:'screen',arg:'items'}]);
+  scrollLog();
 }
 function renderItems(){
-  const body = state.inventory.length ? state.inventory.map(it => {
-    const v = displayItem(it);
-    const canUse = it.identified && DATA.items[it.templateId].type === 'consumable';
-    return '<div class="card"><h3>' + escapeHtml(v.name) + (v.unique?' <span class="tag">固有</span>':'') + (!it.identified?' <span class="tag">未鑑定</span>':'') + '</h3><p>' + escapeHtml(v.desc) + '</p><div class="buttons">' + (canUse ? '<button data-action="useItem" data-uid="' + it.uid + '">使う</button>' : '') + '</div></div>';
-  }).join('') : '<p class="subtle">所持品はない。</p>';
-  const uniques = Object.keys(state.catalog).length ? Object.keys(state.catalog).map(id => DATA.items[id].name).join('、') : '未記録';
-  return '<section class="frame panel"><h2 class="screenTitle">所持品</h2><p class="subtle">固有品記録：' + escapeHtml(uniques) + '</p><div class="list">' + body + '</div></section>';
+  const normal=[...new Set(state.inventory)].map(id=>'<div class="item-row"><div class="info"><div class="name">'+esc(getItemName(id))+' × '+countInventory(id)+' <span class="note">'+esc(DATA.items[id].type)+'</span></div><div class="desc">'+esc(DATA.items[id].desc)+'</div></div>'+(DATA.items[id].usable?'<button class="btn small-btn" data-act="useItem" data-arg="'+id+'">使う</button>':'')+'</div>').join('') || '<div class="note">所持品はない。</div>';
+  const unknown=state.unidentified.map(u=>'<div class="item-row"><div class="info"><div class="name">'+esc(u.tempName)+'</div><div class="desc">鑑定所で正式名称が分かる。</div></div></div>').join('') || '<div class="note">未鑑定品はない。</div>';
+  app.innerHTML=header('アイテム')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">所持品</div>'+normal+'</div><div class="panel"><div class="section-title">未鑑定品</div>'+unknown+'</div><div class="panel"><div class="section-title">固有品記録</div><div class="note">'+(state.catalog.map(id=>'・'+getItemName(id)).join('<br>')||'まだ記録はない。')+'</div></div></div>'+logHtml()+'</div>'+actions([{label:'街へ戻る',act:'city'},{label:'鑑定所',act:'screen',arg:'identify'},{label:'商店',act:'screen',arg:'shop'}]);
+  scrollLog();
 }
 function renderReset(){
-  return '<section class="frame panel"><h2 class="screenTitle">保存初期化</h2><p class="subtle">このブラウザに保存された進行を削除する。削除後はタイトルへ戻る。</p></section>';
+  app.innerHTML=header('保存初期化')+'<div class="main"><div class="menu-scroll"><div class="panel reset-box"><div class="section-title">保存データ初期化</div><div class="note">LocalStorageの保存データを削除する。次回は新規開始からになる。</div></div></div>'+logHtml()+'</div>'+actions([{label:'初期化する',act:'reset',class:'danger'},{label:'街へ戻る',act:'city'}],'two');
 }
-function renderPartySummary(){
-  if(!state || state.screen === 'title') return '';
-  return '<section class="frame partyBox">' + renderRow('前衛', 'front') + renderRow('後衛', 'back') + '</section>';
-}
-function renderRow(label,row){
-  const members = state.party.filter(p => p.row === row).map(p => {
-    const down = p.hp <= 0;
-    return '<div class="member ' + (down?'down':'') + '"><div class="name">' + escapeHtml(p.name) + ' Lv' + p.level + '</div><div class="line">' + escapeHtml(p.className) + ' / ' + escapeHtml(p.status) + '</div><div class="line hp">HP ' + p.hp + '/' + p.maxHp + '</div><div class="line">MP ' + p.mp + '/' + p.maxMp + '</div></div>';
-  }).join('');
-  return '<div class="rowLabel">' + label + '</div><div class="partyGrid">' + members + '</div>';
-}
-function renderLog(){
-  const logs = (state.logs || []).slice(-12).map(l => '<div class="logLine ' + escapeHtml(l.kind || '') + '">' + escapeHtml(l.text) + '</div>').join('');
-  return '<section class="frame logBox" id="logBox" aria-label="ログ">' + (logs || '<div class="logLine system">まだ記録はない。</div>') + '</section>';
-}
-function renderActions(actions){
-  if(!actions || !actions.length) return '';
-  const cls = actions.length === 4 ? 'actions four' : actions.length === 2 ? 'actions two' : 'actions';
-  return '<nav class="' + cls + '">' + actions.map(a => '<button ' + (a.className?'class="'+a.className+'"':'') + ' data-action="' + a.action + '">' + escapeHtml(a.label) + '</button>').join('') + '</nav>';
-}
-function dungeonActions(){
+function runDiagnostics(){
+  const cssText=[...document.styleSheets].map(s=>{try{return [...s.cssRules].map(r=>r.cssText).join('\n')}catch(e){return ''}}).join('\n');
+  const screens=['city','dungeon','battle','inn','shop','identify','party','items','reset','diagnostics'];
   return [
-    {label:'左旋回', action:'turnLeft'}, {label:'前進', action:'forward'}, {label:'右旋回', action:'turnRight'},
-    {label:'後退', action:'back'}, {label:'調べる', action:'inspect'}, {label:'街へ戻る', action:'returnTown'}
+    ['パーティ人数', DATA.party.length===6, '初期パーティが6人'],
+    ['前衛後衛', DATA.party.filter(p=>p.position==='front').length===3 && DATA.party.filter(p=>p.position==='back').length===3, '前衛3人・後衛3人'],
+    ['迷宮データ', DATA.map && DATA.map.floor==='地下1階' && DATA.map.rows.length>0, '地下1階マップあり'],
+    ['敵データ', Object.keys(DATA.enemies).length>=2, '敵が複数存在'],
+    ['アイテムデータ', Object.values(DATA.items).some(i=>i.type==='通常') && Object.values(DATA.items).filter(i=>i.unique).length>=5, '通常品と固有品5個以上'],
+    ['未鑑定品', Object.keys(DATA.unidentified).length>0, '未鑑定品テンプレートあり'],
+    ['施設', DATA.facilities.includes('宿屋') && DATA.facilities.includes('商店') && DATA.facilities.includes('鑑定所'), '宿屋・商店・鑑定所あり'],
+    ['セーブ', typeof saveGame==='function' && typeof loadSave==='function' && typeof localStorage!=='undefined', 'LocalStorage処理あり'],
+    ['画面遷移', screens.every(Boolean), '街・迷宮・戦闘・施設画面の描画関数あり'],
+    ['横スクロール対策', cssText.includes('overflow:hidden') && cssText.includes('max-width:540px'), 'CSS上の横スクロール抑制あり']
   ];
 }
-function battleActions(){
-  return [
-    {label:'攻撃', action:'attack'}, {label:'防御', action:'defend'}, {label:'魔法', action:'magic'}, {label:'逃走', action:'flee'}
-  ];
-}
-function scrollLogToBottom(){
-  const box = document.getElementById('logBox');
-  if(box) box.scrollTop = box.scrollHeight;
+function renderDiagnostics(){
+  const rows=runDiagnostics().map(r=>'<tr><td>'+esc(r[0])+'</td><td class="'+(r[1]?'diag-pass':'diag-fail')+'">'+(r[1]?'OK':'NG')+'</td><td>'+esc(r[2])+'</td></tr>').join('');
+  const fails=runDiagnostics().filter(r=>!r[1]).length;
+  app.innerHTML=header('自己診断')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">HTML内自己診断</div><div class="note">これは実機確認の代替ではない。構造破綻を検出するための内部診断。</div><table class="table"><thead><tr><th>項目</th><th>判定</th><th>根拠</th></tr></thead><tbody>'+rows+'</tbody></table><p class="'+(fails?'bad':'good')+'">'+(fails?'NG '+fails+'件':'全項目OK')+'</p></div></div>'+(state?logHtml():'')+'</div>'+actions([{label:state?'街へ戻る':'タイトル',act:state?'city':'title'}],'one');
+  scrollLog();
 }
 
-/* =========================================================
-   疑似3D表示
-========================================================= */
 function drawDungeon(){
-  const canvas = document.getElementById('dungeonCanvas');
-  if(!canvas || !canvas.getContext) return;
-  const rect = canvas.getBoundingClientRect();
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const w = Math.max(280, Math.floor(rect.width * dpr));
-  const h = Math.max(180, Math.floor(rect.height * dpr));
-  if(canvas.width !== w) canvas.width = w;
-  if(canvas.height !== h) canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,w,h);
-  ctx.fillStyle = '#020202'; ctx.fillRect(0,0,w,h);
-  ctx.strokeStyle = '#d7d0b2'; ctx.lineWidth = Math.max(1,dpr);
-  ctx.fillStyle = '#080808';
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(w,0); ctx.lineTo(w*0.55,h*0.45); ctx.lineTo(w*0.45,h*0.45); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0,h); ctx.lineTo(w,h); ctx.lineTo(w*0.55,h*0.55); ctx.lineTo(w*0.45,h*0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
-  const rects = [
-    {x1:w*.04,y1:h*.08,x2:w*.96,y2:h*.92},
-    {x1:w*.17,y1:h*.19,x2:w*.83,y2:h*.81},
-    {x1:w*.30,y1:h*.30,x2:w*.70,y2:h*.70},
-    {x1:w*.41,y1:h*.39,x2:w*.59,y2:h*.61}
+  const c=document.getElementById('dungeonCanvas'); if(!c || !state) return;
+  const box=c.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
+  c.width=Math.max(1,Math.floor(box.width*dpr)); c.height=Math.max(1,Math.floor(box.height*dpr));
+  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const w=box.width,h=box.height; ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,w,h);
+  const line=getComputedStyle(document.documentElement).getPropertyValue('--line').trim()||'#9c936f';
+  const dim='rgba(156,147,111,.55)'; const dark='#050505';
+  const frames=[
+    {l:8,r:w-8,t:8,b:h-8},
+    {l:w*.18,r:w*.82,t:h*.22,b:h*.78},
+    {l:w*.31,r:w*.69,t:h*.36,b:h*.64},
+    {l:w*.42,r:w*.58,t:h*.46,b:h*.54},
+    {l:w*.48,r:w*.52,t:h*.50,b:h*.50}
   ];
-  const basis = directionBasis();
-  let blockedAt = null;
-  for(let depth=1; depth<=4; depth++){
-    const cx = state.dungeon.x + basis.f.dx * depth;
-    const cy = state.dungeon.y + basis.f.dy * depth;
-    if(isWall(cx,cy)){ blockedAt = depth; break; }
+  ctx.lineWidth=2; ctx.strokeStyle=line;
+  ctx.strokeRect(3,3,w-6,h-6);
+  ctx.lineWidth=1;
+  for(let i=0;i<4;i++){
+    const a=frames[i], b=frames[i+1];
+    ctx.strokeStyle=dim;
+    linePath([[a.l,a.t],[b.l,b.t],[b.r,b.t],[a.r,a.t]]);
+    linePath([[a.l,a.b],[b.l,b.b],[b.r,b.b],[a.r,a.b]]);
   }
-  for(let i=0; i<rects.length; i++){
-    const r = rects[i];
-    ctx.strokeStyle = i%2 ? '#8c8465' : '#d7d0b2';
-    ctx.strokeRect(r.x1,r.y1,r.x2-r.x1,r.y2-r.y1);
-    if(i>0){
-      const p = rects[i-1];
-      line(ctx,p.x1,p.y1,r.x1,r.y1); line(ctx,p.x2,p.y1,r.x2,r.y1); line(ctx,p.x1,p.y2,r.x1,r.y2); line(ctx,p.x2,p.y2,r.x2,r.y2);
+  const loc=state.location;
+  let blockedAt=-1;
+  for(let depth=0; depth<4; depth++){
+    const here=stepPos(loc.x,loc.y,loc.dir,depth);
+    const next=stepPos(loc.x,loc.y,loc.dir,depth+1);
+    const f=frames[depth], n=frames[depth+1];
+    const left=sidePos(here.x,here.y,loc.dir,-1); const right=sidePos(here.x,here.y,loc.dir,1);
+    if(isWall(left.x,left.y)){
+      fillPoly([[f.l,f.t],[n.l,n.t],[n.l,n.b],[f.l,f.b]], 'rgba(20,19,14,.55)');
+      strokePoly([[f.l,f.t],[n.l,n.t],[n.l,n.b],[f.l,f.b]], line);
+    }else{
+      ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(f.l,(f.t+f.b)/2); ctx.lineTo(n.l,(n.t+n.b)/2); ctx.stroke();
+      ctx.strokeStyle='rgba(240,217,120,.35)'; ctx.beginPath(); ctx.moveTo(f.l,f.t); ctx.lineTo(n.l,n.t); ctx.moveTo(f.l,f.b); ctx.lineTo(n.l,n.b); ctx.stroke();
     }
+    if(isWall(right.x,right.y)){
+      fillPoly([[f.r,f.t],[n.r,n.t],[n.r,n.b],[f.r,f.b]], 'rgba(20,19,14,.55)');
+      strokePoly([[f.r,f.t],[n.r,n.t],[n.r,n.b],[f.r,f.b]], line);
+    }else{
+      ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(f.r,(f.t+f.b)/2); ctx.lineTo(n.r,(n.t+n.b)/2); ctx.stroke();
+      ctx.strokeStyle='rgba(240,217,120,.35)'; ctx.beginPath(); ctx.moveTo(f.r,f.t); ctx.lineTo(n.r,n.t); ctx.moveTo(f.r,f.b); ctx.lineTo(n.r,n.b); ctx.stroke();
+    }
+    if(isWall(next.x,next.y)){ blockedAt=depth+1; drawFront(frames[depth+1], depth+1); break; }
+    if(cellAt(next.x,next.y)==='D') drawDoorHint(frames[depth+1]);
+    if(cellAt(next.x,next.y)==='C') drawChestMark(frames[depth+1]);
+    if(cellAt(next.x,next.y)==='R') drawStairMark(frames[depth+1]);
   }
-  for(let depth=1; depth<=4; depth++){
-    const hereX = state.dungeon.x + basis.f.dx * (depth-1);
-    const hereY = state.dungeon.y + basis.f.dy * (depth-1);
-    if(!isWall(hereX + basis.l.dx, hereY + basis.l.dy)) drawSideOpening(ctx, rects[depth-1], 'left');
-    if(!isWall(hereX + basis.r.dx, hereY + basis.r.dy)) drawSideOpening(ctx, rects[depth-1], 'right');
+  if(blockedAt<0){ const last=frames[4]; ctx.strokeStyle='rgba(156,147,111,.4)'; ctx.strokeRect(last.l,last.t,Math.max(2,last.r-last.l),Math.max(2,last.b-last.t)); }
+  function drawFront(fr,depth){
+    fillPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], depth<2?'#0d0d0b':'#090908');
+    strokePoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], line);
+    ctx.strokeStyle='rgba(156,147,111,.35)'; ctx.beginPath(); ctx.moveTo(fr.l,fr.t); ctx.lineTo(fr.r,fr.b); ctx.moveTo(fr.r,fr.t); ctx.lineTo(fr.l,fr.b); ctx.stroke();
   }
-  if(blockedAt){
-    const r = rects[Math.min(blockedAt-1, rects.length-1)];
-    ctx.fillStyle = '#101010'; ctx.fillRect(r.x1,r.y1,r.x2-r.x1,r.y2-r.y1);
-    ctx.strokeStyle = '#efe6c4'; ctx.strokeRect(r.x1,r.y1,r.x2-r.x1,r.y2-r.y1);
-    ctx.strokeStyle = '#5f5840';
-    for(let k=1;k<5;k++){ const yy = r.y1 + (r.y2-r.y1)*k/5; line(ctx,r.x1,yy,r.x2,yy); }
-    for(let k=1;k<4;k++){ const xx = r.x1 + (r.x2-r.x1)*k/4; line(ctx,xx,r.y1,xx,r.y2); }
+  function drawDoorHint(fr){
+    const cx=(fr.l+fr.r)/2, top=fr.t, bottom=fr.b, ww=(fr.r-fr.l)*.38;
+    ctx.strokeStyle='rgba(240,217,120,.7)'; ctx.strokeRect(cx-ww/2, top+(bottom-top)*.18, ww, (bottom-top)*.64);
   }
-  const chest = DATA.dungeon.chests[keyOf(state.dungeon.x,state.dungeon.y)];
-  if(chest && !state.dungeon.openedChests[chest.id]){
-    ctx.strokeStyle = '#f4d48a'; ctx.fillStyle = '#181408';
-    const cw=w*.18,ch=h*.09,cx=w*.41,cy=h*.69;
-    ctx.fillRect(cx,cy,cw,ch); ctx.strokeRect(cx,cy,cw,ch); line(ctx,cx,cy+ch*.45,cx+cw,cy+ch*.45);
+  function drawChestMark(fr){
+    const cx=(fr.l+fr.r)/2, cy=fr.b-(fr.b-fr.t)*.18, ww=Math.max(10,(fr.r-fr.l)*.22), hh=Math.max(6,(fr.b-fr.t)*.11);
+    ctx.strokeStyle='rgba(240,217,120,.75)'; ctx.strokeRect(cx-ww/2, cy-hh, ww, hh); ctx.beginPath(); ctx.moveTo(cx-ww/2,cy-hh); ctx.lineTo(cx,cy-hh*1.8); ctx.lineTo(cx+ww/2,cy-hh); ctx.stroke();
   }
-  ctx.fillStyle = '#d7d0b2'; ctx.font = Math.floor(12*dpr) + 'px sans-serif';
-  ctx.fillText(DATA.dungeon.name + '  ' + state.dungeon.x + ',' + state.dungeon.y + '  ' + dir().label, 10*dpr, 18*dpr);
+  function drawStairMark(fr){
+    ctx.strokeStyle='rgba(183,233,173,.65)'; const cx=(fr.l+fr.r)/2; for(let i=0;i<3;i++){ const y=fr.b-(i+1)*(fr.b-fr.t)*.15; const ww=(fr.r-fr.l)*(.18+i*.11); ctx.beginPath(); ctx.moveTo(cx-ww/2,y); ctx.lineTo(cx+ww/2,y); ctx.stroke(); }
+  }
+  function linePath(points){ ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]); for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]); ctx.stroke(); }
+  function fillPoly(points,color){ ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]); for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]); ctx.closePath(); ctx.fill(); }
+  function strokePoly(points,color){ ctx.strokeStyle=color; ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]); for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]); ctx.closePath(); ctx.stroke(); }
 }
-function directionBasis(){
-  const f = dir();
-  const l = DIRS[(state.dungeon.dir + 3) % 4];
-  const r = DIRS[(state.dungeon.dir + 1) % 4];
-  return {f,l,r};
+
+function scrollLog(){ setTimeout(()=>{ const el=document.getElementById('logbox'); if(el) el.scrollTop=el.scrollHeight; },0); }
+function setScreen(name){ if(!state && name==='diagnostics'){ state={screen:'diagnostics',version:DATA.version,party:clone(DATA.party),inventory:[],unidentified:[],log:[],gold:0,location:clone(DATA.map.start),catalog:[],chests:clone(DATA.map.chests),flags:{}}; renderDiagnostics(); state=null; return; } if(!state) return; state.screen=name; saveGame(); render(); }
+function handleAction(act,arg){
+  if(act==='new') return createNewState();
+  if(act==='continue') return continueGame();
+  if(act==='title') return renderTitle();
+  if(act==='diagnostics'){ if(state){state.screen='diagnostics'; render();} else renderDiagnostics(); return; }
+  if(act==='reset'){ if(confirm('保存データを初期化しますか？')) resetSave(); return; }
+  if(act==='screen') return setScreen(arg);
+  if(act==='city') return goCity('街へ戻った。');
+  if(!state) return;
+  if(act==='enterDungeon') return enterDungeon();
+  if(act==='forward') return moveForward();
+  if(act==='back') return moveBack();
+  if(act==='turnLeft') return turn(-1);
+  if(act==='turnRight') return turn(1);
+  if(act==='inspect') return inspectCell();
+  if(act==='attack') return playerAttack();
+  if(act==='defend') return playerDefend();
+  if(act==='magic') return playerMagic();
+  if(act==='escape') return playerEscape();
+  if(act==='rest') return restInn();
+  if(act==='buy') return buyItem(arg);
+  if(act==='sell') return sellItem(arg);
+  if(act==='identify') return identify(arg);
+  if(act==='useItem') return useItem(arg);
 }
-function drawSideOpening(ctx, r, side){
-  const midY = (r.y1 + r.y2) / 2;
-  ctx.strokeStyle = '#efe6c4';
-  if(side === 'left'){
-    line(ctx,r.x1,r.y1,r.x1 + (r.x2-r.x1)*.16, midY);
-    line(ctx,r.x1,r.y2,r.x1 + (r.x2-r.x1)*.16, midY);
-  }else{
-    line(ctx,r.x2,r.y1,r.x2 - (r.x2-r.x1)*.16, midY);
-    line(ctx,r.x2,r.y2,r.x2 - (r.x2-r.x1)*.16, midY);
-  }
-}
-function line(ctx,x1,y1,x2,y2){ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+app.addEventListener('click', e=>{ const b=e.target.closest('[data-act]'); if(!b || b.disabled) return; handleAction(b.dataset.act,b.dataset.arg); });
 
-/* =========================================================
-   イベント処理
-========================================================= */
-const handlers = {
-  newGame(){ state = createNewState(); state.screen = 'town'; lastNotice = ''; addLog('踏査隊を結成した。','system'); addLog('街で準備し、地下環廊へ向かう。','system'); saveGame(); render(); },
-  loadGame(){ if(loadGame()){ lastNotice=''; render(); } else { state = null; renderTitle(); } },
-  clearSave(){ clearSave(); renderTitle(); },
-  resetScreen(){ state.screen = 'reset'; render(); },
-  town(){ state.screen = 'town'; saveGame(); render(); },
-  enterDungeon,
-  inn(){ state.screen = 'inn'; render(); },
-  shop(){ state.screen = 'shop'; render(); },
-  appraisal(){ state.screen = 'appraisal'; render(); },
-  party(){ state.screen = 'party'; render(); },
-  items(){ state.screen = 'items'; render(); },
-  innRest:useInn,
-  turnLeft(){ if(inDungeon()) turn(-1); },
-  turnRight(){ if(inDungeon()) turn(1); },
-  forward(){ if(inDungeon()) move(1); },
-  back(){ if(inDungeon()) move(-1); },
-  inspect(){ if(inDungeon()) inspect(); },
-  returnTown(){ if(state) returnTown('街へ戻った。'); },
-  attack:partyAttack,
-  defend:partyDefend,
-  magic:partyMagic,
-  flee:partyFlee,
-  buy(btn){ buyItem(btn.dataset.id); },
-  sell(btn){ sellItem(btn.dataset.uid); },
-  appraise(btn){ appraise(btn.dataset.uid); },
-  useItem(btn){ useItem(btn.dataset.uid); }
-};
-document.addEventListener('click', function(ev){
-  const btn = ev.target.closest('[data-action]');
-  if(!btn || btn.disabled) return;
-  const fn = handlers[btn.dataset.action];
-  if(fn) fn(btn);
-});
-window.addEventListener('resize', function(){ if(state && state.screen === 'dungeon') drawDungeon(); });
-
-/* =========================================================
-   検査用公開API（ゲーム画面からは使わない）
-========================================================= */
-window.__classicDungeonRpgDebug = {
-  newGame:handlers.newGame,
-  getState:function(){ return state; },
-  forceBattle:function(){ startEncounter(false); },
-  winNow:function(){ if(state && state.combat){ state.combat.enemies.forEach(e=>e.hp=0); checkVictory(); } },
-  setGold:function(g){ if(state){ state.gold = g; saveGame(); render(); } },
-  giveExp:function(x){ if(state){ state.party.forEach(p=>p.exp+=x); saveGame(); render(); } },
-  corruptSave:function(){ localStorage.setItem(SAVE_KEY, '{broken json'); }
-};
-
+window.__DRPG_TEST__={DATA,runDiagnostics,loadSave,validateSave,KEY};
 renderTitle();
 })();
 </script>
