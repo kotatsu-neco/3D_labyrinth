@@ -26,6 +26,8 @@ button,input,select{font:inherit;color:inherit;}
 .view-wrap{flex:0 0 clamp(188px,32svh,252px);border:2px solid var(--line);background:#000;position:relative;box-shadow:inset 0 0 0 1px #252112;overflow:hidden;}
 #dungeonCanvas{width:100%;height:100%;display:block;background:#000;}
 .view-caption{position:absolute;left:8px;top:6px;color:rgba(236,231,207,.72);font-weight:700;font-size:13px;letter-spacing:.04em;pointer-events:none;text-shadow:0 1px 2px #000;}
+.view-status{position:absolute;left:8px;right:8px;bottom:6px;display:flex;justify-content:space-between;gap:6px;pointer-events:none;font-size:12px;color:rgba(236,231,207,.78);text-shadow:0 1px 2px #000;}
+.view-status span{border:1px solid rgba(156,147,111,.45);background:rgba(0,0,0,.62);padding:2px 5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .enemy-stage{flex:0 0 clamp(172px,28svh,230px);border:2px solid var(--line);background:#000;position:relative;padding:10px;display:flex;flex-direction:column;gap:8px;justify-content:center;overflow:hidden;}
 .enemy-stage:before{content:"";position:absolute;inset:8px;border:1px solid rgba(156,147,111,.35);pointer-events:none;}
 .enemy-row{display:flex;gap:8px;justify-content:center;align-items:stretch;z-index:1;}
@@ -48,6 +50,8 @@ button,input,select{font:inherit;color:inherit;}
 .logline.turn{color:var(--accent);font-weight:800;border-bottom-color:rgba(240,217,120,.45);}
 .actions{flex:0 0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;background:#000;padding-top:2px;}
 .actions.two{grid-template-columns:repeat(2,minmax(0,1fr));}.actions.four{grid-template-columns:repeat(4,minmax(0,1fr));}.actions.one{grid-template-columns:1fr;}
+.dungeon-pad{flex:0 0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"empty1 forward empty2" "left inspect right" "town back menu";gap:6px;background:#000;padding-top:2px;}
+.dungeon-pad .forward{grid-area:forward}.dungeon-pad .left{grid-area:left}.dungeon-pad .right{grid-area:right}.dungeon-pad .inspect{grid-area:inspect}.dungeon-pad .back{grid-area:back}.dungeon-pad .town{grid-area:town}.dungeon-pad .menu{grid-area:menu}.dungeon-pad .spacer{min-height:44px;pointer-events:none;opacity:0;}
 .btn{min-height:48px;border:1px solid var(--line);background:linear-gradient(180deg,#171611,#090908);color:var(--fg);font-weight:800;letter-spacing:.03em;border-radius:0;padding:8px 6px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);}
 .btn:active{transform:translateY(1px);background:#201d13;}.btn.primary{color:#fff4ba;border-color:#c4b56e;}.btn.danger{color:#ffbeb6;border-color:#8d5149;}.btn:disabled{opacity:.45;}
 .menu-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px;}
@@ -62,7 +66,7 @@ button,input,select{font:inherit;color:inherit;}
   .view-wrap{flex-basis:clamp(154px,28svh,200px)}.enemy-stage{flex-basis:clamp(144px,25svh,190px)}
   .party-box{padding:4px}.rank-label{font-size:12px;margin-bottom:3px}.party-grid{gap:4px;margin-bottom:3px}
   .member{padding:4px}.member .n{font-size:13px}.member .sub{font-size:10px}.member .hp,.member .mp{font-size:12px}
-  .logbox{flex-basis:74px;font-size:13px;padding:5px 7px}.btn{min-height:45px;font-size:14px;padding:6px 4px}.actions{gap:5px}
+  .logbox{flex-basis:66px;font-size:13px;padding:5px 7px}.btn{min-height:45px;font-size:14px;padding:6px 4px}.actions,.dungeon-pad{gap:5px}.dungeon-pad .spacer{min-height:45px}
 }
 @media (max-width:360px){.game-title{font-size:26px}.btn{font-size:13px}.member .n{font-size:12px}.member .hp,.member .mp{font-size:11px}.logbox{font-size:12px}.enemy-card{min-width:76px;padding-left:4px;padding-right:4px}}
 
@@ -228,6 +232,16 @@ function isWall(x,y){ return cellAt(x,y)==='#'; }
 function stepPos(x,y,dir,dist){ const d=DELTA[(dir+4)%4]; return {x:x+d.x*dist,y:y+d.y*dist}; }
 function sidePos(x,y,dir,side){ const d=DELTA[(dir+side+4)%4]; return {x:x+d.x,y:y+d.y}; }
 function canMoveTo(x,y){ return !isWall(x,y); }
+function cellDisplayName(ch){
+  return ch==='#'?'壁':ch==='D'?'扉':ch==='C'?'宝箱':ch==='R'?'帰還階段':'通路';
+}
+function dungeonViewSummary(){
+  const loc=state.location;
+  const f=stepPos(loc.x,loc.y,loc.dir,1);
+  const l=sidePos(loc.x,loc.y,loc.dir,-1);
+  const r=sidePos(loc.x,loc.y,loc.dir,1);
+  return {front:cellDisplayName(cellAt(f.x,f.y)), left:cellDisplayName(cellAt(l.x,l.y)), right:cellDisplayName(cellAt(r.x,r.y))};
+}
 function moveForward(){
   const n=stepPos(state.location.x,state.location.y,state.location.dir,1);
   if(!canMoveTo(n.x,n.y)){ addLog('正面は壁だ。'); saveGame(); render(); return; }
@@ -417,9 +431,9 @@ function restInnChar(charId){
   addLog(p.name+'を宿に泊めた。宿代 '+cost+' を支払った。');
   p.hp=p.maxHp; p.mp=p.maxMp; if(p.status==='倒'||p.status==='疲労') p.status='正常';
   addLog(p.name+'のHPとMPが回復した。');
-  let any=false;
-  while(p.exp>=nextExp(p.level) && any<3){
-    p.level++; any=(any||0)+1;
+  let levels=0;
+  while(p.exp>=nextExp(p.level) && levels<3){
+    p.level++; levels++;
     const hpGain = p.job==='守人'?rand(6,9):p.job==='魔術師'?rand(2,4):p.job==='司祭'?rand(3,5):rand(4,7);
     const mpGain = (p.job==='魔術師'||p.job==='司祭')?rand(3,5):(p.job==='弓手'?rand(0,2):0);
     const atkGain = (p.job==='剣士'||p.job==='盗賊'||p.job==='弓手')?rand(1,2):rand(0,1);
@@ -428,7 +442,7 @@ function restInnChar(charId){
     addLog(p.name+'はLv'+p.level+'になった。');
     addLog('最大HP +'+hpGain+' / 最大MP +'+mpGain+' / 攻撃 +'+atkGain+' / 防御 +'+defGain);
   }
-  if(!any) addLog(p.name+'はまだレベルアップしない。');
+  if(levels===0) addLog(p.name+'はまだレベルアップしない。');
   saveGame(); render();
 }
 function restInn(){ addLog('宿屋では泊める人物を選ぶ。'); saveGame(); render(); }
@@ -476,6 +490,13 @@ function header(title){
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function actions(buttons, cls){ return '<div class="actions '+(cls||'')+'">'+buttons.map(b=>'<button class="btn '+(b.class||'')+'" data-act="'+b.act+'" '+(b.arg?'data-arg="'+esc(b.arg)+'"':'')+' '+(b.disabled?'disabled':'')+'>'+esc(b.label)+'</button>').join('')+'</div>'; }
+function dungeonActions(){
+  return '<div class="dungeon-pad">'+
+    '<div class="spacer" aria-hidden="true"></div><button class="btn primary forward" data-act="forward">前進</button><div class="spacer" aria-hidden="true"></div>'+ 
+    '<button class="btn left" data-act="turnLeft">左旋回</button><button class="btn inspect" data-act="inspect">調べる</button><button class="btn right" data-act="turnRight">右旋回</button>'+ 
+    '<button class="btn town" data-act="city">街へ戻る</button><button class="btn back" data-act="back">後退</button><button class="btn menu" data-act="screen" data-arg="items">アイテム</button>'+ 
+  '</div>';
+}
 function logHtml(){
   const lines=(state?state.log:[]).slice(-8).map(l=>'<div class="logline '+esc(l.cls||'')+'">'+esc(l.text)+'</div>').join('');
   return '<div class="logbox" id="logbox">'+(lines||'<div class="logline">記録はまだない。</div>')+'</div>';
@@ -517,10 +538,8 @@ function renderCity(){
   scrollLog();
 }
 function renderDungeon(){
-  app.innerHTML=header('地下1階')+'<div class="main"><div class="view-wrap"><canvas id="dungeonCanvas"></canvas><div class="view-caption">'+esc(state.location.floor)+' / '+esc(DIRS[state.location.dir])+'</div></div>'+partySummary()+logHtml()+'</div>'+actions([
-    {label:'左旋回',act:'turnLeft'}, {label:'前進',act:'forward',class:'primary'}, {label:'右旋回',act:'turnRight'},
-    {label:'後退',act:'back'}, {label:'調べる',act:'inspect'}, {label:'街へ戻る',act:'city'}
-  ]);
+  const v=dungeonViewSummary();
+  app.innerHTML=header('地下1階')+'<div class="main"><div class="view-wrap"><canvas id="dungeonCanvas"></canvas><div class="view-caption">'+esc(state.location.floor)+' / '+esc(DIRS[state.location.dir])+' / X'+state.location.x+' Y'+state.location.y+'</div><div class="view-status"><span>前: '+esc(v.front)+'</span><span>左: '+esc(v.left)+'</span><span>右: '+esc(v.right)+'</span></div></div>'+partySummary()+logHtml()+'</div>'+dungeonActions();
   requestAnimationFrame(drawDungeon); scrollLog();
 }
 function renderBattle(){
@@ -540,10 +559,12 @@ function renderInn(){
   const rows=state.party.map(p=>{
     const cost=6+p.level*3;
     const canLevel=p.exp>=nextExp(p.level);
-    const needsCare=p.hp<p.maxHp || p.mp<p.maxMp || p.status!=='正常' || canLevel;
-    return '<div class="item-row inn-row"><div class="info"><div class="name">'+esc(p.name)+' Lv'+p.level+' / '+esc(p.job)+' / '+esc(p.status)+'</div><div class="desc">HP '+p.hp+'/'+p.maxHp+'　MP '+p.mp+'/'+p.maxMp+'　次Lv '+p.exp+'/'+nextExp(p.level)+'　宿代 '+cost+(canLevel?'　<span class="good">Lv上昇可</span>':'')+'</div></div><button class="btn small-btn" data-act="restChar" data-arg="'+esc(p.id)+'" '+(!needsCare?'disabled':'')+'>泊める</button></div>';
+    const isFull=p.hp>=p.maxHp && p.mp>=p.maxMp && p.status==='正常';
+    const label=canLevel?'泊める / Lv確認':'泊める';
+    const stateText=canLevel?'　<span class="good">宿泊でLv上昇可</span>':(isFull?'　全快でも宿泊可':'');
+    return '<div class="item-row inn-row"><div class="info"><div class="name">'+esc(p.name)+' Lv'+p.level+' / '+esc(p.job)+' / '+esc(p.status)+'</div><div class="desc">HP '+p.hp+'/'+p.maxHp+'　MP '+p.mp+'/'+p.maxMp+'　次Lv '+p.exp+'/'+nextExp(p.level)+'　宿代 '+cost+stateText+'</div></div><button class="btn small-btn primary" data-act="restChar" data-arg="'+esc(p.id)+'">'+label+'</button></div>';
   }).join('');
-  app.innerHTML=header('宿屋')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">宿屋</div><div class="note">宿泊はキャラクター単位。泊めた者だけHP/MPが回復し、経験値が足りていればレベルアップする。</div></div><div class="panel"><div class="section-title">誰を泊めるか</div>'+rows+'</div></div>'+logHtml()+'</div>'+actions([{label:'街へ戻る',act:'city'},{label:'パーティ',act:'screen',arg:'party'}],'two');
+  app.innerHTML=header('宿屋')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">宿屋</div><div class="note">宿泊はキャラクター単位。HP/MPが全快でも泊まれる。経験値が足りていれば、その宿泊でレベルアップする。</div></div><div class="panel"><div class="section-title">誰を泊めるか</div>'+rows+'</div></div>'+logHtml()+'</div>'+actions([{label:'街へ戻る',act:'city'},{label:'パーティ',act:'screen',arg:'party'}],'two');
   scrollLog();
 }
 function renderShop(){
@@ -600,24 +621,37 @@ function drawDungeon(){
   c.width=Math.max(1,Math.floor(box.width*dpr)); c.height=Math.max(1,Math.floor(box.height*dpr));
   const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
   const w=box.width,h=box.height; ctx.clearRect(0,0,w,h);
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,w,h);
   const line=getComputedStyle(document.documentElement).getPropertyValue('--line').trim()||'#9c936f';
-  const dim='rgba(156,147,111,.55)'; const dark='#050505';
+  const accent=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#f0d978';
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,w,h);
+  const horizon=h*.48;
+  const ceil=ctx.createLinearGradient(0,0,0,horizon); ceil.addColorStop(0,'#040403'); ceil.addColorStop(1,'#11100b'); ctx.fillStyle=ceil; ctx.fillRect(0,0,w,horizon);
+  const floor=ctx.createLinearGradient(0,horizon,0,h); floor.addColorStop(0,'#080806'); floor.addColorStop(1,'#020202'); ctx.fillStyle=floor; ctx.fillRect(0,horizon,w,h-horizon);
+  ctx.strokeStyle='rgba(156,147,111,.25)'; ctx.lineWidth=1;
+  for(let i=1;i<=7;i++){
+    const y=horizon+(h-horizon)*(i*i/56);
+    ctx.beginPath(); ctx.moveTo(8,y); ctx.lineTo(w-8,y); ctx.stroke();
+  }
+  for(const x of [w*.12,w*.28,w*.5,w*.72,w*.88]){
+    ctx.beginPath(); ctx.moveTo(w*.5,horizon); ctx.lineTo(x,h-8); ctx.stroke();
+  }
   const frames=[
     {l:8,r:w-8,t:8,b:h-8},
-    {l:w*.18,r:w*.82,t:h*.22,b:h*.78},
-    {l:w*.31,r:w*.69,t:h*.36,b:h*.64},
-    {l:w*.42,r:w*.58,t:h*.46,b:h*.54},
-    {l:w*.48,r:w*.52,t:h*.50,b:h*.50}
+    {l:w*.16,r:w*.84,t:h*.19,b:h*.82},
+    {l:w*.30,r:w*.70,t:h*.34,b:h*.68},
+    {l:w*.405,r:w*.595,t:h*.435,b:h*.575},
+    {l:w*.475,r:w*.525,t:h*.493,b:h*.507}
   ];
-  ctx.lineWidth=2; ctx.strokeStyle=line;
-  ctx.strokeRect(3,3,w-6,h-6);
+  ctx.lineWidth=2; ctx.strokeStyle=line; ctx.strokeRect(3,3,w-6,h-6);
   ctx.lineWidth=1;
   for(let i=0;i<4;i++){
     const a=frames[i], b=frames[i+1];
-    ctx.strokeStyle=dim;
+    ctx.strokeStyle='rgba(156,147,111,.50)';
     linePath([[a.l,a.t],[b.l,b.t],[b.r,b.t],[a.r,a.t]]);
     linePath([[a.l,a.b],[b.l,b.b],[b.r,b.b],[a.r,a.b]]);
+    ctx.strokeStyle='rgba(156,147,111,.26)';
+    linePath([[a.l,(a.t+a.b)/2],[b.l,(b.t+b.b)/2]]);
+    linePath([[a.r,(a.t+a.b)/2],[b.r,(b.t+b.b)/2]]);
   }
   const loc=state.location;
   let blockedAt=-1;
@@ -626,45 +660,99 @@ function drawDungeon(){
     const next=stepPos(loc.x,loc.y,loc.dir,depth+1);
     const f=frames[depth], n=frames[depth+1];
     const left=sidePos(here.x,here.y,loc.dir,-1); const right=sidePos(here.x,here.y,loc.dir,1);
+    const alpha=Math.max(.22,.62-depth*.12);
     if(isWall(left.x,left.y)){
-      fillPoly([[f.l,f.t],[n.l,n.t],[n.l,n.b],[f.l,f.b]], 'rgba(20,19,14,.55)');
-      strokePoly([[f.l,f.t],[n.l,n.t],[n.l,n.b],[f.l,f.b]], line);
+      drawSideWall(f,n,'left',alpha);
     }else{
-      ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(f.l,(f.t+f.b)/2); ctx.lineTo(n.l,(n.t+n.b)/2); ctx.stroke();
-      ctx.strokeStyle='rgba(240,217,120,.35)'; ctx.beginPath(); ctx.moveTo(f.l,f.t); ctx.lineTo(n.l,n.t); ctx.moveTo(f.l,f.b); ctx.lineTo(n.l,n.b); ctx.stroke();
+      drawSideOpening(f,n,'left',depth);
     }
     if(isWall(right.x,right.y)){
-      fillPoly([[f.r,f.t],[n.r,n.t],[n.r,n.b],[f.r,f.b]], 'rgba(20,19,14,.55)');
-      strokePoly([[f.r,f.t],[n.r,n.t],[n.r,n.b],[f.r,f.b]], line);
+      drawSideWall(f,n,'right',alpha);
     }else{
-      ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(f.r,(f.t+f.b)/2); ctx.lineTo(n.r,(n.t+n.b)/2); ctx.stroke();
-      ctx.strokeStyle='rgba(240,217,120,.35)'; ctx.beginPath(); ctx.moveTo(f.r,f.t); ctx.lineTo(n.r,n.t); ctx.moveTo(f.r,f.b); ctx.lineTo(n.r,n.b); ctx.stroke();
+      drawSideOpening(f,n,'right',depth);
     }
     if(isWall(next.x,next.y)){ blockedAt=depth+1; drawFront(frames[depth+1], depth+1); break; }
-    if(cellAt(next.x,next.y)==='D') drawDoorHint(frames[depth+1]);
-    if(cellAt(next.x,next.y)==='C') drawChestMark(frames[depth+1]);
-    if(cellAt(next.x,next.y)==='R') drawStairMark(frames[depth+1]);
+    const ch=cellAt(next.x,next.y);
+    if(ch==='D') drawDoor(frames[depth+1], depth+1);
+    if(ch==='C') drawChest(frames[depth+1], depth+1);
+    if(ch==='R') drawStairs(frames[depth+1], depth+1);
   }
-  if(blockedAt<0){ const last=frames[4]; ctx.strokeStyle='rgba(156,147,111,.4)'; ctx.strokeRect(last.l,last.t,Math.max(2,last.r-last.l),Math.max(2,last.b-last.t)); }
+  if(blockedAt<0){
+    const last=frames[4]; ctx.strokeStyle='rgba(156,147,111,.45)'; ctx.strokeRect(last.l,last.t,Math.max(2,last.r-last.l),Math.max(2,last.b-last.t));
+  }
+  drawCompass();
+
+  function drawSideWall(f,n,side,alpha){
+    const pts=side==='left'?[[f.l,f.t],[n.l,n.t],[n.l,n.b],[f.l,f.b]]:[[f.r,f.t],[n.r,n.t],[n.r,n.b],[f.r,f.b]];
+    fillPoly(pts,'rgba(20,19,14,'+alpha+')');
+    strokePoly(pts,line);
+    ctx.strokeStyle='rgba(240,217,120,.15)';
+    for(let i=1;i<=3;i++){
+      const t=i/4;
+      const x1=lerp(pts[0][0],pts[1][0],t), y1=lerp(pts[0][1],pts[1][1],t);
+      const x2=lerp(pts[3][0],pts[2][0],t), y2=lerp(pts[3][1],pts[2][1],t);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    }
+  }
+  function drawSideOpening(f,n,side,depth){
+    const nearX=side==='left'?f.l:f.r, farX=side==='left'?n.l:n.r;
+    const midY=(f.t+f.b)/2, farMidY=(n.t+n.b)/2;
+    ctx.strokeStyle='rgba(240,217,120,.70)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(nearX,midY); ctx.lineTo(farX,farMidY); ctx.stroke();
+    ctx.strokeStyle='rgba(156,147,111,.32)'; ctx.lineWidth=1;
+    if(side==='left'){
+      fillPoly([[f.l,f.t],[n.l,n.t],[n.l,farMidY],[f.l,midY]], 'rgba(0,0,0,.35)');
+      fillPoly([[f.l,midY],[n.l,farMidY],[n.l,n.b],[f.l,f.b]], 'rgba(0,0,0,.25)');
+    }else{
+      fillPoly([[f.r,f.t],[n.r,n.t],[n.r,farMidY],[f.r,midY]], 'rgba(0,0,0,.35)');
+      fillPoly([[f.r,midY],[n.r,farMidY],[n.r,n.b],[f.r,f.b]], 'rgba(0,0,0,.25)');
+    }
+    if(depth===0){
+      ctx.fillStyle='rgba(240,217,120,.55)';
+      ctx.beginPath(); ctx.arc(nearX+(side==='left'?10:-10), midY, 2.2, 0, Math.PI*2); ctx.fill();
+    }
+  }
   function drawFront(fr,depth){
-    fillPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], depth<2?'#0d0d0b':'#090908');
+    fillPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], depth<2?'#11100c':'#090908');
     strokePoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], line);
-    ctx.strokeStyle='rgba(156,147,111,.35)'; ctx.beginPath(); ctx.moveTo(fr.l,fr.t); ctx.lineTo(fr.r,fr.b); ctx.moveTo(fr.r,fr.t); ctx.lineTo(fr.l,fr.b); ctx.stroke();
+    ctx.strokeStyle='rgba(156,147,111,.25)';
+    const rows=depth<2?5:3;
+    for(let i=1;i<rows;i++){ const y=lerp(fr.t,fr.b,i/rows); ctx.beginPath(); ctx.moveTo(fr.l,y); ctx.lineTo(fr.r,y); ctx.stroke(); }
+    const cols=depth<2?4:2;
+    for(let i=1;i<cols;i++){ const x=lerp(fr.l,fr.r,i/cols); ctx.beginPath(); ctx.moveTo(x,fr.t); ctx.lineTo(x,fr.b); ctx.stroke(); }
+    ctx.strokeStyle='rgba(240,217,120,.22)'; ctx.beginPath(); ctx.moveTo(fr.l,fr.t); ctx.lineTo(fr.r,fr.b); ctx.moveTo(fr.r,fr.t); ctx.lineTo(fr.l,fr.b); ctx.stroke();
   }
-  function drawDoorHint(fr){
-    const cx=(fr.l+fr.r)/2, top=fr.t, bottom=fr.b, ww=(fr.r-fr.l)*.38;
-    ctx.strokeStyle='rgba(240,217,120,.7)'; ctx.strokeRect(cx-ww/2, top+(bottom-top)*.18, ww, (bottom-top)*.64);
+  function drawDoor(fr,depth){
+    const cx=(fr.l+fr.r)/2, top=fr.t, bottom=fr.b, ww=(fr.r-fr.l)*(depth<2?.42:.52), hh=(bottom-top)*.66;
+    const y=top+(bottom-top)*.18;
+    ctx.fillStyle='rgba(5,5,4,.72)'; ctx.fillRect(cx-ww/2,y,ww,hh);
+    ctx.strokeStyle='rgba(240,217,120,.78)'; ctx.lineWidth=1.5; ctx.strokeRect(cx-ww/2,y,ww,hh);
+    ctx.beginPath(); ctx.moveTo(cx,y); ctx.lineTo(cx,y+hh); ctx.stroke();
+    ctx.fillStyle='rgba(240,217,120,.75)'; ctx.beginPath(); ctx.arc(cx+ww*.28,y+hh*.52,Math.max(1.5,ww*.025),0,Math.PI*2); ctx.fill();
+    ctx.lineWidth=1;
   }
-  function drawChestMark(fr){
-    const cx=(fr.l+fr.r)/2, cy=fr.b-(fr.b-fr.t)*.18, ww=Math.max(10,(fr.r-fr.l)*.22), hh=Math.max(6,(fr.b-fr.t)*.11);
-    ctx.strokeStyle='rgba(240,217,120,.75)'; ctx.strokeRect(cx-ww/2, cy-hh, ww, hh); ctx.beginPath(); ctx.moveTo(cx-ww/2,cy-hh); ctx.lineTo(cx,cy-hh*1.8); ctx.lineTo(cx+ww/2,cy-hh); ctx.stroke();
+  function drawChest(fr,depth){
+    const cx=(fr.l+fr.r)/2, cy=fr.b-(fr.b-fr.t)*.15, ww=Math.max(14,(fr.r-fr.l)*(depth<2?.26:.34)), hh=Math.max(8,(fr.b-fr.t)*.12);
+    ctx.fillStyle='rgba(18,13,5,.8)'; ctx.fillRect(cx-ww/2,cy-hh,ww,hh);
+    ctx.strokeStyle=accent; ctx.strokeRect(cx-ww/2,cy-hh,ww,hh);
+    ctx.beginPath(); ctx.moveTo(cx-ww/2,cy-hh); ctx.quadraticCurveTo(cx,cy-hh*1.8,cx+ww/2,cy-hh); ctx.stroke();
+    ctx.fillStyle=accent; ctx.fillRect(cx-2,cy-hh*.64,4,3);
   }
-  function drawStairMark(fr){
-    ctx.strokeStyle='rgba(183,233,173,.65)'; const cx=(fr.l+fr.r)/2; for(let i=0;i<3;i++){ const y=fr.b-(i+1)*(fr.b-fr.t)*.15; const ww=(fr.r-fr.l)*(.18+i*.11); ctx.beginPath(); ctx.moveTo(cx-ww/2,y); ctx.lineTo(cx+ww/2,y); ctx.stroke(); }
+  function drawStairs(fr,depth){
+    ctx.strokeStyle='rgba(183,233,173,.76)'; const cx=(fr.l+fr.r)/2; const base=fr.b-(fr.b-fr.t)*.08;
+    for(let i=0;i<5;i++){ const y=base-(i+1)*(fr.b-fr.t)*.105; const ww=(fr.r-fr.l)*(.16+i*.085); ctx.beginPath(); ctx.moveTo(cx-ww/2,y); ctx.lineTo(cx+ww/2,y); ctx.stroke(); }
+    ctx.strokeStyle='rgba(183,233,173,.38)'; ctx.beginPath(); ctx.moveTo(cx-(fr.r-fr.l)*.25,base); ctx.lineTo(cx,fr.t+(fr.b-fr.t)*.25); ctx.lineTo(cx+(fr.r-fr.l)*.25,base); ctx.stroke();
+  }
+  function drawCompass(){
+    const cx=w-28, cy=24; ctx.strokeStyle='rgba(240,217,120,.7)'; ctx.fillStyle='rgba(0,0,0,.55)';
+    ctx.beginPath(); ctx.arc(cx,cy,15,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    const a=(state.location.dir-1)*Math.PI/2; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*11,cy+Math.sin(a)*11); ctx.stroke();
+    ctx.fillStyle='rgba(236,231,207,.75)'; ctx.font='10px system-ui'; ctx.textAlign='center'; ctx.fillText(DIRS[state.location.dir],cx,cy+27);
   }
   function linePath(points){ ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]); for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]); ctx.stroke(); }
   function fillPoly(points,color){ ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]); for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]); ctx.closePath(); ctx.fill(); }
   function strokePoly(points,color){ ctx.strokeStyle=color; ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]); for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]); ctx.closePath(); ctx.stroke(); }
+  function lerp(a,b,t){ return a+(b-a)*t; }
 }
 
 function scrollLog(){ setTimeout(()=>{ const el=document.getElementById('logbox'); if(el) el.scrollTop=el.scrollHeight; },0); }
