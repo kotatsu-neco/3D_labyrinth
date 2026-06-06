@@ -837,31 +837,30 @@
     c.height = Math.max(1, Math.floor(box.height * dpr));
     const ctx = c.getContext('2d');
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    const w = box.width;
-    const h = box.height;
+    const w = box.width, h = box.height;
     const lineColor = getComputedStyle(document.documentElement).getPropertyValue('--line').trim() || '#a79b72';
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ecd676';
     ctx.clearRect(0,0,w,h);
     ctx.fillStyle = '#000';
     ctx.fillRect(0,0,w,h);
 
-    // outer frame
+    // outer frames
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2;
     ctx.strokeRect(2,2,w-4,h-4);
-    ctx.strokeRect(10,10,w-20,h-20);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(12,12,w-24,h-24);
 
-    const cx = w/2;
-    const horizon = h*0.53;
     const frames = [
-      {l:22, r:w-22, t:18, b:h-34},
+      {l:26, r:w-26, t:24, b:h-40},
       {l:w*0.18, r:w*0.82, t:h*0.18, b:h*0.80},
-      {l:w*0.32, r:w*0.68, t:h*0.32, b:h*0.68},
-      {l:w*0.42, r:w*0.58, t:h*0.42, b:h*0.58}
+      {l:w*0.33, r:w*0.67, t:h*0.34, b:h*0.66},
+      {l:w*0.43, r:w*0.57, t:h*0.44, b:h*0.56}
     ];
+    const loc = state.location;
 
-    // ceiling and floor perspective guides (reduced clutter)
-    ctx.strokeStyle = 'rgba(167,155,114,.52)';
+    // corridor wireframe
+    ctx.strokeStyle = 'rgba(167,155,114,.82)';
     ctx.lineWidth = 1.6;
     for(let i=0;i<frames.length-1;i++){
       const a=frames[i], b=frames[i+1];
@@ -869,149 +868,142 @@
       strokeSeg(a.r,a.t,b.r,b.t);
       strokeSeg(a.l,a.b,b.l,b.b);
       strokeSeg(a.r,a.b,b.r,b.b);
-    }
-    // floor lines
-    ctx.strokeStyle = 'rgba(167,155,114,.22)';
-    for(let i=1;i<=4;i++){
-      const y = lerp(horizon+10, h-34, i/4);
-      strokeSeg(26,y,w-26,y);
-    }
-    // ceiling lines
-    for(let i=1;i<=2;i++){
-      const y = lerp(18, horizon-10, i/3);
-      strokeSeg(26,y,w-26,y);
+      if(i < frames.length-2){
+        // frame edges of deeper wall slices
+        strokeSeg(b.l,b.t,b.r,b.t);
+        strokeSeg(b.l,b.b,b.r,b.b);
+      }
     }
 
-    const loc = state.location;
-    let blocked = false;
-    for(let depth=0; depth<3 && !blocked; depth++){
+    // subtle floor guides only, less clutter
+    ctx.strokeStyle = 'rgba(167,155,114,.20)';
+    const floorY1 = frames[0].b, floorY2 = frames[1].b, floorY3 = frames[2].b;
+    strokeSeg(frames[0].l+12, floorY1-18, frames[0].r-12, floorY1-18);
+    strokeSeg(frames[1].l+8, floorY2-10, frames[1].r-8, floorY2-10);
+    strokeSeg(frames[2].l+6, floorY3-5, frames[2].r-6, floorY3-5);
+
+    let stopped = false;
+    for(let depth=0; depth<3 && !stopped; depth++){
       const curr = stepPos(loc.x,loc.y,loc.dir,depth);
       const next = stepPos(loc.x,loc.y,loc.dir,depth+1);
       const left = sidePos(curr.x,curr.y,loc.dir,-1);
       const right = sidePos(curr.x,curr.y,loc.dir,1);
-      const near = frames[depth];
-      const far = frames[depth+1];
+      const near = frames[depth], far = frames[depth+1];
 
-      if(isWall(left.x,left.y)) drawSolidSide(near,far,'left');
-      else drawOpenSide(near,far,'left',cellAt(left.x,left.y));
-      if(isWall(right.x,right.y)) drawSolidSide(near,far,'right');
-      else drawOpenSide(near,far,'right',cellAt(right.x,right.y));
+      // side wall or side opening
+      if(isWall(left.x,left.y)) drawSideWall(near,far,'left');
+      else drawSideOpening(near,far,'left');
+      if(isWall(right.x,right.y)) drawSideWall(near,far,'right');
+      else drawSideOpening(near,far,'right');
 
       const frontCell = cellAt(next.x,next.y);
       if(frontCell === '#'){
-        drawFrontWall(far, depth);
-        blocked = true;
-      }else{
-        if(frontCell === 'D') drawDoor(far);
-        if(frontCell === 'C') drawChest(far);
-        if(frontCell === 'R') drawStairs(far);
+        drawFrontWall(far,false);
+        stopped = true;
+      }else if(frontCell === 'D'){
+        drawFrontWall(far,true);
+        stopped = true;
+      }else if(frontCell === 'C'){
+        drawChest(far);
+      }else if(frontCell === 'R'){
+        drawStairs(far);
       }
     }
 
     drawCompass();
 
-    function drawSolidSide(near,far,side){
-      const pts = side === 'left'
-        ? [[near.l,near.t],[far.l,far.t],[far.l,far.b],[near.l,near.b]]
-        : [[near.r,near.t],[far.r,far.t],[far.r,far.b],[near.r,near.b]];
-      fillPoly(pts, 'rgba(8,8,7,.38)');
-      strokePoly(pts, 'rgba(167,155,114,.72)');
+    function drawSideWall(near,far,side){
+      const x1 = side==='left' ? near.l : near.r;
+      const x2 = side==='left' ? far.l : far.r;
+      ctx.strokeStyle = 'rgba(167,155,114,.84)';
+      strokeSeg(x1,near.t,x2,far.t);
+      strokeSeg(x1,near.b,x2,far.b);
+      strokeSeg(x2,far.t,x2,far.b);
     }
-    function drawOpenSide(near,far,side,cell){
-      const nx = side==='left' ? near.l : near.r;
-      const fx = side==='left' ? far.l : far.r;
-      ctx.strokeStyle='rgba(236,214,118,.76)';
-      strokeSeg(nx,near.t,fx,far.t);
-      strokeSeg(nx,near.b,fx,far.b);
-      // doorway edge
-      const midN=(near.t+near.b)/2, midF=(far.t+far.b)/2;
-      ctx.strokeStyle='rgba(167,155,114,.54)';
-      strokeSeg(nx,midN-28,fx,midF-18);
-      strokeSeg(nx,midN+28,fx,midF+18);
-      if(cell === 'D'){
-        ctx.strokeStyle=accent;
-        const x=side==='left'? nx+10 : nx-10;
-        strokeSeg(x,midN-22,x,midN+22);
-      }else if(cell === 'C'){
-        ctx.fillStyle=accent;
-        const x=side==='left'? nx+8 : nx-14;
-        ctx.fillRect(x,midN+18,8,6);
-      }else if(cell === 'R'){
-        ctx.strokeStyle='rgba(174,230,170,.88)';
-        strokeSeg(nx,midN+16,fx,midF+24);
+    function drawSideOpening(near,far,side){
+      const x1 = side==='left' ? near.l : near.r;
+      const x2 = side==='left' ? far.l : far.r;
+      const y1 = near.t + (near.b-near.t)*0.22;
+      const y2 = near.b - (near.b-near.t)*0.22;
+      const fy1 = far.t + (far.b-far.t)*0.22;
+      const fy2 = far.b - (far.b-far.t)*0.22;
+      ctx.strokeStyle = 'rgba(167,155,114,.84)';
+      strokeSeg(x1,near.t,x2,far.t);
+      strokeSeg(x1,near.b,x2,far.b);
+      // inner jamb line to read as side passage
+      strokeSeg(x1,y1,x2,fy1);
+      strokeSeg(x1,y2,x2,fy2);
+    }
+    function drawFrontWall(fr,withDoor){
+      ctx.strokeStyle = 'rgba(167,155,114,.92)';
+      strokeSeg(fr.l,fr.t,fr.r,fr.t);
+      strokeSeg(fr.l,fr.b,fr.r,fr.b);
+      strokeSeg(fr.l,fr.t,fr.l,fr.b);
+      strokeSeg(fr.r,fr.t,fr.r,fr.b);
+      if(withDoor){
+        const ww=(fr.r-fr.l)*0.42;
+        const hh=(fr.b-fr.t)*0.72;
+        const x=(fr.l+fr.r)/2 - ww/2;
+        const y=fr.b - hh;
+        // draw door on the wall
+        ctx.strokeStyle = accent;
+        strokeSeg(x,y,x+ww,y);
+        strokeSeg(x,y,x,y+hh);
+        strokeSeg(x+ww,y,x+ww,y+hh);
+        strokeSeg(x,y+hh,x+ww,y+hh);
+        strokeSeg(x+ww/2,y,x+ww/2,y+hh);
+        ctx.fillStyle = 'rgba(236,214,118,.65)';
+        ctx.beginPath();
+        ctx.arc(x+ww*0.72,y+hh*0.55,2.8,0,Math.PI*2);
+        ctx.fill();
+      }else{
+        // center seam only for plain wall
+        const cx=(fr.l+fr.r)/2;
+        ctx.strokeStyle='rgba(167,155,114,.32)';
+        strokeSeg(cx,fr.t,cx,fr.b);
       }
     }
-    function drawFrontWall(fr,depth){
-      fillPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], 'rgba(8,8,7,.46)');
-      strokePoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], lineColor);
-      ctx.strokeStyle='rgba(167,155,114,.36)';
-      const split = (fr.l+fr.r)/2;
-      strokeSeg(split,fr.t,split,fr.b);
-    }
-    function drawDoor(fr){
-      const ww=(fr.r-fr.l)*0.46, hh=(fr.b-fr.t)*0.72;
-      const x=cx-ww/2, y=fr.b-hh;
-      ctx.strokeStyle=accent;
-      ctx.lineWidth=2;
-      ctx.strokeRect(x,y,ww,hh);
-      strokeSeg(cx,y,cx,y+hh);
-      ctx.fillStyle='rgba(236,214,118,.5)';
-      ctx.beginPath();
-      ctx.arc(x+ww*0.72, y+hh*0.58, 3, 0, Math.PI*2);
-      ctx.fill();
-      ctx.lineWidth=1.6;
-    }
     function drawChest(fr){
-      const ww=Math.max(24,(fr.r-fr.l)*0.24), hh=Math.max(14,(fr.b-fr.t)*0.14);
-      const x=cx-ww/2, y=fr.b-hh-8;
-      ctx.fillStyle='rgba(22,15,8,.90)';
+      const cx=(fr.l+fr.r)/2;
+      const ww=Math.max(24,(fr.r-fr.l)*0.20);
+      const hh=Math.max(14,(fr.b-fr.t)*0.12);
+      const x=cx-ww/2, y=fr.b-hh-6;
       ctx.strokeStyle=accent;
-      ctx.fillRect(x,y,ww,hh);
       ctx.strokeRect(x,y,ww,hh);
       ctx.beginPath();
       ctx.moveTo(x,y);
-      ctx.quadraticCurveTo(cx,y-hh*0.85,x+ww,y);
+      ctx.quadraticCurveTo(cx,y-hh*0.75,x+ww,y);
       ctx.stroke();
       ctx.fillStyle=accent;
       ctx.fillRect(cx-2,y+hh*0.35,4,4);
     }
     function drawStairs(fr){
-      const baseY=fr.b-10;
-      ctx.strokeStyle='rgba(174,230,170,.94)';
-      for(let i=0;i<5;i++){
+      const cx=(fr.l+fr.r)/2;
+      const baseY=fr.b-8;
+      ctx.strokeStyle='rgba(174,230,170,.92)';
+      for(let i=0;i<4;i++){
         const y=baseY-i*8;
-        const ww=26+i*16;
+        const ww=28+i*14;
         strokeSeg(cx-ww/2,y,cx+ww/2,y);
       }
-      strokeSeg(cx-38,baseY,cx,fr.t+10);
-      strokeSeg(cx+38,baseY,cx,fr.t+10);
+      strokeSeg(cx-34,baseY,cx,fr.t+8);
+      strokeSeg(cx+34,baseY,cx,fr.t+8);
     }
     function drawCompass(){
-      const cx2 = w - 34, cy = 34;
-      ctx.strokeStyle=accent;
-      ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(cx2,cy,18,0,Math.PI*2); ctx.stroke();
-      const a=(-Math.PI/2)+(state.location.dir*Math.PI/2);
-      strokeSeg(cx2,cy,cx2+Math.cos(a)*12,cy+Math.sin(a)*12);
-      ctx.fillStyle='rgba(238,232,208,.88)';
-      ctx.font='bold 13px system-ui';
-      ctx.textAlign='center';
-      ctx.fillText(DIRS[state.location.dir],cx2,cy+30);
+      const cx = w - 34, cy = 34;
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx,cy,18,0,Math.PI*2); ctx.stroke();
+      const ang = (-Math.PI/2) + state.location.dir * Math.PI/2;
+      strokeSeg(cx,cy,cx+Math.cos(ang)*12,cy+Math.sin(ang)*12);
+      ctx.fillStyle = 'rgba(238,232,208,.88)';
+      ctx.font = 'bold 13px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(DIRS[state.location.dir],cx,cy+30);
     }
     function strokeSeg(x1,y1,x2,y2){
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
     }
-    function fillPoly(points,color){
-      ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]);
-      for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]);
-      ctx.closePath(); ctx.fill();
-    }
-    function strokePoly(points,color){
-      ctx.strokeStyle=color; ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]);
-      for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]);
-      ctx.closePath(); ctx.stroke();
-    }
-    function lerp(a,b,t){ return a+(b-a)*t; }
   }
 
   function setScreen(name){
