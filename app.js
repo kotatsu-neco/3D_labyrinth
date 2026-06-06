@@ -70,6 +70,7 @@
     ]
   };
 
+  const BUILD_ID = '20260607-rootfix-v03';
   const app = document.getElementById('app');
   let state = null;
   let saveNotice = '';
@@ -685,6 +686,27 @@
     },0);
   }
 
+
+  function assetBuildValue(){
+    return getComputedStyle(document.documentElement).getPropertyValue('--asset-build').replace(/["']/g,'').trim();
+  }
+  function showAssetError(message){
+    if(!app) return;
+    app.innerHTML = `<div class="asset-error"><b>起動前検査エラー</b><br>${esc(message)}<br><br>index.html / style.css / app.js の3ファイルを同じフォルダに置き、古いキャッシュを更新してください。</div>`;
+  }
+  function verifyAssetsLoaded(){
+    const cssBuild = assetBuildValue();
+    if(cssBuild !== BUILD_ID){
+      showAssetError(`CSSが正しく読めていません。期待: ${BUILD_ID} / 実際: ${cssBuild || '未読込'}`);
+      return false;
+    }
+    if(!app || app.dataset.build !== BUILD_ID){
+      showAssetError(`index.htmlのビルドIDが一致しません。期待: ${BUILD_ID}`);
+      return false;
+    }
+    return true;
+  }
+
   function renderTitle(){
     state = null;
     const loaded = loadSave();
@@ -793,7 +815,8 @@
       ['未鑑定品', Object.keys(DATA.unidentified).length > 0, '未鑑定品テンプレートあり'],
       ['施設', DATA.facilities.includes('宿屋') && DATA.facilities.includes('商店') && DATA.facilities.includes('鑑定所'), '宿屋・商店・鑑定所あり'],
       ['セーブ', typeof saveGame === 'function' && typeof loadSave === 'function' && typeof localStorage !== 'undefined', 'LocalStorage処理あり'],
-      ['横スクロール対策', /overflow\s*:\s*hidden/.test(cssText) && /max-width\s*:\s*540px/.test(cssText), 'CSS上の横スクロール抑制あり']
+      ['横スクロール対策', /overflow\s*:\s*hidden/.test(cssText) && /max-width\s*:\s*540px/.test(cssText), 'CSS上の横スクロール抑制あり'],
+      ['アセット整合', assetBuildValue() === BUILD_ID && app.dataset.build === BUILD_ID, 'index/style/app のビルドID一致']
     ];
   }
   function renderDiagnostics(){
@@ -1110,6 +1133,5 @@
     handleAction,
     getState:() => state
   };
-
-  renderTitle();
+  if(verifyAssetsLoaded()) renderTitle();
 })();
