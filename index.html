@@ -65,6 +65,13 @@ button,input,select{font:inherit;color:inherit;}
   .logbox{flex-basis:74px;font-size:13px;padding:5px 7px}.btn{min-height:45px;font-size:14px;padding:6px 4px}.actions{gap:5px}
 }
 @media (max-width:360px){.game-title{font-size:26px}.btn{font-size:13px}.member .n{font-size:12px}.member .hp,.member .mp{font-size:11px}.logbox{font-size:12px}.enemy-card{min-width:76px;padding-left:4px;padding-right:4px}}
+
+.battle-prompt{border:1px solid var(--line);background:#080806;padding:7px 8px;font-size:14px;line-height:1.35;}
+.battle-prompt span{color:var(--muted);font-size:12px;margin-left:4px;}
+.cmd-queue{border:1px solid var(--line2);background:#050504;color:var(--muted);padding:5px 6px;font-size:12px;line-height:1.4;min-height:30px;}
+.cmd-chip{display:inline-block;border:1px solid var(--line2);padding:2px 5px;margin:1px 3px 1px 0;color:var(--fg);background:#0d0c09;}
+.inn-row .desc .good{font-weight:800;}
+.enemy-card.dead{opacity:.45;}
 </style>
 </head>
 <body>
@@ -517,15 +524,26 @@ function renderDungeon(){
   requestAnimationFrame(drawDungeon); scrollLog();
 }
 function renderBattle(){
-  const enemies=state.battle.enemies.map(e=>'<div class="enemy-card"><div class="enemy-sigil"></div><div class="enemy-name">'+esc(e.name)+'</div><div class="enemy-hp">HP '+e.hp+'/'+e.maxHp+'</div></div>').join('');
-  app.innerHTML=header('戦闘')+'<div class="main"><div class="enemy-stage"><div class="enemy-row">'+enemies+'</div></div>'+partySummary()+logHtml()+'</div>'+actions([
-    {label:'攻撃',act:'attack',class:'primary'}, {label:'防御',act:'defend'}, {label:'魔法',act:'magic'}, {label:'逃走',act:'escape'}
+  if(!state.battle){ state.screen='dungeon'; render(); return; }
+  const enemies=state.battle.enemies.map(e=>'<div class="enemy-card '+(e.hp<=0?'dead':'')+'"><div class="enemy-sigil"></div><div class="enemy-name">'+esc(e.name)+'</div><div class="enemy-hp">HP '+e.hp+'/'+e.maxHp+'</div></div>').join('');
+  const actor=currentCommandActor();
+  const queued=state.party.filter(p=>p.hp>0 && state.battle.commands[p.id]).map(p=>'<span class="cmd-chip">'+esc(p.name)+'：'+esc(commandName(state.battle.commands[p.id]))+'</span>').join('');
+  const prompt=actor
+    ? '<div class="battle-prompt"><b>指示対象：</b>'+esc(actor.name)+' <span>'+esc(actor.position==='front'?'前衛':'後衛')+' / '+esc(actor.job)+'</span></div>'
+    : '<div class="battle-prompt"><b>指示解決中</b></div>';
+  app.innerHTML=header('戦闘')+'<div class="main"><div class="enemy-stage"><div class="enemy-row">'+enemies+'</div></div>'+prompt+'<div class="cmd-queue">'+(queued||'まだ指示はない。')+'</div>'+partySummary()+logHtml()+'</div>'+actions([
+    {label:'攻撃',act:'battleCommand',arg:'attack',class:'primary'}, {label:'防御',act:'battleCommand',arg:'defend'}, {label:'魔法',act:'battleCommand',arg:'magic'}, {label:'逃走',act:'battleCommand',arg:'escape'}
   ],'four');
   scrollLog();
 }
 function renderInn(){
-  const cost=state.party.reduce((a,p)=>a+6+p.level*3,0);
-  app.innerHTML=header('宿屋')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">宿屋</div><div class="note">宿泊すると全員のHP/MPが回復する。経験値が足りている者は、ここでレベルアップする。</div><p>宿代: <b>'+cost+'</b></p></div>'+partySummary()+'</div>'+logHtml()+'</div>'+actions([{label:'休む',act:'rest',class:'primary'},{label:'街へ戻る',act:'city'},{label:'パーティ',act:'screen',arg:'party'}]);
+  const rows=state.party.map(p=>{
+    const cost=6+p.level*3;
+    const canLevel=p.exp>=nextExp(p.level);
+    const needsCare=p.hp<p.maxHp || p.mp<p.maxMp || p.status!=='正常' || canLevel;
+    return '<div class="item-row inn-row"><div class="info"><div class="name">'+esc(p.name)+' Lv'+p.level+' / '+esc(p.job)+' / '+esc(p.status)+'</div><div class="desc">HP '+p.hp+'/'+p.maxHp+'　MP '+p.mp+'/'+p.maxMp+'　次Lv '+p.exp+'/'+nextExp(p.level)+'　宿代 '+cost+(canLevel?'　<span class="good">Lv上昇可</span>':'')+'</div></div><button class="btn small-btn" data-act="restChar" data-arg="'+esc(p.id)+'" '+(!needsCare?'disabled':'')+'>泊める</button></div>';
+  }).join('');
+  app.innerHTML=header('宿屋')+'<div class="main"><div class="menu-scroll"><div class="panel"><div class="section-title">宿屋</div><div class="note">宿泊はキャラクター単位。泊めた者だけHP/MPが回復し、経験値が足りていればレベルアップする。</div></div><div class="panel"><div class="section-title">誰を泊めるか</div>'+rows+'</div></div>'+logHtml()+'</div>'+actions([{label:'街へ戻る',act:'city'},{label:'パーティ',act:'screen',arg:'party'}],'two');
   scrollLog();
 }
 function renderShop(){
@@ -666,19 +684,19 @@ function handleAction(act,arg){
   if(act==='turnLeft') return turn(-1);
   if(act==='turnRight') return turn(1);
   if(act==='inspect') return inspectCell();
-  if(act==='attack') return playerAttack();
-  if(act==='defend') return playerDefend();
-  if(act==='magic') return playerMagic();
-  if(act==='escape') return playerEscape();
+  if(act==='battleCommand') return setBattleCommand(arg);
+  if(act==='restChar') return restInnChar(arg);
   if(act==='rest') return restInn();
   if(act==='buy') return buyItem(arg);
   if(act==='sell') return sellItem(arg);
   if(act==='identify') return identify(arg);
   if(act==='useItem') return useItem(arg);
+  console.error('Unknown action:', act, arg);
+  if(state){ addLog('未対応の操作: '+act, 'bad'); render(); }
 }
 app.addEventListener('click', e=>{ const b=e.target.closest('[data-act]'); if(!b || b.disabled) return; handleAction(b.dataset.act,b.dataset.arg); });
 
-window.__DRPG_TEST__={DATA,runDiagnostics,loadSave,validateSave,KEY};
+window.__DRPG_TEST__={DATA,runDiagnostics,loadSave,validateSave,KEY,handleAction,getState:()=>state};
 renderTitle();
 })();
 </script>
