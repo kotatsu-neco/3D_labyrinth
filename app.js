@@ -70,7 +70,7 @@
     ]
   };
 
-  const BUILD_ID = '20260608-dungeon-solidwalls-v08';
+  const BUILD_ID = '20260608-wallgraytest-v09';
   const app = document.getElementById('app');
   let state = null;
   let saveNotice = '';
@@ -925,7 +925,7 @@
       const pts = side==='left'
         ? [[near.l,near.t],[far.l,far.t],[far.l,far.b],[near.l,near.b]]
         : [[near.r,near.t],[far.r,far.t],[far.r,far.b],[near.r,near.b]];
-      ctx.fillStyle = 'rgba(11,11,10,.92)';
+      ctx.fillStyle = 'rgba(105,105,105,.78)';
       fillPoly(pts);
       ctx.strokeStyle = 'rgba(167,155,114,.92)';
       strokePoly(pts);
@@ -957,7 +957,7 @@
     }
 
     function drawFrontWall(fr, withDoor){
-      ctx.fillStyle = 'rgba(9,9,8,.94)';
+      ctx.fillStyle = 'rgba(118,118,118,.82)';
       fillPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]]);
       ctx.strokeStyle = 'rgba(167,155,114,.96)';
       ctx.lineWidth = 1.7;
