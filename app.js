@@ -70,7 +70,7 @@
     ]
   };
 
-  const BUILD_ID = '20260608-occlusion-v06';
+  const BUILD_ID = '20260608-dungeon-readability-v07';
   const app = document.getElementById('app');
   let state = null;
   let saveNotice = '';
@@ -931,17 +931,25 @@
     function drawSideOpening(near, far, side){
       const xNear = side==='left' ? near.l : near.r;
       const xFar = side==='left' ? far.l : far.r;
-      const yTopNear = near.t + (near.b-near.t)*0.32;
-      const yBottomNear = near.b - (near.b-near.t)*0.32;
-      const yTopFar = far.t + (far.b-far.t)*0.28;
-      const yBottomFar = far.b - (far.b-far.t)*0.28;
+      const yTopNear = near.t + (near.b-near.t)*0.26;
+      const yBottomNear = near.b - (near.b-near.t)*0.26;
+      const yTopFar = far.t + (far.b-far.t)*0.24;
+      const yBottomFar = far.b - (far.b-far.t)*0.24;
       ctx.strokeStyle = 'rgba(167,155,114,.88)';
-      // outer edges
+      // outer corridor edges
       strokeSeg(xNear,near.t,xFar,far.t);
       strokeSeg(xNear,near.b,xFar,far.b);
-      // opening jambs; no geometry behind the opening is drawn here
+      // near wall split, leaving an open gap to read as a side passage mouth
+      strokeSeg(xNear,near.t,xNear,yTopNear);
+      strokeSeg(xNear,yBottomNear,xNear,near.b);
+      // opening rails leading into the side passage
       strokeSeg(xNear,yTopNear,xFar,yTopFar);
       strokeSeg(xNear,yBottomNear,xFar,yBottomFar);
+      // far jamb and a short floor line inside the opening
+      strokeSeg(xFar,yTopFar,xFar,yBottomFar);
+      const innerOffset = side==='left' ? 12 : -12;
+      const floorY = yBottomFar - 2;
+      strokeSeg(xFar, floorY, xFar + innerOffset, floorY);
     }
 
     function drawFrontWall(fr, withDoor){
@@ -977,30 +985,53 @@
 
     function drawChest(fr){
       const cx = (fr.l+fr.r)/2;
-      const ww = Math.max(24,(fr.r-fr.l)*0.20);
-      const hh = Math.max(14,(fr.b-fr.t)*0.12);
-      const x = cx-ww/2, y = fr.b-hh-6;
+      const ww = Math.max(26,(fr.r-fr.l)*0.24);
+      const hh = Math.max(16,(fr.b-fr.t)*0.15);
+      const x = cx-ww/2;
+      const y = fr.b-hh-6;
       ctx.strokeStyle = accent;
-      ctx.strokeRect(x,y,ww,hh);
+      ctx.lineWidth = 1.6;
+      // chest body sitting on the floor
+      strokeSeg(x, y+hh*0.28, x, y+hh);
+      strokeSeg(x+ww, y+hh*0.28, x+ww, y+hh);
+      strokeSeg(x, y+hh, x+ww, y+hh);
+      strokeSeg(x, y+hh*0.28, x+ww, y+hh*0.28);
+      // lid
       ctx.beginPath();
-      ctx.moveTo(x,y);
-      ctx.quadraticCurveTo(cx,y-hh*0.75,x+ww,y);
+      ctx.moveTo(x, y+hh*0.28);
+      ctx.quadraticCurveTo(cx, y-hh*0.28, x+ww, y+hh*0.28);
       ctx.stroke();
+      // center clasp
       ctx.fillStyle = accent;
-      ctx.fillRect(cx-2,y+hh*0.35,4,4);
+      ctx.fillRect(cx-2, y+hh*0.45, 4, 5);
+      // ground contact line
+      ctx.strokeStyle = 'rgba(167,155,114,.45)';
+      strokeSeg(x-4, y+hh+2, x+ww+4, y+hh+2);
+      ctx.lineWidth = 1.6;
     }
 
     function drawStairs(fr){
       const cx = (fr.l+fr.r)/2;
-      const baseY = fr.b-8;
+      const bottomY = fr.b - 6;
+      const topY = fr.t + (fr.b-fr.t)*0.54;
+      const bottomW = Math.max(42,(fr.r-fr.l)*0.42);
+      const topW = Math.max(18,(fr.r-fr.l)*0.14);
+      const bl = cx-bottomW/2, br = cx+bottomW/2;
+      const tl = cx-topW/2, tr = cx+topW/2;
       ctx.strokeStyle = 'rgba(174,230,170,.92)';
-      for(let i=0;i<4;i++){
-        const y = baseY-i*8;
-        const ww = 28+i*14;
-        strokeSeg(cx-ww/2,y,cx+ww/2,y);
+      ctx.lineWidth = 1.6;
+      // opening in the floor / stairwell outline
+      strokeSeg(bl,bottomY,tl,topY);
+      strokeSeg(br,bottomY,tr,topY);
+      strokeSeg(tl,topY,tr,topY);
+      strokeSeg(bl,bottomY,br,bottomY);
+      // steps descending inward
+      for(let i=1;i<=4;i++){
+        const t = i/5;
+        const y = bottomY - (bottomY-topY)*t;
+        const lw = bottomW - (bottomW-topW)*t;
+        strokeSeg(cx-lw/2,y,cx+lw/2,y);
       }
-      strokeSeg(cx-34,baseY,cx,fr.t+8);
-      strokeSeg(cx+34,baseY,cx,fr.t+8);
     }
 
     function drawCompass(){
