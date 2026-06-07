@@ -70,7 +70,7 @@
     ]
   };
 
-  const BUILD_ID = '20260608-wallgraytest-v09';
+  const BUILD_ID = '20260608-dungeon-rewrite-v10';
   const app = document.getElementById('app');
   let state = null;
   let saveNotice = '';
@@ -845,10 +845,12 @@
     const w = box.width, h = box.height;
     const lineColor = getComputedStyle(document.documentElement).getPropertyValue('--line').trim() || '#a79b72';
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ecd676';
+    const wallFill = 'rgba(118,118,118,.82)'; // test color for readability
     ctx.clearRect(0,0,w,h);
     ctx.fillStyle = '#000';
     ctx.fillRect(0,0,w,h);
 
+    // screen frame
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2;
     ctx.strokeRect(2,2,w-4,h-4);
@@ -863,101 +865,113 @@
     ];
     const loc = state.location;
 
-    let blocked = false;
-    for(let depth=0; depth<3 && !blocked; depth++){
-      const curr = stepPos(loc.x,loc.y,loc.dir,depth);
-      const next = stepPos(loc.x,loc.y,loc.dir,depth+1);
-      const left = sidePos(curr.x,curr.y,loc.dir,-1);
-      const right = sidePos(curr.x,curr.y,loc.dir,1);
+    // depth 0: current cell readability takes priority
+    const left0 = sidePos(loc.x,loc.y,loc.dir,-1);
+    const right0 = sidePos(loc.x,loc.y,loc.dir,1);
+    const front1 = stepPos(loc.x,loc.y,loc.dir,1);
+    const frontCell1 = cellAt(front1.x,front1.y);
+
+    drawCurrentSlice(frames[0], frames[1], {
+      leftOpen: !isWall(left0.x,left0.y),
+      rightOpen: !isWall(right0.x,right0.y)
+    });
+
+    if(frontCell1 === '#'){
+      drawFrontWall(frames[1], false);
+      drawCompass();
+      return;
+    }
+    if(frontCell1 === 'D'){
+      drawFrontWall(frames[1], true);
+      drawCompass();
+      return;
+    }
+
+    // draw forward corridor only; do not leak deeper side geometry into visible side openings
+    drawPortal(frames[1]);
+    if(frontCell1 === 'R') drawFloorExit(frames[1]);
+
+    for(let depth=1; depth<3; depth++){
       const near = frames[depth];
       const far = frames[depth+1];
-      const frontCell = cellAt(next.x,next.y);
-
-      drawSlice(near, far, {
-        leftOpen: !isWall(left.x,left.y),
-        rightOpen: !isWall(right.x,right.y),
-        frontCell,
-        depth
-      });
-
-      if(frontCell === '#' || frontCell === 'D'){
-        blocked = true;
+      const target = stepPos(loc.x,loc.y,loc.dir,depth+1);
+      const frontCell = cellAt(target.x,target.y);
+      drawForwardSlice(near, far);
+      if(frontCell === '#'){
+        drawFrontWall(far, false);
+        break;
+      }
+      if(frontCell === 'D'){
+        drawFrontWall(far, true);
+        break;
+      }
+      drawPortal(far);
+      if(frontCell === 'R'){
+        drawFloorExit(far);
+        break;
       }
     }
 
     drawCompass();
 
-    function drawSlice(near, far, info){
-      // floor and ceiling perspective edges for visible slice
-      ctx.strokeStyle = 'rgba(167,155,114,.88)';
-      ctx.lineWidth = 1.6;
-      strokeSeg(near.l,near.t,far.l,far.t);
-      strokeSeg(near.r,near.t,far.r,far.t);
-      strokeSeg(near.l,near.b,far.l,far.b);
-      strokeSeg(near.r,near.b,far.r,far.b);
-
-      // subtle floor guides only in visible area
-      ctx.strokeStyle = 'rgba(167,155,114,.18)';
-      for(let i=1;i<=2;i++){
-        const t = i/3;
-        const y = lerp(near.b-6, far.b-2, t);
-        const lx = lerp(near.l+10, far.l+5, t);
-        const rx = lerp(near.r-10, far.r-5, t);
-        strokeSeg(lx,y,rx,y);
-      }
-
+    function drawCurrentSlice(near, far, info){
+      drawForwardSlice(near, far);
       if(info.leftOpen) drawSideOpening(near, far, 'left');
       else drawSideWall(near, far, 'left');
       if(info.rightOpen) drawSideOpening(near, far, 'right');
       else drawSideWall(near, far, 'right');
+    }
 
-      if(info.frontCell === '#') drawFrontWall(far, false);
-      else if(info.frontCell === 'D') drawFrontWall(far, true);
-      else if(info.frontCell === 'R') drawFloorExit(far);
-      else {
-        ctx.strokeStyle = 'rgba(167,155,114,.72)';
-        strokeSeg(far.l,far.t,far.r,far.t);
-        strokeSeg(far.l,far.b,far.r,far.b);
-      }
+    function drawForwardSlice(near, far){
+      ctx.strokeStyle = 'rgba(167,155,114,.90)';
+      ctx.lineWidth = 1.6;
+      // ceiling and floor edges of the central corridor
+      strokeSeg(near.l,near.t,far.l,far.t);
+      strokeSeg(near.r,near.t,far.r,far.t);
+      strokeSeg(near.l,near.b,far.l,far.b);
+      strokeSeg(near.r,near.b,far.r,far.b);
     }
 
     function drawSideWall(near, far, side){
       const pts = side==='left'
         ? [[near.l,near.t],[far.l,far.t],[far.l,far.b],[near.l,near.b]]
         : [[near.r,near.t],[far.r,far.t],[far.r,far.b],[near.r,near.b]];
-      ctx.fillStyle = 'rgba(105,105,105,.78)';
+      ctx.fillStyle = wallFill;
       fillPoly(pts);
-      ctx.strokeStyle = 'rgba(167,155,114,.92)';
+      ctx.strokeStyle = 'rgba(167,155,114,.94)';
       strokePoly(pts);
     }
 
     function drawSideOpening(near, far, side){
       const xNear = side==='left' ? near.l : near.r;
       const xFar = side==='left' ? far.l : far.r;
-      const yTopNear = near.t + (near.b-near.t)*0.26;
-      const yBottomNear = near.b - (near.b-near.t)*0.26;
-      const yTopFar = far.t + (far.b-far.t)*0.24;
-      const yBottomFar = far.b - (far.b-far.t)*0.24;
-      ctx.strokeStyle = 'rgba(167,155,114,.90)';
-      // outer corridor edges
-      strokeSeg(xNear,near.t,xFar,far.t);
-      strokeSeg(xNear,near.b,xFar,far.b);
-      // near wall pieces above/below opening
-      strokeSeg(xNear,near.t,xNear,yTopNear);
-      strokeSeg(xNear,yBottomNear,xNear,near.b);
-      // opening rails
-      strokeSeg(xNear,yTopNear,xFar,yTopFar);
-      strokeSeg(xNear,yBottomNear,xFar,yBottomFar);
+      const yTopNear = near.t + (near.b-near.t)*0.28;
+      const yBottomNear = near.b - (near.b-near.t)*0.28;
+      const yTopFar = far.t + (far.b-far.t)*0.25;
+      const yBottomFar = far.b - (far.b-far.t)*0.25;
+      ctx.strokeStyle = 'rgba(167,155,114,.94)';
+      ctx.lineWidth = 1.6;
+      // near wall split into upper/lower parts; center gap is the side passage mouth
+      strokeSeg(xNear, near.t, xNear, yTopNear);
+      strokeSeg(xNear, yBottomNear, xNear, near.b);
+      // opening rails leading inward
+      strokeSeg(xNear, yTopNear, xFar, yTopFar);
+      strokeSeg(xNear, yBottomNear, xFar, yBottomFar);
       // far jamb
-      strokeSeg(xFar,yTopFar,xFar,yBottomFar);
-      // tiny hint of side floor inside opening
-      const innerOffset = side==='left' ? 12 : -12;
-      const floorY = yBottomFar - 2;
-      strokeSeg(xFar,floorY,xFar+innerOffset,floorY);
+      strokeSeg(xFar, yTopFar, xFar, yBottomFar);
+    }
+
+    function drawPortal(fr){
+      ctx.strokeStyle = 'rgba(167,155,114,.82)';
+      ctx.lineWidth = 1.45;
+      strokeSeg(fr.l,fr.t,fr.r,fr.t);
+      strokeSeg(fr.l,fr.b,fr.r,fr.b);
+      strokeSeg(fr.l,fr.t,fr.l,fr.b);
+      strokeSeg(fr.r,fr.t,fr.r,fr.b);
     }
 
     function drawFrontWall(fr, withDoor){
-      ctx.fillStyle = 'rgba(118,118,118,.82)';
+      ctx.fillStyle = wallFill;
       fillPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]]);
       ctx.strokeStyle = 'rgba(167,155,114,.96)';
       ctx.lineWidth = 1.7;
@@ -981,11 +995,9 @@
         ctx.arc(x+ww*0.73, y+hh*0.56, 2.7, 0, Math.PI*2);
         ctx.fill();
       }
-      ctx.lineWidth = 1.6;
     }
 
     function drawFloorExit(fr){
-      // square opening on the floor plane
       const topW = Math.max(18,(fr.r-fr.l)*0.18);
       const bottomW = Math.max(34,(fr.r-fr.l)*0.36);
       const topY = fr.b - (fr.b-fr.t)*0.28;
@@ -1001,15 +1013,6 @@
       fillPoly(pts);
       ctx.strokeStyle = 'rgba(174,230,170,.95)';
       strokePoly(pts);
-      // inner darkness lip
-      const inner = [
-        [cx-bottomW*0.32,bottomY-2],
-        [cx-topW*0.28,topY+4],
-        [cx+topW*0.28,topY+4],
-        [cx+bottomW*0.32,bottomY-2]
-      ];
-      ctx.strokeStyle = 'rgba(174,230,170,.55)';
-      strokePoly(inner);
     }
 
     function drawCompass(){
@@ -1047,7 +1050,6 @@
       ctx.closePath();
       ctx.stroke();
     }
-    function lerp(a,b,t){ return a + (b-a)*t; }
   }
 
   function setScreen(name){
