@@ -70,7 +70,7 @@
     ]
   };
 
-  const BUILD_ID = '20260609-polygon-v11';
+  const BUILD_ID = '20260609-template-polygon-v12';
   const app = document.getElementById('app');
   let state = null;
   let saveNotice = '';
@@ -850,153 +850,203 @@
     const lineColor = getComputedStyle(document.documentElement).getPropertyValue('--line').trim() || '#a79b72';
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ecd676';
 
-    // テスト用の明るい壁色。床・天井も面として塗り、壁だけが浮かないようにする。
-    const wallFill = 'rgba(116,116,116,.86)';
-    const floorFill = 'rgba(38,38,38,.92)';
-    const ceilingFill = 'rgba(30,30,30,.92)';
-    const openingFill = '#000';
+    // Template-polygon palette. Walls are intentionally bright for inspection.
+    const wallFill = 'rgba(112,112,112,.86)';
+    const ceilingFill = 'rgba(42,42,42,.94)';
+    const floorFill = 'rgba(36,36,36,.96)';
+    const darkness = '#000';
 
     ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = openingFill;
+    ctx.fillStyle = darkness;
     ctx.fillRect(0,0,w,h);
 
-    // screen frame
+    // Outer display frame.
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2;
     ctx.strokeRect(2,2,w-4,h-4);
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.4;
     ctx.strokeRect(12,12,w-24,h-24);
 
-    const frames = [
-      {l:26, r:w-26, t:24, b:h-40},
-      {l:w*0.18, r:w*0.82, t:h*0.18, b:h*0.80},
-      {l:w*0.33, r:w*0.67, t:h*0.34, b:h*0.66},
-      {l:w*0.43, r:w*0.57, t:h*0.44, b:h*0.56}
-    ];
-
     const loc = state.location;
-    const segments = [];
-    for(let depth=0; depth<3; depth++){
-      const current = stepPos(loc.x, loc.y, loc.dir, depth);
-      const next = stepPos(loc.x, loc.y, loc.dir, depth + 1);
-      const left = sidePos(current.x, current.y, loc.dir, -1);
-      const right = sidePos(current.x, current.y, loc.dir, 1);
-      const frontCell = cellAt(next.x, next.y);
+    const leftCell = sidePos(loc.x, loc.y, loc.dir, -1);
+    const rightCell = sidePos(loc.x, loc.y, loc.dir, 1);
+    const front1 = stepPos(loc.x, loc.y, loc.dir, 1);
+    const front2 = stepPos(loc.x, loc.y, loc.dir, 2);
+    const front3 = stepPos(loc.x, loc.y, loc.dir, 3);
 
-      segments.push({
-        depth,
-        near: frames[depth],
-        far: frames[depth + 1],
-        leftOpen: !isWall(left.x, left.y),
-        rightOpen: !isWall(right.x, right.y),
-        frontCell
-      });
+    const view = {
+      leftOpen: !isWall(leftCell.x, leftCell.y),
+      rightOpen: !isWall(rightCell.x, rightCell.y),
+      f1: cellAt(front1.x, front1.y),
+      f2: cellAt(front2.x, front2.y),
+      f3: cellAt(front3.x, front3.y)
+    };
 
-      if(frontCell === '#' || frontCell === 'D') break;
-    }
+    const frame = {
+      l: 28,
+      r: w - 28,
+      t: 28,
+      b: h - 42,
+      p1: {l:w*0.18, r:w*0.82, t:h*0.20, b:h*0.78},
+      p2: {l:w*0.34, r:w*0.66, t:h*0.36, b:h*0.64},
+      p3: {l:w*0.43, r:w*0.57, t:h*0.45, b:h*0.55}
+    };
 
-    // Draw far to near so near walls occlude deeper geometry.
-    for(let i=segments.length-1; i>=0; i--){
-      drawSegment(segments[i]);
-    }
-
+    // Draw in layers, with current-cell information first and only central forward depth after it.
+    drawBaseCorridor(frame);
+    drawCurrentSide('left', view.leftOpen, frame);
+    drawCurrentSide('right', view.rightOpen, frame);
+    drawForward(view, frame);
     drawCompass();
 
-    function drawSegment(seg){
-      const n = seg.near;
-      const f = seg.far;
+    function drawBaseCorridor(g){
+      // Ceiling and floor are coherent surfaces.
+      drawPoly([[g.l,g.t],[g.r,g.t],[g.p1.r,g.p1.t],[g.p1.l,g.p1.t]], ceilingFill, 'rgba(167,155,114,.50)');
+      drawPoly([[g.l,g.b],[g.r,g.b],[g.p1.r,g.p1.b],[g.p1.l,g.p1.b]], floorFill, 'rgba(167,155,114,.50)');
 
-      // Ceiling and floor are always actual surfaces of the visible corridor segment.
-      drawPoly([[n.l,n.t],[n.r,n.t],[f.r,f.t],[f.l,f.t]], ceilingFill, 'rgba(167,155,114,.42)');
-      drawPoly([[n.l,n.b],[n.r,n.b],[f.r,f.b],[f.l,f.b]], floorFill, 'rgba(167,155,114,.42)');
+      // Central perspective boundary.
+      stroke('rgba(167,155,114,.86)', 1.7, () => {
+        seg(g.l,g.t,g.p1.l,g.p1.t);
+        seg(g.r,g.t,g.p1.r,g.p1.t);
+        seg(g.l,g.b,g.p1.l,g.p1.b);
+        seg(g.r,g.b,g.p1.r,g.p1.b);
+      });
+    }
 
-      // Side surfaces: if wall, paint a wall. If open, leave black opening and draw only the mouth frame.
-      if(seg.leftOpen) drawSideOpening(n, f, 'left');
-      else drawSideWall(n, f, 'left');
+    function drawCurrentSide(side, open, g){
+      const isLeft = side === 'left';
+      const xOuter = isLeft ? g.l : g.r;
+      const xInner = isLeft ? g.p1.l : g.p1.r;
 
-      if(seg.rightOpen) drawSideOpening(n, f, 'right');
-      else drawSideWall(n, f, 'right');
+      if(!open){
+        const pts = isLeft
+          ? [[g.l,g.t],[g.p1.l,g.p1.t],[g.p1.l,g.p1.b],[g.l,g.b]]
+          : [[g.r,g.t],[g.p1.r,g.p1.t],[g.p1.r,g.p1.b],[g.r,g.b]];
+        drawPoly(pts, wallFill, 'rgba(167,155,114,.95)');
+        return;
+      }
 
-      // Central corridor edges. These are boundary edges, not decorative guide lines.
-      ctx.strokeStyle = 'rgba(167,155,114,.88)';
-      ctx.lineWidth = 1.6;
-      strokeSeg(n.l,n.t,f.l,f.t);
-      strokeSeg(n.r,n.t,f.r,f.t);
-      strokeSeg(n.l,n.b,f.l,f.b);
-      strokeSeg(n.r,n.b,f.r,f.b);
+      // Open side passage: only a mouth frame, no deeper side geometry.
+      const topOuter = lerp(g.t, g.b, .30);
+      const bottomOuter = lerp(g.t, g.b, .70);
+      const topInner = lerp(g.p1.t, g.p1.b, .30);
+      const bottomInner = lerp(g.p1.t, g.p1.b, .70);
 
-      if(seg.frontCell === '#'){
-        drawFrontWall(f, false);
-      }else if(seg.frontCell === 'D'){
-        drawFrontWall(f, true);
-      }else{
-        drawPortal(f);
-        if(seg.frontCell === 'R') drawFloorExit(f);
+      stroke('rgba(167,155,114,.92)', 1.7, () => {
+        // split current side wall into two pieces
+        seg(xOuter, g.t, xOuter, topOuter);
+        seg(xOuter, bottomOuter, xOuter, g.b);
+
+        // mouth rails into side opening
+        seg(xOuter, topOuter, xInner, topInner);
+        seg(xOuter, bottomOuter, xInner, bottomInner);
+
+        // far jamb of the opening
+        seg(xInner, topInner, xInner, bottomInner);
+      });
+
+      // Fill the side opening with pure darkness so it reads as passable void.
+      const openPts = isLeft
+        ? [[xOuter,topOuter],[xInner,topInner],[xInner,bottomInner],[xOuter,bottomOuter]]
+        : [[xOuter,topOuter],[xInner,topInner],[xInner,bottomInner],[xOuter,bottomOuter]];
+      drawPoly(openPts, darkness, NoneStroke());
+      stroke('rgba(167,155,114,.92)', 1.7, () => {
+        seg(xOuter, topOuter, xInner, topInner);
+        seg(xOuter, bottomOuter, xInner, bottomInner);
+        seg(xInner, topInner, xInner, bottomInner);
+      });
+    }
+
+    function drawForward(view, g){
+      if(view.f1 === '#'){
+        drawFrontWall(g.p1, false);
+        return;
+      }
+      if(view.f1 === 'D'){
+        drawFrontWall(g.p1, true);
+        return;
+      }
+
+      drawOpenPortal(g.p1);
+
+      if(view.f1 === 'R'){
+        drawFloorExit(g.p1);
+        return;
+      }
+
+      // second depth: central only. No side-branch rendering.
+      drawCentralSegment(g.p1, g.p2);
+      if(view.f2 === '#'){
+        drawFrontWall(g.p2, false);
+        return;
+      }
+      if(view.f2 === 'D'){
+        drawFrontWall(g.p2, true);
+        return;
+      }
+      drawOpenPortal(g.p2);
+      if(view.f2 === 'R'){
+        drawFloorExit(g.p2);
+        return;
+      }
+
+      // third depth: tiny central hint only.
+      drawCentralSegment(g.p2, g.p3);
+      if(view.f3 === '#') drawFrontWall(g.p3, false);
+      else if(view.f3 === 'D') drawFrontWall(g.p3, true);
+      else {
+        drawOpenPortal(g.p3);
+        if(view.f3 === 'R') drawFloorExit(g.p3);
       }
     }
 
-    function drawSideWall(near, far, side){
-      const pts = side === 'left'
-        ? [[near.l,near.t],[far.l,far.t],[far.l,far.b],[near.l,near.b]]
-        : [[near.r,near.t],[far.r,far.t],[far.r,far.b],[near.r,near.b]];
-      drawPoly(pts, wallFill, 'rgba(167,155,114,.94)');
+    function drawCentralSegment(a, b){
+      drawPoly([[a.l,a.t],[a.r,a.t],[b.r,b.t],[b.l,b.t]], ceilingFill, 'rgba(167,155,114,.40)');
+      drawPoly([[a.l,a.b],[a.r,a.b],[b.r,b.b],[b.l,b.b]], floorFill, 'rgba(167,155,114,.40)');
+      stroke('rgba(167,155,114,.82)', 1.45, () => {
+        seg(a.l,a.t,b.l,b.t);
+        seg(a.r,a.t,b.r,b.t);
+        seg(a.l,a.b,b.l,b.b);
+        seg(a.r,a.b,b.r,b.b);
+      });
     }
 
-    function drawSideOpening(near, far, side){
-      const xNear = side === 'left' ? near.l : near.r;
-      const xFar = side === 'left' ? far.l : far.r;
-      const topNear = near.t + (near.b-near.t)*0.30;
-      const bottomNear = near.b - (near.b-near.t)*0.30;
-      const topFar = far.t + (far.b-far.t)*0.27;
-      const bottomFar = far.b - (far.b-far.t)*0.27;
-
-      // Opening is intentionally black. Only the mouth frame is drawn.
-      ctx.strokeStyle = 'rgba(167,155,114,.90)';
-      ctx.lineWidth = 1.6;
-      strokeSeg(xNear, near.t, xNear, topNear);
-      strokeSeg(xNear, bottomNear, xNear, near.b);
-      strokeSeg(xNear, topNear, xFar, topFar);
-      strokeSeg(xNear, bottomNear, xFar, bottomFar);
-      strokeSeg(xFar, topFar, xFar, bottomFar);
+    function drawOpenPortal(p){
+      stroke('rgba(167,155,114,.72)', 1.35, () => {
+        seg(p.l,p.t,p.r,p.t);
+        seg(p.l,p.b,p.r,p.b);
+        seg(p.l,p.t,p.l,p.b);
+        seg(p.r,p.t,p.r,p.b);
+      });
     }
 
-    function drawPortal(fr){
-      ctx.strokeStyle = 'rgba(167,155,114,.70)';
-      ctx.lineWidth = 1.35;
-      strokeSeg(fr.l,fr.t,fr.r,fr.t);
-      strokeSeg(fr.l,fr.b,fr.r,fr.b);
-      strokeSeg(fr.l,fr.t,fr.l,fr.b);
-      strokeSeg(fr.r,fr.t,fr.r,fr.b);
-    }
-
-    function drawFrontWall(fr, withDoor){
-      drawPoly([[fr.l,fr.t],[fr.r,fr.t],[fr.r,fr.b],[fr.l,fr.b]], wallFill, 'rgba(167,155,114,.96)');
+    function drawFrontWall(p, withDoor){
+      drawPoly([[p.l,p.t],[p.r,p.t],[p.r,p.b],[p.l,p.b]], wallFill, 'rgba(167,155,114,.96)');
       if(withDoor){
-        const ww = (fr.r - fr.l) * 0.42;
-        const hh = (fr.b - fr.t) * 0.72;
-        const x = (fr.l + fr.r) / 2 - ww / 2;
-        const y = fr.b - hh;
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 1.8;
-        strokeSeg(x,y,x+ww,y);
-        strokeSeg(x,y,x,y+hh);
-        strokeSeg(x+ww,y,x+ww,y+hh);
-        strokeSeg(x,y+hh,x+ww,y+hh);
-        strokeSeg(x+ww/2,y,x+ww/2,y+hh);
+        const ww = (p.r - p.l) * .42;
+        const hh = (p.b - p.t) * .72;
+        const x = (p.l + p.r) / 2 - ww / 2;
+        const y = p.b - hh;
+        stroke(accent, 1.8, () => {
+          seg(x,y,x+ww,y);
+          seg(x,y,x,y+hh);
+          seg(x+ww,y,x+ww,y+hh);
+          seg(x,y+hh,x+ww,y+hh);
+          seg(x+ww/2,y,x+ww/2,y+hh);
+        });
         ctx.fillStyle = 'rgba(236,214,118,.70)';
         ctx.beginPath();
-        ctx.arc(x+ww*0.73, y+hh*0.56, 2.7, 0, Math.PI*2);
+        ctx.arc(x+ww*.73, y+hh*.56, 2.7, 0, Math.PI*2);
         ctx.fill();
       }
     }
 
-    function drawFloorExit(fr){
-      // Floor hatch: a flat polygon on the floor plane, not a floating stair symbol.
-      const cx = (fr.l + fr.r) / 2;
-      const topW = Math.max(18, (fr.r-fr.l)*0.18);
-      const bottomW = Math.max(36, (fr.r-fr.l)*0.38);
-      const topY = fr.b - (fr.b-fr.t)*0.28;
-      const bottomY = fr.b - (fr.b-fr.t)*0.06;
+    function drawFloorExit(p){
+      const cx = (p.l + p.r) / 2;
+      const topW = Math.max(18, (p.r-p.l)*.18);
+      const bottomW = Math.max(36, (p.r-p.l)*.38);
+      const topY = p.b - (p.b-p.t)*.30;
+      const bottomY = p.b - (p.b-p.t)*.07;
       const hatch = [
         [cx-bottomW/2,bottomY],
         [cx-topW/2,topY],
@@ -1009,39 +1059,48 @@
     function drawCompass(){
       const cx = w - 34;
       const cy = 34;
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(cx,cy,18,0,Math.PI*2);
-      ctx.stroke();
-      const ang = (-Math.PI/2) + state.location.dir * Math.PI/2;
-      strokeSeg(cx,cy,cx+Math.cos(ang)*12,cy+Math.sin(ang)*12);
+      stroke(accent, 2, () => {
+        ctx.beginPath();
+        ctx.arc(cx,cy,18,0,Math.PI*2);
+        ctx.stroke();
+        const ang = (-Math.PI/2) + state.location.dir * Math.PI/2;
+        seg(cx,cy,cx+Math.cos(ang)*12,cy+Math.sin(ang)*12);
+      });
       ctx.fillStyle = 'rgba(238,232,208,.88)';
       ctx.font = 'bold 13px system-ui';
       ctx.textAlign = 'center';
       ctx.fillText(DIRS[state.location.dir],cx,cy+30);
     }
 
-    function drawPoly(points, fill, stroke){
+    function drawPoly(points, fill, strokeColor){
       ctx.fillStyle = fill;
       ctx.beginPath();
       ctx.moveTo(points[0][0], points[0][1]);
       for(let i=1; i<points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
       ctx.closePath();
       ctx.fill();
-      if(stroke){
-        ctx.strokeStyle = stroke;
+      if(strokeColor){
+        ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
     }
 
-    function strokeSeg(x1,y1,x2,y2){
+    function stroke(color, width, fn){
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      fn();
+    }
+
+    function seg(x1,y1,x2,y2){
       ctx.beginPath();
       ctx.moveTo(x1,y1);
       ctx.lineTo(x2,y2);
       ctx.stroke();
     }
+
+    function lerp(a,b,t){ return a + (b-a)*t; }
+    function NoneStroke(){ return null; }
   }
 
   function setScreen(name){
