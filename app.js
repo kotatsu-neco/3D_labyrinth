@@ -70,7 +70,7 @@
     ]
   };
 
-  const BUILD_ID = '20260607-rootfix-v03';
+  const BUILD_ID = '20260608-occlusion-v06';
   const app = document.getElementById('app');
   let state = null;
   let saveNotice = '';
@@ -844,7 +844,6 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0,0,w,h);
 
-    // outer frames
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2;
     ctx.strokeRect(2,2,w-4,h-4);
@@ -859,50 +858,28 @@
     ];
     const loc = state.location;
 
-    // corridor wireframe
-    ctx.strokeStyle = 'rgba(167,155,114,.82)';
-    ctx.lineWidth = 1.6;
-    for(let i=0;i<frames.length-1;i++){
-      const a=frames[i], b=frames[i+1];
-      strokeSeg(a.l,a.t,b.l,b.t);
-      strokeSeg(a.r,a.t,b.r,b.t);
-      strokeSeg(a.l,a.b,b.l,b.b);
-      strokeSeg(a.r,a.b,b.r,b.b);
-      if(i < frames.length-2){
-        // frame edges of deeper wall slices
-        strokeSeg(b.l,b.t,b.r,b.t);
-        strokeSeg(b.l,b.b,b.r,b.b);
-      }
-    }
-
-    // subtle floor guides only, less clutter
-    ctx.strokeStyle = 'rgba(167,155,114,.20)';
-    const floorY1 = frames[0].b, floorY2 = frames[1].b, floorY3 = frames[2].b;
-    strokeSeg(frames[0].l+12, floorY1-18, frames[0].r-12, floorY1-18);
-    strokeSeg(frames[1].l+8, floorY2-10, frames[1].r-8, floorY2-10);
-    strokeSeg(frames[2].l+6, floorY3-5, frames[2].r-6, floorY3-5);
-
-    let stopped = false;
-    for(let depth=0; depth<3 && !stopped; depth++){
+    let blocked = false;
+    for(let depth=0; depth<3 && !blocked; depth++){
       const curr = stepPos(loc.x,loc.y,loc.dir,depth);
       const next = stepPos(loc.x,loc.y,loc.dir,depth+1);
       const left = sidePos(curr.x,curr.y,loc.dir,-1);
       const right = sidePos(curr.x,curr.y,loc.dir,1);
-      const near = frames[depth], far = frames[depth+1];
-
-      // side wall or side opening
-      if(isWall(left.x,left.y)) drawSideWall(near,far,'left');
-      else drawSideOpening(near,far,'left');
-      if(isWall(right.x,right.y)) drawSideWall(near,far,'right');
-      else drawSideOpening(near,far,'right');
-
+      const near = frames[depth];
+      const far = frames[depth+1];
       const frontCell = cellAt(next.x,next.y);
+
+      drawCorridorSlice(near, far, {
+        leftOpen: !isWall(left.x,left.y),
+        rightOpen: !isWall(right.x,right.y),
+        frontCell
+      });
+
       if(frontCell === '#'){
-        drawFrontWall(far,false);
-        stopped = true;
+        drawFrontWall(far, false);
+        blocked = true;
       }else if(frontCell === 'D'){
-        drawFrontWall(far,true);
-        stopped = true;
+        drawFrontWall(far, true);
+        blocked = true;
       }else if(frontCell === 'C'){
         drawChest(far);
       }else if(frontCell === 'R'){
@@ -912,41 +889,75 @@
 
     drawCompass();
 
-    function drawSideWall(near,far,side){
-      const x1 = side==='left' ? near.l : near.r;
-      const x2 = side==='left' ? far.l : far.r;
-      ctx.strokeStyle = 'rgba(167,155,114,.84)';
-      strokeSeg(x1,near.t,x2,far.t);
-      strokeSeg(x1,near.b,x2,far.b);
-      strokeSeg(x2,far.t,x2,far.b);
+    function drawCorridorSlice(near, far, info){
+      // ceiling/floor edges for this visible slice only
+      ctx.strokeStyle = 'rgba(167,155,114,.86)';
+      ctx.lineWidth = 1.6;
+      strokeSeg(near.l,near.t,far.l,far.t);
+      strokeSeg(near.r,near.t,far.r,far.t);
+      strokeSeg(near.l,near.b,far.l,far.b);
+      strokeSeg(near.r,near.b,far.r,far.b);
+
+      // a few floor guides only inside currently visible space
+      ctx.strokeStyle = 'rgba(167,155,114,.20)';
+      const fy1 = lerp(near.b-8, far.b-2, 0.35);
+      const fy2 = lerp(near.b-16, far.b-6, 0.65);
+      strokeSeg(near.l+10, fy1, near.r-10, fy1);
+      strokeSeg(far.l+6, fy2, far.r-6, fy2);
+
+      // side treatment
+      if(info.leftOpen) drawSideOpening(near, far, 'left');
+      else drawSideWall(near, far, 'left');
+      if(info.rightOpen) drawSideOpening(near, far, 'right');
+      else drawSideWall(near, far, 'right');
+
+      // if front remains open, show the next frame boundary only; otherwise front wall will close it
+      if(info.frontCell !== '#' && info.frontCell !== 'D'){
+        ctx.strokeStyle = 'rgba(167,155,114,.70)';
+        strokeSeg(far.l,far.t,far.r,far.t);
+        strokeSeg(far.l,far.b,far.r,far.b);
+      }
     }
-    function drawSideOpening(near,far,side){
-      const x1 = side==='left' ? near.l : near.r;
-      const x2 = side==='left' ? far.l : far.r;
-      const y1 = near.t + (near.b-near.t)*0.22;
-      const y2 = near.b - (near.b-near.t)*0.22;
-      const fy1 = far.t + (far.b-far.t)*0.22;
-      const fy2 = far.b - (far.b-far.t)*0.22;
-      ctx.strokeStyle = 'rgba(167,155,114,.84)';
-      strokeSeg(x1,near.t,x2,far.t);
-      strokeSeg(x1,near.b,x2,far.b);
-      // inner jamb line to read as side passage
-      strokeSeg(x1,y1,x2,fy1);
-      strokeSeg(x1,y2,x2,fy2);
+
+    function drawSideWall(near, far, side){
+      const xNear = side==='left' ? near.l : near.r;
+      const xFar = side==='left' ? far.l : far.r;
+      ctx.strokeStyle = 'rgba(167,155,114,.88)';
+      strokeSeg(xNear,near.t,xFar,far.t);
+      strokeSeg(xNear,near.b,xFar,far.b);
+      strokeSeg(xFar,far.t,xFar,far.b);
     }
-    function drawFrontWall(fr,withDoor){
+
+    function drawSideOpening(near, far, side){
+      const xNear = side==='left' ? near.l : near.r;
+      const xFar = side==='left' ? far.l : far.r;
+      const yTopNear = near.t + (near.b-near.t)*0.32;
+      const yBottomNear = near.b - (near.b-near.t)*0.32;
+      const yTopFar = far.t + (far.b-far.t)*0.28;
+      const yBottomFar = far.b - (far.b-far.t)*0.28;
+      ctx.strokeStyle = 'rgba(167,155,114,.88)';
+      // outer edges
+      strokeSeg(xNear,near.t,xFar,far.t);
+      strokeSeg(xNear,near.b,xFar,far.b);
+      // opening jambs; no geometry behind the opening is drawn here
+      strokeSeg(xNear,yTopNear,xFar,yTopFar);
+      strokeSeg(xNear,yBottomNear,xFar,yBottomFar);
+    }
+
+    function drawFrontWall(fr, withDoor){
       ctx.strokeStyle = 'rgba(167,155,114,.92)';
+      ctx.lineWidth = 1.7;
       strokeSeg(fr.l,fr.t,fr.r,fr.t);
       strokeSeg(fr.l,fr.b,fr.r,fr.b);
       strokeSeg(fr.l,fr.t,fr.l,fr.b);
       strokeSeg(fr.r,fr.t,fr.r,fr.b);
       if(withDoor){
-        const ww=(fr.r-fr.l)*0.42;
-        const hh=(fr.b-fr.t)*0.72;
-        const x=(fr.l+fr.r)/2 - ww/2;
-        const y=fr.b - hh;
-        // draw door on the wall
+        const ww = (fr.r-fr.l)*0.40;
+        const hh = (fr.b-fr.t)*0.70;
+        const x = (fr.l+fr.r)/2 - ww/2;
+        const y = fr.b - hh;
         ctx.strokeStyle = accent;
+        // door drawn on the wall plane
         strokeSeg(x,y,x+ww,y);
         strokeSeg(x,y,x,y+hh);
         strokeSeg(x+ww,y,x+ww,y+hh);
@@ -954,46 +965,51 @@
         strokeSeg(x+ww/2,y,x+ww/2,y+hh);
         ctx.fillStyle = 'rgba(236,214,118,.65)';
         ctx.beginPath();
-        ctx.arc(x+ww*0.72,y+hh*0.55,2.8,0,Math.PI*2);
+        ctx.arc(x+ww*0.73, y+hh*0.56, 2.7, 0, Math.PI*2);
         ctx.fill();
-      }else{
-        // center seam only for plain wall
-        const cx=(fr.l+fr.r)/2;
-        ctx.strokeStyle='rgba(167,155,114,.32)';
+      } else {
+        const cx = (fr.l+fr.r)/2;
+        ctx.strokeStyle = 'rgba(167,155,114,.30)';
         strokeSeg(cx,fr.t,cx,fr.b);
       }
+      ctx.lineWidth = 1.6;
     }
+
     function drawChest(fr){
-      const cx=(fr.l+fr.r)/2;
-      const ww=Math.max(24,(fr.r-fr.l)*0.20);
-      const hh=Math.max(14,(fr.b-fr.t)*0.12);
-      const x=cx-ww/2, y=fr.b-hh-6;
-      ctx.strokeStyle=accent;
+      const cx = (fr.l+fr.r)/2;
+      const ww = Math.max(24,(fr.r-fr.l)*0.20);
+      const hh = Math.max(14,(fr.b-fr.t)*0.12);
+      const x = cx-ww/2, y = fr.b-hh-6;
+      ctx.strokeStyle = accent;
       ctx.strokeRect(x,y,ww,hh);
       ctx.beginPath();
       ctx.moveTo(x,y);
       ctx.quadraticCurveTo(cx,y-hh*0.75,x+ww,y);
       ctx.stroke();
-      ctx.fillStyle=accent;
+      ctx.fillStyle = accent;
       ctx.fillRect(cx-2,y+hh*0.35,4,4);
     }
+
     function drawStairs(fr){
-      const cx=(fr.l+fr.r)/2;
-      const baseY=fr.b-8;
-      ctx.strokeStyle='rgba(174,230,170,.92)';
+      const cx = (fr.l+fr.r)/2;
+      const baseY = fr.b-8;
+      ctx.strokeStyle = 'rgba(174,230,170,.92)';
       for(let i=0;i<4;i++){
-        const y=baseY-i*8;
-        const ww=28+i*14;
+        const y = baseY-i*8;
+        const ww = 28+i*14;
         strokeSeg(cx-ww/2,y,cx+ww/2,y);
       }
       strokeSeg(cx-34,baseY,cx,fr.t+8);
       strokeSeg(cx+34,baseY,cx,fr.t+8);
     }
+
     function drawCompass(){
       const cx = w - 34, cy = 34;
       ctx.strokeStyle = accent;
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx,cy,18,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx,cy,18,0,Math.PI*2);
+      ctx.stroke();
       const ang = (-Math.PI/2) + state.location.dir * Math.PI/2;
       strokeSeg(cx,cy,cx+Math.cos(ang)*12,cy+Math.sin(ang)*12);
       ctx.fillStyle = 'rgba(238,232,208,.88)';
@@ -1001,9 +1017,15 @@
       ctx.textAlign = 'center';
       ctx.fillText(DIRS[state.location.dir],cx,cy+30);
     }
+
     function strokeSeg(x1,y1,x2,y2){
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
     }
+
+    function lerp(a,b,t){ return a + (b-a)*t; }
   }
 
   function setScreen(name){
