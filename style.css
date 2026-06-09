@@ -262,7 +262,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 .event-window-head h2 {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 20px;
   letter-spacing: .04em;
 }
@@ -386,4 +386,20 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .event-art {
     min-height: 98px;
   }
+}
+
+
+.event-window-body.compact {
+  grid-template-columns: 110px 1fr;
+  align-items: center;
+}
+
+.event-text.minimal {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+.event-text.minimal:empty {
+  min-height: 0;
 }

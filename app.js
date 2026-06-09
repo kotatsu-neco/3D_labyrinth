@@ -66,6 +66,9 @@
 
   const SIDE_TO_DIR = { N: 0, E: 1, S: 2, W: 3 };
 
+  const CHEST_ACTORS = ["アデル", "ミラ", "ガルド", "セリン", "ロウ", "ネネ"];
+  const CHEST_SPECIALIST = "ロウ";
+
   const state = {
     floor: "B1F",
     x: 1,
@@ -79,7 +82,7 @@
     eventWindowOpen: false,
     showMap: false,
     animation: null,
-    message: "v08: 宝箱の詳細操作をイベントウィンドウ化。3D空間では発見、罠確認・解除・開封は別UIで行います。",
+    message: "v09: 宝箱イベントの文言を最小化し、調査担当選択後に解除選択肢を出す方式へ変更しました。",
   };
 
   const visual = {
@@ -317,7 +320,7 @@
     if (tile === TILE.DOOR && !isDoorOpen(fx, fz)) {
       state.openedDoors.add(doorKey(fx, fz));
       scene = buildSceneGeometry();
-      setMessage("重い石扉を押し開けました。通路の奥から冷たい空気が流れます。", false);
+      setMessage("扉を開けました。", false);
       return;
     }
 
@@ -351,16 +354,9 @@
     }
   }
 
-  function getChestStatusText(chest) {
-    if (isChestOpen(chest)) return "開封済み / 回収済み";
-    if (isChestDisarmed(chest)) return "罠解除済み / 未開封";
-    if (isChestTrapChecked(chest)) return "罠確認済み / 未解除";
-    return "未調査 / 未開封";
-  }
-
-  function openChestWindow(chest, notice = "") {
+  function openChestWindow(chest, notice = "", mode = "main") {
     state.eventWindowOpen = true;
-    renderChestWindow(chest, notice);
+    renderChestWindow(chest, notice, mode);
   }
 
   function closeEventWindow() {
@@ -369,7 +365,7 @@
     state.eventWindowOpen = false;
   }
 
-  function renderChestWindow(chest, notice = "") {
+  function renderChestWindow(chest, notice = "", mode = "main") {
     let overlay = document.getElementById("eventWindowOverlay");
     if (!overlay) {
       overlay = document.createElement("div");
@@ -378,29 +374,43 @@
       document.body.appendChild(overlay);
     }
 
-    const trapChecked = isChestTrapChecked(chest);
+    const checked = isChestTrapChecked(chest);
     const disarmed = isChestDisarmed(chest);
     const opened = isChestOpen(chest);
     const key = objectKey(chest);
-    const status = getChestStatusText(chest);
-    const description = opened
-      ? "蓋は開いている。中身はすでに回収済みです。"
-      : disarmed
-        ? "錆びた金具の奥で、解除済みの針金が力なく垂れています。"
-        : trapChecked
-          ? "蓋の隙間に細い針金が見えます。解除しなければ危険です。"
-          : "錆びた金具のついた木箱です。蓋の隙間から、かすかに冷たい空気が漏れています。";
+
+    const actorButtons = CHEST_ACTORS.map((name) => `<button data-action="actor:${name}">${name}</button>`).join("");
+    const disarmButtons = CHEST_ACTORS.map((name) => `<button data-action="disarmActor:${name}">${name}</button>`).join("");
+    const mainButtons = opened
+      ? `<button data-action="close">離れる</button>`
+      : `
+        <button data-action="check">調べる</button>
+        ${checked && !disarmed ? `<button data-action="disarm">罠を解除する</button>` : ""}
+        <button data-action="open">開ける</button>
+        <button data-action="close">離れる</button>
+      `;
+
+    let title = "宝箱";
+    let bodyClass = "event-window-body compact";
+    let actions = mainButtons;
+
+    if (mode === "chooseInspector") {
+      title = "誰が調べますか";
+      actions = `${actorButtons}<button data-action="back">戻る</button>`;
+    } else if (mode === "chooseDisarmer") {
+      title = "誰が解除しますか";
+      actions = `${disarmButtons}<button data-action="back">戻る</button>`;
+    }
 
     overlay.innerHTML = `
       <div class="event-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
         <div class="event-window-head">
           <div>
-            <div class="event-window-kicker">宝箱イベント</div>
-            <h2 id="eventWindowTitle">古びた宝箱</h2>
+            <h2 id="eventWindowTitle">${title}</h2>
           </div>
           <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
         </div>
-        <div class="event-window-body">
+        <div class="${bodyClass}">
           <div class="event-art" aria-hidden="true">
             <div class="event-chest-visual ${opened ? "opened" : "closed"}">
               <span class="event-chest-lid"></span>
@@ -408,21 +418,12 @@
               <span class="event-chest-lock"></span>
             </div>
           </div>
-          <div class="event-text">
-            <p>${description}</p>
-            <dl>
-              <dt>状態</dt><dd>${status}</dd>
-              <dt>罠</dt><dd>${trapChecked ? "小さな針罠を確認済み" : "未確認"}</dd>
-              <dt>解除</dt><dd>${disarmed ? "成功" : "未解除"}</dd>
-            </dl>
+          <div class="event-text minimal">
             ${notice ? `<p class="event-notice">${notice}</p>` : ""}
           </div>
         </div>
         <div class="event-actions">
-          <button data-action="check" ${opened ? "disabled" : ""}>罠を調べる</button>
-          <button data-action="disarm" ${opened || !trapChecked || disarmed ? "disabled" : ""}>解除する</button>
-          <button data-action="open" ${opened || !disarmed ? "disabled" : ""}>開ける</button>
-          <button data-action="close">離れる</button>
+          ${actions}
         </div>
       </div>`;
 
@@ -443,34 +444,48 @@
   function handleChestAction(chest, action, key) {
     if (action === "close") {
       closeEventWindow();
-      setMessage("宝箱から離れました。", false);
+      setMessage("離れました。", false);
+      return;
+    }
+    if (action === "back") {
+      renderChestWindow(chest, "", "main");
       return;
     }
     if (action === "check") {
+      renderChestWindow(chest, "", "chooseInspector");
+      return;
+    }
+    if (action.startsWith("actor:")) {
       state.checkedChestTraps.add(key);
-      renderChestWindow(chest, "蓋の隙間に細い針金を見つけました。罠は解除可能です。");
-      setMessage("宝箱の罠を調べました。", false);
+      renderChestWindow(chest, "罠を発見した。", "main");
+      setMessage("調べました。", false);
       return;
     }
     if (action === "disarm") {
-      if (!state.checkedChestTraps.has(key)) {
-        renderChestWindow(chest, "先に罠を調べる必要があります。");
-        return;
+      renderChestWindow(chest, "", "chooseDisarmer");
+      return;
+    }
+    if (action.startsWith("disarmActor:")) {
+      const actor = action.slice("disarmActor:".length);
+      if (actor === CHEST_SPECIALIST) {
+        state.disarmedChests.add(key);
+        renderChestWindow(chest, "解除した。", "main");
+        setMessage("解除した。", false);
+      } else {
+        renderChestWindow(chest, "解除に失敗した。", "main");
+        setMessage("解除に失敗した。", true);
       }
-      state.disarmedChests.add(key);
-      renderChestWindow(chest, "針金を外しました。罠は解除されました。");
-      setMessage("宝箱の罠を解除しました。", false);
       return;
     }
     if (action === "open") {
       if (!state.disarmedChests.has(key)) {
-        renderChestWindow(chest, "罠を解除するまで開けない方がよさそうです。");
+        renderChestWindow(chest, "開かなかった。", "main");
         return;
       }
       state.openedChests.add(key);
       scene = buildSceneGeometry();
-      renderChestWindow(chest, "中から未鑑定の小片を回収しました。");
-      setMessage("宝箱を開け、未鑑定の小片を回収しました。", false);
+      renderChestWindow(chest, "開いた。", "main");
+      setMessage("開いた。", false);
     }
   }
 
