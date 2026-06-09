@@ -19,6 +19,21 @@
     EVENT: 4,
   };
 
+  const SURFACE = {
+    WALL: 1,
+    FLOOR: 2,
+    CEILING: 3,
+    DOOR: 4,
+    PROP: 5,
+    MARK: 6,
+  };
+
+  // 通路幅。v01の1.0から1.5へ拡張する。
+  // 内部のグリッド座標はそのまま維持し、描画座標だけを拡大する。
+  const CELL = 1.5;
+  const ROOM_HEIGHT = 1.62;
+  const CAMERA_HEIGHT = 0.80;
+
   // 0: north, 1: east, 2: south, 3: west
   const DIRS = [
     { x: 0, z: -1, label: "N" },
@@ -50,25 +65,31 @@
     openedDoors: new Set(),
     showMap: false,
     animation: null,
-    message: "前進・旋回・調べるが動く、WebGLポリゴン3Dの最小試作です。",
+    message: "v02b: キャッシュバスター適用済み。通路幅1.5倍、石壁テクスチャ、歩行・旋回のメリハリを調整しました。",
   };
 
   const visual = {
     x: state.x,
     z: state.z,
     dir: state.dir,
+    stepBob: 0,
+    turnLean: 0,
   };
 
   const vertexShaderSource = `
     attribute vec3 aPosition;
     attribute vec3 aNormal;
     attribute vec3 aColor;
+    attribute vec2 aUV;
+    attribute float aSurface;
 
     uniform mat4 uProjection;
     uniform mat4 uView;
 
     varying vec3 vNormal;
     varying vec3 vColor;
+    varying vec2 vUV;
+    varying float vSurface;
     varying float vDepth;
 
     void main() {
@@ -76,6 +97,8 @@
       gl_Position = uProjection * viewPos;
       vNormal = aNormal;
       vColor = aColor;
+      vUV = aUV;
+      vSurface = aSurface;
       vDepth = -viewPos.z;
     }
   `;
@@ -83,17 +106,44 @@
   const fragmentShaderSource = `
     precision mediump float;
 
+    uniform sampler2D uWallTexture;
+    uniform sampler2D uFloorTexture;
+    uniform sampler2D uCeilingTexture;
+
     varying vec3 vNormal;
     varying vec3 vColor;
+    varying vec2 vUV;
+    varying float vSurface;
     varying float vDepth;
 
     void main() {
-      vec3 lightDir = normalize(vec3(0.25, 0.85, 0.45));
+      vec3 lightDir = normalize(vec3(0.18, 0.88, 0.42));
       float diffuse = max(dot(normalize(vNormal), lightDir), 0.0);
-      float shade = 0.28 + diffuse * 0.62;
-      float fog = clamp((vDepth - 2.0) / 7.5, 0.0, 1.0);
-      vec3 fogColor = vec3(0.025, 0.027, 0.032);
-      vec3 color = mix(vColor * shade, fogColor, fog);
+      float shade = 0.34 + diffuse * 0.66;
+
+      vec3 tex = vec3(1.0);
+      if (vSurface < 1.5) {
+        tex = texture2D(uWallTexture, vUV).rgb;
+      } else if (vSurface < 2.5) {
+        tex = texture2D(uFloorTexture, vUV).rgb;
+      } else if (vSurface < 3.5) {
+        tex = texture2D(uCeilingTexture, vUV).rgb;
+      } else if (vSurface < 4.5) {
+        tex = texture2D(uWallTexture, vUV * vec2(0.9, 1.1)).rgb * vec3(0.92, 0.72, 0.50);
+      }
+
+      // 近距離の壁面が潰れないよう、v01より霧を少し弱める。
+      float fog = clamp((vDepth - 4.8) / 11.5, 0.0, 1.0);
+      vec3 fogColor = vec3(0.030, 0.032, 0.038);
+      vec3 color = mix(vColor * tex * shade, fogColor, fog);
+
+      // 床・天井・壁の境界を少し締める。低解像度スマホでも面が読み取りやすい。
+      if (abs(vNormal.y) < 0.25) {
+        color *= 1.05;
+      } else if (vNormal.y < -0.5) {
+        color *= 0.76;
+      }
+
       gl_FragColor = vec4(color, 1.0);
     }
   `;
@@ -105,10 +155,22 @@
     position: gl.getAttribLocation(program, "aPosition"),
     normal: gl.getAttribLocation(program, "aNormal"),
     color: gl.getAttribLocation(program, "aColor"),
+    uv: gl.getAttribLocation(program, "aUV"),
+    surface: gl.getAttribLocation(program, "aSurface"),
   };
+
   const uniforms = {
     projection: gl.getUniformLocation(program, "uProjection"),
     view: gl.getUniformLocation(program, "uView"),
+    wallTexture: gl.getUniformLocation(program, "uWallTexture"),
+    floorTexture: gl.getUniformLocation(program, "uFloorTexture"),
+    ceilingTexture: gl.getUniformLocation(program, "uCeilingTexture"),
+  };
+
+  const textures = {
+    wall: createTextureFromCanvas(makeWallTexture()),
+    floor: createTextureFromCanvas(makeFloorTexture()),
+    ceiling: createTextureFromCanvas(makeCeilingTexture()),
   };
 
   const buffer = gl.createBuffer();
@@ -116,9 +178,7 @@
 
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
-  // CULL_FACE is intentionally disabled for the prototype.
-  // It prevents disappearing faces while the wall/floor geometry is still simple.
-  gl.clearColor(0.03, 0.032, 0.038, 1.0);
+  gl.clearColor(0.035, 0.037, 0.044, 1.0);
 
   let scene = buildSceneGeometry();
   let mapOverlay = null;
@@ -149,10 +209,11 @@
     const nx = state.x + d.x * step;
     const nz = state.z + d.z * step;
     if (isBlocked(nx, nz)) {
+      startBumpAnimation(step);
       setMessage(step > 0 ? "壁または閉じた扉に阻まれています。" : "背後には進めません。", true);
       return;
     }
-    startMoveAnimation(nx, nz);
+    startMoveAnimation(nx, nz, step);
   }
 
   function turn(delta) {
@@ -176,7 +237,7 @@
     }
 
     if (tile === TILE.WALL) {
-      setMessage("石壁です。表面には灰色の鉱脈が細く走っています。", false);
+      setMessage("石壁です。粗い石積みと目地が見えます。", false);
       return;
     }
 
@@ -202,6 +263,8 @@
     visual.x = state.x;
     visual.z = state.z;
     visual.dir = state.dir;
+    visual.stepBob = 0;
+    visual.turnLean = 0;
     setMessage("初期位置に戻りました。", false);
     updateHud();
   }
@@ -211,30 +274,44 @@
     renderMapOverlay();
   }
 
-  function startMoveAnimation(nx, nz) {
+  function startMoveAnimation(nx, nz, step) {
     state.animation = {
       type: "move",
       start: performance.now(),
-      duration: 160,
+      duration: 240,
       fromX: state.x,
       fromZ: state.z,
       toX: nx,
       toZ: nz,
+      step,
     };
     state.x = nx;
     state.z = nz;
     const tile = tileAt(nx, nz);
     if (tile === TILE.STAIR) setMessage("階段の前に到達しました。", false);
     else if (tile === TILE.EVENT) setMessage("足元で古い石板がかすかに鳴りました。", false);
-    else setMessage("一歩進みました。", false);
+    else setMessage(step > 0 ? "一歩進みました。" : "一歩下がりました。", false);
     updateHud();
+  }
+
+  function startBumpAnimation(step) {
+    const d = DIRS[state.dir];
+    state.animation = {
+      type: "bump",
+      start: performance.now(),
+      duration: 150,
+      fromX: state.x,
+      fromZ: state.z,
+      hitX: state.x + d.x * 0.085 * step,
+      hitZ: state.z + d.z * 0.085 * step,
+    };
   }
 
   function startTurnAnimation(ndir, delta) {
     state.animation = {
       type: "turn",
       start: performance.now(),
-      duration: 130,
+      duration: 190,
       fromDir: state.dir,
       toDir: ndir,
       delta,
@@ -245,27 +322,47 @@
   }
 
   function animate(now) {
-    if (!state.animation) return;
+    if (!state.animation) {
+      visual.stepBob = 0;
+      visual.turnLean = 0;
+      return;
+    }
     const a = state.animation;
     const t = Math.min(1, (now - a.start) / a.duration);
-    const e = easeOutCubic(t);
 
     if (a.type === "move") {
+      const e = easeInOutCubic(t);
+      const stepPulse = Math.sin(Math.PI * t);
+      const settlePulse = t > 0.70 ? Math.sin((t - 0.70) / 0.30 * Math.PI) : 0;
       visual.x = lerp(a.fromX, a.toX, e);
       visual.z = lerp(a.fromZ, a.toZ, e);
       visual.dir = state.dir;
+      visual.stepBob = stepPulse * 0.045 - settlePulse * 0.018;
+      visual.turnLean = 0;
     } else if (a.type === "turn") {
+      const e = easeInOutCubic(t);
       const fromAngle = dirToAngle(a.fromDir);
       const toAngle = fromAngle + a.delta * Math.PI / 2;
       visual.dir = angleToVirtualDir(lerp(fromAngle, toAngle, e));
       visual.x = state.x;
       visual.z = state.z;
+      visual.stepBob = 0;
+      visual.turnLean = Math.sin(Math.PI * t) * 0.018 * a.delta;
+    } else if (a.type === "bump") {
+      const e = Math.sin(Math.PI * t);
+      visual.x = lerp(a.fromX, a.hitX, e);
+      visual.z = lerp(a.fromZ, a.hitZ, e);
+      visual.dir = state.dir;
+      visual.stepBob = -Math.sin(Math.PI * t) * 0.025;
+      visual.turnLean = 0;
     }
 
     if (t >= 1) {
       visual.x = state.x;
       visual.z = state.z;
       visual.dir = state.dir;
+      visual.stepBob = 0;
+      visual.turnLean = 0;
       state.animation = null;
     }
   }
@@ -311,33 +408,45 @@
 
   function buildSceneGeometry() {
     const g = createGeometryBuilder();
-    const wallColor = [0.35, 0.36, 0.39];
-    const wallDark = [0.25, 0.26, 0.29];
-    const floorColor = [0.16, 0.15, 0.14];
-    const ceilingColor = [0.10, 0.11, 0.13];
-    const doorColor = [0.34, 0.24, 0.16];
-    const stairColor = [0.42, 0.39, 0.30];
-    const markColor = [0.43, 0.34, 0.14];
+    const wallColor = [0.74, 0.75, 0.76];
+    const wallDark = [0.58, 0.59, 0.61];
+    const floorColor = [0.75, 0.70, 0.62];
+    const ceilingColor = [0.58, 0.60, 0.64];
+    const doorColor = [0.55, 0.39, 0.24];
+    const stairColor = [0.72, 0.68, 0.52];
+    const markColor = [0.82, 0.65, 0.25];
 
     for (let z = 0; z < map.length; z++) {
       for (let x = 0; x < map[z].length; x++) {
         const tile = map[z][x];
+        const wx = x * CELL;
+        const wz = z * CELL;
         const isOpenFloor = tile !== TILE.WALL && !(tile === TILE.DOOR && !isDoorOpen(x, z));
+
         if (isOpenFloor) {
-          addQuad(g, [x, 0, z], [x + 1, 0, z], [x + 1, 0, z + 1], [x, 0, z + 1], [0, 1, 0], floorColor);
-          addQuad(g, [x, 1.45, z + 1], [x + 1, 1.45, z + 1], [x + 1, 1.45, z], [x, 1.45, z], [0, -1, 0], ceilingColor);
+          addQuad(g,
+            [wx, 0, wz], [wx + CELL, 0, wz], [wx + CELL, 0, wz + CELL], [wx, 0, wz + CELL],
+            [0, 1, 0], floorColor, SURFACE.FLOOR, CELL * 0.88, CELL * 0.88);
+          addQuad(g,
+            [wx, ROOM_HEIGHT, wz + CELL], [wx + CELL, ROOM_HEIGHT, wz + CELL], [wx + CELL, ROOM_HEIGHT, wz], [wx, ROOM_HEIGHT, wz],
+            [0, -1, 0], ceilingColor, SURFACE.CEILING, CELL * 0.72, CELL * 0.72);
         }
+
         if (tile === TILE.WALL) {
-          addCube(g, x, 0, z, 1, 1.45, 1, wallColor, wallDark);
+          addCube(g, wx, 0, wz, CELL, ROOM_HEIGHT, CELL, wallColor, wallDark, SURFACE.WALL);
         }
+
         if (tile === TILE.DOOR && !isDoorOpen(x, z)) {
-          addCube(g, x + 0.08, 0, z + 0.08, 0.84, 1.3, 0.84, doorColor, [0.24, 0.15, 0.10]);
+          const m = CELL * 0.10;
+          addCube(g, wx + m, 0, wz + m, CELL - m * 2, ROOM_HEIGHT * 0.92, CELL - m * 2, doorColor, [0.40, 0.27, 0.18], SURFACE.DOOR);
         }
+
         if (tile === TILE.STAIR) {
-          addLowPillar(g, x + 0.5, z + 0.5, stairColor);
+          addLowPillar(g, wx + CELL / 2, wz + CELL / 2, stairColor);
         }
+
         if (tile === TILE.EVENT) {
-          addFlatMarker(g, x + 0.5, z + 0.5, markColor);
+          addFlatMarker(g, wx + CELL / 2, wz + CELL / 2, markColor);
         }
       }
     }
@@ -349,42 +458,56 @@
     return { data: [] };
   }
 
-  function pushVertex(g, pos, normal, color) {
-    g.data.push(pos[0], pos[1], pos[2], normal[0], normal[1], normal[2], color[0], color[1], color[2]);
+  function pushVertex(g, pos, normal, color, uv, surface) {
+    g.data.push(
+      pos[0], pos[1], pos[2],
+      normal[0], normal[1], normal[2],
+      color[0], color[1], color[2],
+      uv[0], uv[1],
+      surface
+    );
   }
 
-  function addTri(g, a, b, c, normal, color) {
-    pushVertex(g, a, normal, color);
-    pushVertex(g, b, normal, color);
-    pushVertex(g, c, normal, color);
+  function addTri(g, a, b, c, normal, color, uvA, uvB, uvC, surface) {
+    pushVertex(g, a, normal, color, uvA, surface);
+    pushVertex(g, b, normal, color, uvB, surface);
+    pushVertex(g, c, normal, color, uvC, surface);
   }
 
-  function addQuad(g, a, b, c, d, normal, color) {
-    addTri(g, a, b, c, normal, color);
-    addTri(g, a, c, d, normal, color);
+  function addQuad(g, a, b, c, d, normal, color, surface, uvU = 1, uvV = 1) {
+    const uvA = [0, uvV];
+    const uvB = [uvU, uvV];
+    const uvC = [uvU, 0];
+    const uvD = [0, 0];
+    addTri(g, a, b, c, normal, color, uvA, uvB, uvC, surface);
+    addTri(g, a, c, d, normal, color, uvA, uvC, uvD, surface);
   }
 
-  function addCube(g, x, y, z, w, h, d, color, altColor) {
+  function addCube(g, x, y, z, w, h, d, color, altColor, surface) {
     const x0 = x, x1 = x + w;
     const y0 = y, y1 = y + h;
     const z0 = z, z1 = z + d;
-    const cTop = [Math.min(color[0] + 0.05, 1), Math.min(color[1] + 0.05, 1), Math.min(color[2] + 0.05, 1)];
-    addQuad(g, [x0,y0,z1], [x1,y0,z1], [x1,y1,z1], [x0,y1,z1], [0,0,1], color);
-    addQuad(g, [x1,y0,z0], [x0,y0,z0], [x0,y1,z0], [x1,y1,z0], [0,0,-1], altColor);
-    addQuad(g, [x0,y0,z0], [x0,y0,z1], [x0,y1,z1], [x0,y1,z0], [-1,0,0], altColor);
-    addQuad(g, [x1,y0,z1], [x1,y0,z0], [x1,y1,z0], [x1,y1,z1], [1,0,0], color);
-    addQuad(g, [x0,y1,z1], [x1,y1,z1], [x1,y1,z0], [x0,y1,z0], [0,1,0], cTop);
-    addQuad(g, [x0,y0,z0], [x1,y0,z0], [x1,y0,z1], [x0,y0,z1], [0,-1,0], altColor);
+    const cTop = [Math.min(color[0] + 0.06, 1), Math.min(color[1] + 0.06, 1), Math.min(color[2] + 0.06, 1)];
+    const uLong = Math.max(w, d) * 0.92;
+    const vWall = h * 0.95;
+
+    addQuad(g, [x0,y0,z1], [x1,y0,z1], [x1,y1,z1], [x0,y1,z1], [0,0,1], color, surface, uLong, vWall);
+    addQuad(g, [x1,y0,z0], [x0,y0,z0], [x0,y1,z0], [x1,y1,z0], [0,0,-1], altColor, surface, uLong, vWall);
+    addQuad(g, [x0,y0,z0], [x0,y0,z1], [x0,y1,z1], [x0,y1,z0], [-1,0,0], altColor, surface, uLong, vWall);
+    addQuad(g, [x1,y0,z1], [x1,y0,z0], [x1,y1,z0], [x1,y1,z1], [1,0,0], color, surface, uLong, vWall);
+    addQuad(g, [x0,y1,z1], [x1,y1,z1], [x1,y1,z0], [x0,y1,z0], [0,1,0], cTop, SURFACE.CEILING, w * 0.72, d * 0.72);
+    addQuad(g, [x0,y0,z0], [x1,y0,z0], [x1,y0,z1], [x0,y0,z1], [0,-1,0], altColor, SURFACE.FLOOR, w * 0.88, d * 0.88);
   }
 
   function addLowPillar(g, cx, cz, color) {
-    addCube(g, cx - 0.24, 0.01, cz - 0.24, 0.48, 0.08, 0.48, color, [0.28,0.26,0.20]);
-    addCube(g, cx - 0.18, 0.09, cz - 0.18, 0.36, 0.08, 0.36, color, [0.30,0.28,0.22]);
+    addCube(g, cx - CELL * 0.24, 0.015, cz - CELL * 0.24, CELL * 0.48, 0.08, CELL * 0.48, color, [0.48,0.44,0.32], SURFACE.PROP);
+    addCube(g, cx - CELL * 0.18, 0.095, cz - CELL * 0.18, CELL * 0.36, 0.08, CELL * 0.36, color, [0.52,0.48,0.36], SURFACE.PROP);
   }
 
   function addFlatMarker(g, cx, cz, color) {
-    const y = 0.012;
-    addQuad(g, [cx - 0.28, y, cz], [cx, y, cz - 0.28], [cx + 0.28, y, cz], [cx, y, cz + 0.28], [0,1,0], color);
+    const y = 0.018;
+    const r = CELL * 0.28;
+    addQuad(g, [cx - r, y, cz], [cx, y, cz - r], [cx + r, y, cz], [cx, y, cz + r], [0,1,0], color, SURFACE.MARK, 1, 1);
   }
 
   function render(now) {
@@ -394,8 +517,10 @@
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    bindTextures();
+
     const aspect = canvas.width / canvas.height;
-    const projection = mat4Perspective(58 * Math.PI / 180, aspect, 0.05, 32);
+    const projection = mat4Perspective(64 * Math.PI / 180, aspect, 0.05, 48);
     const cam = getCamera();
     const view = mat4LookAt(cam.eye, cam.target, [0, 1, 0]);
 
@@ -405,26 +530,167 @@
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, scene, gl.STATIC_DRAW);
 
-    const stride = 9 * 4;
+    const stride = 12 * 4;
     gl.enableVertexAttribArray(attribs.position);
     gl.vertexAttribPointer(attribs.position, 3, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(attribs.normal);
     gl.vertexAttribPointer(attribs.normal, 3, gl.FLOAT, false, stride, 3 * 4);
     gl.enableVertexAttribArray(attribs.color);
     gl.vertexAttribPointer(attribs.color, 3, gl.FLOAT, false, stride, 6 * 4);
+    gl.enableVertexAttribArray(attribs.uv);
+    gl.vertexAttribPointer(attribs.uv, 2, gl.FLOAT, false, stride, 9 * 4);
+    gl.enableVertexAttribArray(attribs.surface);
+    gl.vertexAttribPointer(attribs.surface, 1, gl.FLOAT, false, stride, 11 * 4);
 
-    gl.drawArrays(gl.TRIANGLES, 0, scene.length / 9);
+    gl.drawArrays(gl.TRIANGLES, 0, scene.length / 12);
     requestAnimationFrame(render);
   }
 
   function getCamera() {
     const angle = typeof visual.dir === "number" && visual.dir % 1 !== 0 ? visual.dir : dirToAngle(visual.dir);
-    const eye = [visual.x + 0.5, 0.72, visual.z + 0.5];
+    const centerX = visual.x * CELL + CELL / 2;
+    const centerZ = visual.z * CELL + CELL / 2;
+    const eye = [centerX, CAMERA_HEIGHT + visual.stepBob, centerZ];
     const forward = [Math.sin(angle), 0, -Math.cos(angle)];
+    const lean = [Math.cos(angle), 0, Math.sin(angle)];
+    const leanOffset = visual.turnLean * CELL;
     return {
-      eye,
-      target: [eye[0] + forward[0], eye[1] + 0.02, eye[2] + forward[2]],
+      eye: [eye[0] + lean[0] * leanOffset, eye[1], eye[2] + lean[2] * leanOffset],
+      target: [
+        eye[0] + lean[0] * leanOffset + forward[0] * CELL,
+        eye[1] + 0.018,
+        eye[2] + lean[2] * leanOffset + forward[2] * CELL,
+      ],
     };
+  }
+
+  function bindTextures() {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, textures.wall);
+    gl.uniform1i(uniforms.wallTexture, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, textures.floor);
+    gl.uniform1i(uniforms.floorTexture, 1);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, textures.ceiling);
+    gl.uniform1i(uniforms.ceilingTexture, 2);
+  }
+
+  function createTextureFromCanvas(sourceCanvas) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    return texture;
+  }
+
+  function makeWallTexture() {
+    const c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 128;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#8a8c8d";
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    // 石積み。奇数段は半ブロックずらして、壁面らしい反復を出す。
+    for (let row = 0; row < 4; row++) {
+      const y = row * 32;
+      const offset = row % 2 ? -24 : 0;
+      for (let col = -1; col < 4; col++) {
+        const x = col * 48 + offset;
+        const shade = 126 + ((row * 29 + col * 17) % 24);
+        ctx.fillStyle = `rgb(${shade},${shade + 1},${shade + 3})`;
+        ctx.fillRect(x + 2, y + 2, 44, 28);
+        ctx.fillStyle = "rgba(255,255,255,.06)";
+        ctx.fillRect(x + 4, y + 4, 38, 3);
+        ctx.fillStyle = "rgba(0,0,0,.16)";
+        ctx.fillRect(x + 4, y + 25, 38, 3);
+      }
+      ctx.fillStyle = "rgba(25,25,27,.62)";
+      ctx.fillRect(0, y, 128, 2);
+      ctx.fillRect(0, y + 30, 128, 2);
+    }
+
+    ctx.strokeStyle = "rgba(20,20,22,.42)";
+    ctx.lineWidth = 2;
+    for (let row = 0; row < 4; row++) {
+      const y = row * 32;
+      const offset = row % 2 ? 24 : 0;
+      for (let x = offset; x < 128; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + 2);
+        ctx.lineTo(x, y + 30);
+        ctx.stroke();
+      }
+    }
+
+    // 小さな傷・鉱脈。規則的になりすぎない程度に固定値で入れる。
+    const cracks = [[18,18,32,25],[80,11,91,20],[56,48,69,43],[105,72,115,85],[28,94,42,102],[72,112,85,118]];
+    ctx.strokeStyle = "rgba(42,43,46,.58)";
+    ctx.lineWidth = 1;
+    for (const [x1,y1,x2,y2] of cracks) {
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo((x1+x2)/2,y1 + 6);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+    }
+    return c;
+  }
+
+  function makeFloorTexture() {
+    const c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 128;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#514b42";
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = "rgba(0,0,0,.34)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i <= 128; i += 32) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, 128);
+      ctx.moveTo(0, i);
+      ctx.lineTo(128, i);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(255,255,255,.045)";
+    ctx.fillRect(3, 4, 42, 5);
+    ctx.fillRect(63, 70, 34, 4);
+    ctx.fillStyle = "rgba(0,0,0,.18)";
+    ctx.fillRect(34, 27, 48, 4);
+    ctx.fillRect(92, 104, 28, 5);
+    return c;
+  }
+
+  function makeCeilingTexture() {
+    const c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 128;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#5b5f66";
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = "rgba(0,0,0,.25)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i <= 128; i += 64) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, 128);
+      ctx.moveTo(0, i);
+      ctx.lineTo(128, i);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(255,255,255,.04)";
+    ctx.fillRect(6, 8, 76, 5);
+    ctx.fillStyle = "rgba(0,0,0,.16)";
+    ctx.fillRect(44, 90, 70, 5);
+    return c;
   }
 
   function dirToAngle(dir) {
@@ -513,8 +779,8 @@
     return a + (b - a) * t;
   }
 
-  function easeOutCubic(t) {
-    return 1 - Math.pow(1 - t, 3);
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 
   function bindButton(id, handler) {
