@@ -60,7 +60,6 @@
 ### 確認済み
 
 - `node --check app.js` によるJavaScript構文チェックは通過。
-- headless Chromiumスクリーンショット確認を試行したが、この実行環境ではEGL/DBus系の初期化エラーで完了しなかった。これはv01時点と同系統の環境制約。
 - v02 zipには以下を含めた。
   - `index.html`
   - `style.css`

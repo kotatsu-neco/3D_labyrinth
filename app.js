@@ -58,10 +58,14 @@
   ];
 
   const DUNGEON_OBJECTS = [
-    // v06: 配置物は通路中央を塞がず、壁寄せのオブジェクトとして描画する。
+    // 配置物は通路中央を塞がず、壁寄せ・床面模様・確認用の大型表示として扱う。
     { id: "chest01", type: "chest", x: 8, z: 10, side: "S", blocking: false, mapChar: "C" },
     { id: "lever01", type: "lever", x: 9, z: 5, side: "E", blocking: false, mapChar: "L", targetDoor: { x: 5, z: 4 } },
     { id: "altar01", type: "altar", x: 4, z: 9, side: "N", blocking: false, mapChar: "A" },
+    { id: "statue01", type: "statue", x: 5, z: 10, side: "S", blocking: false, mapChar: "P" },
+    { id: "magicCircle01", type: "magicCircle", x: 6, z: 10, side: "FLOOR", blocking: false, mapChar: "M" },
+    { id: "trapFloor01", type: "trapFloor", x: 7, z: 10, side: "FLOOR", blocking: false, mapChar: "T" },
+    { id: "enemyShadow01", type: "enemyShadow", x: 10, z: 10, side: "S", blocking: false, mapChar: "E" },
   ];
 
   const SIDE_TO_DIR = { N: 0, E: 1, S: 2, W: 3 };
@@ -82,7 +86,7 @@
     eventWindowOpen: false,
     showMap: false,
     animation: null,
-    message: "v09: 宝箱イベントの文言を最小化し、調査担当選択後に解除選択肢を出す方式へ変更しました。",
+    message: "v11: 宝箱を同一マスから調べられるようにし、差し替え用画像と確認用オブジェクトを追加しました。",
   };
 
   const visual = {
@@ -306,6 +310,13 @@
       return;
     }
 
+    // v11: 宝箱は同一マスにいれば、向きに関係なく調べられる。
+    const currentChest = DUNGEON_OBJECTS.find((obj) => obj.type === "chest" && obj.x === state.x && obj.z === state.z);
+    if (currentChest) {
+      inspectDungeonObject(currentChest);
+      return;
+    }
+
     const d = DIRS[state.dir];
     const fx = state.x + d.x;
     const fz = state.z + d.z;
@@ -349,7 +360,23 @@
       return;
     }
     if (obj.type === "altar") {
-      setMessage("壁際の石祭壇です。詳しい操作は今後イベントウィンドウ化します。", false);
+      setMessage("祭壇。", false);
+      return;
+    }
+    if (obj.type === "statue") {
+      setMessage("石像。", false);
+      return;
+    }
+    if (obj.type === "magicCircle") {
+      setMessage("床の紋様。", false);
+      return;
+    }
+    if (obj.type === "trapFloor") {
+      setMessage("床。", false);
+      return;
+    }
+    if (obj.type === "enemyShadow") {
+      setMessage("影。", false);
       return;
     }
   }
@@ -391,39 +418,47 @@
       `;
 
     let title = "宝箱";
-    let bodyClass = "event-window-body compact";
+    let prompt = notice || "どうしますか";
     let actions = mainButtons;
 
     if (mode === "chooseInspector") {
-      title = "誰が調べますか";
+      title = "宝箱";
+      prompt = "誰が調べますか";
       actions = `${actorButtons}<button data-action="back">戻る</button>`;
     } else if (mode === "chooseDisarmer") {
-      title = "誰が解除しますか";
+      title = "宝箱";
+      prompt = "誰が解除しますか";
       actions = `${disarmButtons}<button data-action="back">戻る</button>`;
     }
 
     overlay.innerHTML = `
-      <div class="event-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
-        <div class="event-window-head">
-          <div>
-            <h2 id="eventWindowTitle">${title}</h2>
-          </div>
+      <div class="event-window-panel wizardry-event-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">${title}</span>
+          <span class="event-prompt">${prompt}</span>
           <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
         </div>
-        <div class="${bodyClass}">
-          <div class="event-art" aria-hidden="true">
+        <div class="event-main-grid">
+          <div class="event-art-frame" aria-hidden="true">
             <div class="event-chest-visual ${opened ? "opened" : "closed"}">
-              <span class="event-chest-lid"></span>
-              <span class="event-chest-body"></span>
-              <span class="event-chest-lock"></span>
+              <img class="event-chest-image" src="assets/ui/${opened ? "chest_open.svg" : "chest_closed.svg"}" alt="" />
             </div>
           </div>
-          <div class="event-text minimal">
-            ${notice ? `<p class="event-notice">${notice}</p>` : ""}
+          <div class="event-command-frame">
+            <div class="event-command-title">COMMAND</div>
+            <div class="event-actions">
+              ${actions}
+            </div>
           </div>
         </div>
-        <div class="event-actions">
-          ${actions}
+        <div class="event-party-frame" aria-hidden="true">
+          <div class="event-party-head"><span>NAME</span><span>CLASS</span><span>HITS</span></div>
+          <div class="event-party-row"><span>アデル</span><span>FIG</span><span>34/34</span></div>
+          <div class="event-party-row"><span>ミラ</span><span>THI</span><span>28/28</span></div>
+          <div class="event-party-row"><span>ガルド</span><span>FIG</span><span>41/41</span></div>
+          <div class="event-party-row"><span>セリン</span><span>PRI</span><span>18/18</span></div>
+          <div class="event-party-row"><span>ロウ</span><span>MAG</span><span>12/12</span></div>
+          <div class="event-party-row"><span>ネネ</span><span>BIS</span><span>21/21</span></div>
         </div>
       </div>`;
 
@@ -695,6 +730,10 @@
       if (obj.type === "chest") addChest(g, obj.x, obj.z, obj.side, isChestOpen(obj));
       if (obj.type === "lever") addWallLever(g, obj.x, obj.z, obj.side, isLeverActive(obj));
       if (obj.type === "altar") addStoneAltar(g, obj.x, obj.z, obj.side);
+      if (obj.type === "statue") addWallStatue(g, obj.x, obj.z, obj.side);
+      if (obj.type === "magicCircle") addMagicCircle(g, obj.x, obj.z);
+      if (obj.type === "trapFloor") addTrapFloor(g, obj.x, obj.z);
+      if (obj.type === "enemyShadow") addEnemyShadow(g, obj.x, obj.z, obj.side);
     }
 
     return new Float32Array(g.data);
@@ -1006,6 +1045,59 @@
     addCube(g, x0 - CELL * 0.035, ROOM_HEIGHT * 0.14, z0 - CELL * 0.030, w + CELL * 0.070, ROOM_HEIGHT * 0.055, d + CELL * 0.060, [0.58,0.59,0.61], dark, SURFACE.WALL);
     addCube(g, p.cx - CELL * 0.060, ROOM_HEIGHT * 0.205, p.cz - CELL * 0.045, CELL * 0.120, ROOM_HEIGHT * 0.090, CELL * 0.090, [0.40,0.41,0.43], dark, SURFACE.WALL);
     addCube(g, p.cx - CELL * 0.032, ROOM_HEIGHT * 0.302, p.cz - CELL * 0.024, CELL * 0.064, ROOM_HEIGHT * 0.028, CELL * 0.048, accent, [0.42,0.32,0.12], SURFACE.PROP);
+  }
+
+  function addWallStatue(g, gridX, gridZ, side) {
+    const p = sideAdjustedCenter(gridX, gridZ, side, CELL * 0.13);
+    const horizontal = side === "N" || side === "S";
+    const stone = [0.40, 0.41, 0.43];
+    const dark = [0.24, 0.25, 0.27];
+    const base = [0.46, 0.47, 0.49];
+    const w = horizontal ? CELL * 0.46 : CELL * 0.20;
+    const d = horizontal ? CELL * 0.20 : CELL * 0.46;
+    const x0 = p.cx - w / 2;
+    const z0 = p.cz - d / 2;
+    addCube(g, x0, ROOM_HEIGHT * 0.26, z0, w, ROOM_HEIGHT * 0.08, d, base, dark, SURFACE.WALL);
+    addCube(g, p.cx - w * 0.22, ROOM_HEIGHT * 0.34, p.cz - d * 0.22, w * 0.44, ROOM_HEIGHT * 0.34, d * 0.44, stone, dark, SURFACE.WALL);
+    addCube(g, p.cx - w * 0.14, ROOM_HEIGHT * 0.70, p.cz - d * 0.14, w * 0.28, ROOM_HEIGHT * 0.16, d * 0.28, stone, dark, SURFACE.WALL);
+    addCube(g, x0 - w * 0.10, ROOM_HEIGHT * 0.31, z0 - d * 0.10, w * 1.20, ROOM_HEIGHT * 0.03, d * 1.20, base, dark, SURFACE.WALL);
+  }
+
+  function addMagicCircle(g, gridX, gridZ) {
+    const cx = gridX * CELL + CELL / 2;
+    const cz = gridZ * CELL + CELL / 2;
+    const color = [0.34, 0.28, 0.12];
+    const y = 0.022;
+    const r = CELL * 0.36;
+    addQuad(g, [cx - r, y, cz], [cx, y, cz - r], [cx + r, y, cz], [cx, y, cz + r], [0,1,0], color, SURFACE.MARK, 1, 1);
+    addQuad(g, [cx - r * 0.62, y + 0.002, cz - r * 0.62], [cx + r * 0.62, y + 0.002, cz - r * 0.62], [cx + r * 0.62, y + 0.002, cz + r * 0.62], [cx - r * 0.62, y + 0.002, cz + r * 0.62], [0,1,0], [0.16,0.13,0.07], SURFACE.MARK, 1, 1);
+  }
+
+  function addTrapFloor(g, gridX, gridZ) {
+    const wx = gridX * CELL;
+    const wz = gridZ * CELL;
+    const y = 0.026;
+    const crack = [0.10, 0.09, 0.08];
+    addCube(g, wx + CELL * 0.18, y, wz + CELL * 0.46, CELL * 0.58, CELL * 0.006, CELL * 0.045, crack, crack, SURFACE.MARK);
+    addCube(g, wx + CELL * 0.46, y + 0.002, wz + CELL * 0.20, CELL * 0.045, CELL * 0.006, CELL * 0.36, crack, crack, SURFACE.MARK);
+    addCube(g, wx + CELL * 0.32, y + 0.004, wz + CELL * 0.64, CELL * 0.045, CELL * 0.006, CELL * 0.24, crack, crack, SURFACE.MARK);
+  }
+
+  function addEnemyShadow(g, gridX, gridZ, side) {
+    const p = sideAdjustedCenter(gridX, gridZ, side, CELL * 0.20);
+    const horizontal = side === "N" || side === "S";
+    const dark = [0.035, 0.030, 0.030];
+    const dim = [0.080, 0.035, 0.030];
+    const w = CELL * 0.34;
+    const h = ROOM_HEIGHT * 0.72;
+    const t = CELL * 0.055;
+    if (horizontal) {
+      addCube(g, p.cx - w / 2, ROOM_HEIGHT * 0.14, p.cz - t / 2, w, h, t, dark, dim, SURFACE.PROP);
+      addCube(g, p.cx - w * 0.22, ROOM_HEIGHT * 0.83, p.cz - t * 0.62, w * 0.44, ROOM_HEIGHT * 0.15, t * 1.24, dark, dim, SURFACE.PROP);
+    } else {
+      addCube(g, p.cx - t / 2, ROOM_HEIGHT * 0.14, p.cz - w / 2, t, h, w, dark, dim, SURFACE.PROP);
+      addCube(g, p.cx - t * 0.62, ROOM_HEIGHT * 0.83, p.cz - w * 0.22, t * 1.24, ROOM_HEIGHT * 0.15, w * 0.44, dark, dim, SURFACE.PROP);
+    }
   }
 
   function addLowPillar(g, cx, cz, color) {
