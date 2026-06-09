@@ -28,9 +28,9 @@
     MARK: 6,
   };
 
-  // 通路幅。v01の1.0から1.5へ拡張する。
+  // 通路幅。v02bの1.5から1.75へ拡張する。
   // 内部のグリッド座標はそのまま維持し、描画座標だけを拡大する。
-  const CELL = 1.5;
+  const CELL = 1.75;
   const ROOM_HEIGHT = 1.62;
   const CAMERA_HEIGHT = 0.80;
 
@@ -65,7 +65,7 @@
     openedDoors: new Set(),
     showMap: false,
     animation: null,
-    message: "v02b: キャッシュバスター適用済み。通路幅1.5倍、石壁テクスチャ、歩行・旋回のメリハリを調整しました。",
+    message: "v03: 通路幅をさらに拡張、扉表示を明確化、歩行揺れを縮小、連打時の意図しない選択を抑止しました。",
   };
 
   const visual = {
@@ -129,7 +129,17 @@
       } else if (vSurface < 3.5) {
         tex = texture2D(uCeilingTexture, vUV).rgb;
       } else if (vSurface < 4.5) {
-        tex = texture2D(uWallTexture, vUV * vec2(0.9, 1.1)).rgb * vec3(0.92, 0.72, 0.50);
+        // Dedicated procedural door pattern. Keep it brighter than walls.
+        float board = floor(vUV.x * 5.0);
+        float boardShade = 0.86 + mod(board, 2.0) * 0.10;
+        float verticalLine = step(0.94, fract(vUV.x * 5.0));
+        float bandCenter = abs(fract(vUV.y * 3.0) - 0.5);
+        float metalBand = 1.0 - step(0.055, bandCenter);
+        float edgeLine = max(max(step(vUV.x, 0.055), step(0.945, vUV.x)), max(step(vUV.y, 0.055), step(0.945, vUV.y)));
+        vec3 wood = vec3(0.64, 0.42, 0.22) * boardShade;
+        vec3 metal = vec3(0.19, 0.17, 0.15);
+        tex = mix(wood, vec3(0.18, 0.13, 0.09), max(verticalLine, edgeLine));
+        tex = mix(tex, metal, metalBand * 0.82);
       }
 
       // 近距離の壁面が潰れないよう、v01より霧を少し弱める。
@@ -302,8 +312,8 @@
       duration: 150,
       fromX: state.x,
       fromZ: state.z,
-      hitX: state.x + d.x * 0.085 * step,
-      hitZ: state.z + d.z * 0.085 * step,
+      hitX: state.x + d.x * 0.052 * step,
+      hitZ: state.z + d.z * 0.052 * step,
     };
   }
 
@@ -337,7 +347,7 @@
       visual.x = lerp(a.fromX, a.toX, e);
       visual.z = lerp(a.fromZ, a.toZ, e);
       visual.dir = state.dir;
-      visual.stepBob = stepPulse * 0.045 - settlePulse * 0.018;
+      visual.stepBob = stepPulse * 0.026 - settlePulse * 0.010;
       visual.turnLean = 0;
     } else if (a.type === "turn") {
       const e = easeInOutCubic(t);
@@ -347,13 +357,13 @@
       visual.x = state.x;
       visual.z = state.z;
       visual.stepBob = 0;
-      visual.turnLean = Math.sin(Math.PI * t) * 0.018 * a.delta;
+      visual.turnLean = Math.sin(Math.PI * t) * 0.010 * a.delta;
     } else if (a.type === "bump") {
       const e = Math.sin(Math.PI * t);
       visual.x = lerp(a.fromX, a.hitX, e);
       visual.z = lerp(a.fromZ, a.hitZ, e);
       visual.dir = state.dir;
-      visual.stepBob = -Math.sin(Math.PI * t) * 0.025;
+      visual.stepBob = -Math.sin(Math.PI * t) * 0.012;
       visual.turnLean = 0;
     }
 
@@ -421,7 +431,7 @@
         const tile = map[z][x];
         const wx = x * CELL;
         const wz = z * CELL;
-        const isOpenFloor = tile !== TILE.WALL && !(tile === TILE.DOOR && !isDoorOpen(x, z));
+        const isOpenFloor = tile !== TILE.WALL;
 
         if (isOpenFloor) {
           addQuad(g,
@@ -437,8 +447,7 @@
         }
 
         if (tile === TILE.DOOR && !isDoorOpen(x, z)) {
-          const m = CELL * 0.10;
-          addCube(g, wx + m, 0, wz + m, CELL - m * 2, ROOM_HEIGHT * 0.92, CELL - m * 2, doorColor, [0.40, 0.27, 0.18], SURFACE.DOOR);
+          addDoor(g, x, z, doorColor, wallColor, wallDark);
         }
 
         if (tile === TILE.STAIR) {
@@ -497,6 +506,35 @@
     addQuad(g, [x1,y0,z1], [x1,y0,z0], [x1,y1,z0], [x1,y1,z1], [1,0,0], color, surface, uLong, vWall);
     addQuad(g, [x0,y1,z1], [x1,y1,z1], [x1,y1,z0], [x0,y1,z0], [0,1,0], cTop, SURFACE.CEILING, w * 0.72, d * 0.72);
     addQuad(g, [x0,y0,z0], [x1,y0,z0], [x1,y0,z1], [x0,y0,z1], [0,-1,0], altColor, SURFACE.FLOOR, w * 0.88, d * 0.88);
+  }
+
+  function addDoor(g, gridX, gridZ, doorColor, frameColor, frameDark) {
+    const wx = gridX * CELL;
+    const wz = gridZ * CELL;
+    const thickness = CELL * 0.075;
+    const margin = CELL * 0.13;
+    const slabHeight = ROOM_HEIGHT * 0.82;
+    const y = 0.035;
+    const darkDoor = [0.34, 0.22, 0.13];
+    const northOpen = tileAt(gridX, gridZ - 1) !== TILE.WALL;
+    const southOpen = tileAt(gridX, gridZ + 1) !== TILE.WALL;
+    const eastOpen = tileAt(gridX + 1, gridZ) !== TILE.WALL;
+    const westOpen = tileAt(gridX - 1, gridZ) !== TILE.WALL;
+    const zAxisDoor = (northOpen || southOpen) && !(eastOpen || westOpen);
+
+    if (zAxisDoor) {
+      const dz = wz + CELL / 2 - thickness / 2;
+      addCube(g, wx + margin, y, dz, CELL - margin * 2, slabHeight, thickness, doorColor, darkDoor, SURFACE.DOOR);
+      addCube(g, wx + margin * 0.55, 0, dz - thickness * 0.30, margin * 0.36, ROOM_HEIGHT * 0.90, thickness * 1.60, frameColor, frameDark, SURFACE.WALL);
+      addCube(g, wx + CELL - margin * 0.91, 0, dz - thickness * 0.30, margin * 0.36, ROOM_HEIGHT * 0.90, thickness * 1.60, frameColor, frameDark, SURFACE.WALL);
+      addCube(g, wx + margin * 0.55, slabHeight, dz - thickness * 0.30, CELL - margin * 1.10, ROOM_HEIGHT - slabHeight, thickness * 1.60, frameColor, frameDark, SURFACE.WALL);
+    } else {
+      const dx = wx + CELL / 2 - thickness / 2;
+      addCube(g, dx, y, wz + margin, thickness, slabHeight, CELL - margin * 2, doorColor, darkDoor, SURFACE.DOOR);
+      addCube(g, dx - thickness * 0.30, 0, wz + margin * 0.55, thickness * 1.60, ROOM_HEIGHT * 0.90, margin * 0.36, frameColor, frameDark, SURFACE.WALL);
+      addCube(g, dx - thickness * 0.30, 0, wz + CELL - margin * 0.91, thickness * 1.60, ROOM_HEIGHT * 0.90, margin * 0.36, frameColor, frameDark, SURFACE.WALL);
+      addCube(g, dx - thickness * 0.30, slabHeight, wz + margin * 0.55, thickness * 1.60, ROOM_HEIGHT - slabHeight, CELL - margin * 1.10, frameColor, frameDark, SURFACE.WALL);
+    }
   }
 
   function addLowPillar(g, cx, cz, color) {
@@ -785,7 +823,38 @@
 
   function bindButton(id, handler) {
     const el = document.getElementById(id);
-    el.addEventListener("click", handler);
+    let lastFire = 0;
+
+    const fire = (event) => {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      const now = performance.now();
+      if (now - lastFire < 90) return;
+      lastFire = now;
+      el.blur();
+      handler();
+    };
+
+    if (window.PointerEvent) {
+      el.addEventListener("pointerdown", fire, { passive: false });
+      el.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    } else {
+      el.addEventListener("touchstart", fire, { passive: false });
+      el.addEventListener("mousedown", fire);
+      el.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    }
+
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") fire(event);
+    });
   }
 
   bindButton("forwardBtn", () => moveForward(1));
@@ -799,11 +868,14 @@
   bindButton("formationBtn", () => setMessage("隊列画面は未実装です。パーティ枠表示だけ置いています。", false));
 
   window.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") moveForward(1);
-    if (event.key === "ArrowDown" || event.key.toLowerCase() === "s") moveForward(-1);
-    if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") turn(-1);
-    if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") turn(1);
-    if (event.key === " " || event.key === "Enter") inspectFront();
+    const key = event.key;
+    const lower = key.length === 1 ? key.toLowerCase() : key;
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Enter"].includes(key)) event.preventDefault();
+    if (key === "ArrowUp" || lower === "w") moveForward(1);
+    if (key === "ArrowDown" || lower === "s") moveForward(-1);
+    if (key === "ArrowLeft" || lower === "a") turn(-1);
+    if (key === "ArrowRight" || lower === "d") turn(1);
+    if (key === " " || key === "Enter") inspectFront();
   });
 
   setMessage(state.message, false);
