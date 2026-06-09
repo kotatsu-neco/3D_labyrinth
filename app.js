@@ -58,10 +58,10 @@
   ];
 
   const DUNGEON_OBJECTS = [
-    // v05: 3Dダンジョン内の代表的な配置物を、UIに触れず最小テストする。
-    { id: "chest01", type: "chest", x: 8, z: 10, blocking: true, mapChar: "C" },
-    { id: "lever01", type: "lever", x: 9, z: 5, side: "E", blocking: false, mapChar: "L" },
-    { id: "altar01", type: "altar", x: 4, z: 9, blocking: true, mapChar: "A" },
+    // v06: 配置物は通路中央を塞がず、壁寄せのオブジェクトとして描画する。
+    { id: "chest01", type: "chest", x: 8, z: 10, side: "S", blocking: false, mapChar: "C" },
+    { id: "lever01", type: "lever", x: 9, z: 5, side: "E", blocking: false, mapChar: "L", targetDoor: { x: 5, z: 4 } },
+    { id: "altar01", type: "altar", x: 4, z: 9, side: "N", blocking: false, mapChar: "A" },
   ];
 
   const SIDE_TO_DIR = { N: 0, E: 1, S: 2, W: 3 };
@@ -76,7 +76,7 @@
     activatedLevers: new Set(),
     showMap: false,
     animation: null,
-    message: "v05: 開扉後の中央パーツ残りを修正し、階段・宝箱・レバー・祭壇をテスト配置しました。",
+    message: "v06: 通路脇オブジェクト化、扉色の単色化、レバーと扉の対応を追加しました。",
   };
 
   const visual = {
@@ -140,17 +140,8 @@
       } else if (vSurface < 3.5) {
         tex = texture2D(uCeilingTexture, vUV).rgb;
       } else if (vSurface < 4.5) {
-        // Dedicated procedural door pattern. Keep it brighter than walls.
-        float board = floor(vUV.x * 5.0);
-        float boardShade = 0.86 + mod(board, 2.0) * 0.10;
-        float verticalLine = step(0.94, fract(vUV.x * 5.0));
-        float bandCenter = abs(fract(vUV.y * 3.0) - 0.5);
-        float metalBand = 1.0 - step(0.055, bandCenter);
-        float edgeLine = max(max(step(vUV.x, 0.055), step(0.945, vUV.x)), max(step(vUV.y, 0.055), step(0.945, vUV.y)));
-        vec3 wood = vec3(0.64, 0.42, 0.22) * boardShade;
-        vec3 metal = vec3(0.19, 0.17, 0.15);
-        tex = mix(wood, vec3(0.18, 0.13, 0.09), max(verticalLine, edgeLine));
-        tex = mix(tex, metal, metalBand * 0.82);
+        // v06: 扉のまだら表示を避けるため、扉面はプロシージャル縞を使わず単色寄りにする。
+        tex = vec3(1.0);
       }
 
       // 近距離の壁面が潰れないよう、v01より霧を少し弱める。
@@ -271,14 +262,17 @@
     const wallLever = leverOnCurrentWall(state.x, state.z, state.dir);
     if (wallLever) {
       const key = objectKey(wallLever);
+      const target = wallLever.targetDoor;
       if (state.activatedLevers.has(key)) {
         state.activatedLevers.delete(key);
+        if (target) state.openedDoors.delete(doorKey(target.x, target.z));
         scene = buildSceneGeometry();
-        setMessage("壁のレバーを元の位置に戻しました。どこかで石の擦れる音がしました。", false);
+        setMessage(target ? "壁のレバーを戻しました。対応する扉が閉じる音がしました。" : "壁のレバーを元の位置に戻しました。", false);
       } else {
         state.activatedLevers.add(key);
+        if (target) state.openedDoors.add(doorKey(target.x, target.z));
         scene = buildSceneGeometry();
-        setMessage("壁のレバーを下ろしました。奥で小さな機構音が響きました。", false);
+        setMessage(target ? "壁のレバーを下ろしました。対応する扉が開く音がしました。" : "壁のレバーを下ろしました。", false);
       }
       return;
     }
@@ -301,6 +295,25 @@
       }
       if (frontObject.type === "altar") {
         setMessage("低い石の祭壇です。表面に灰色の印章が刻まれています。", false);
+        return;
+      }
+    }
+
+    const currentObject = objectAt(state.x, state.z);
+    if (currentObject) {
+      if (currentObject.type === "chest") {
+        const key = objectKey(currentObject);
+        if (state.openedChests.has(key)) {
+          setMessage("足元脇の開いた宝箱です。中は空です。", false);
+        } else {
+          state.openedChests.add(key);
+          scene = buildSceneGeometry();
+          setMessage("足元脇の古い宝箱を開けました。未鑑定の小片が残されています。", false);
+        }
+        return;
+      }
+      if (currentObject.type === "altar") {
+        setMessage("通路脇の低い石祭壇です。表面に灰色の印章が刻まれています。", false);
         return;
       }
     }
@@ -531,9 +544,9 @@
     }
 
     for (const obj of DUNGEON_OBJECTS) {
-      if (obj.type === "chest") addChest(g, obj.x, obj.z, isChestOpen(obj));
+      if (obj.type === "chest") addChest(g, obj.x, obj.z, obj.side, isChestOpen(obj));
       if (obj.type === "lever") addWallLever(g, obj.x, obj.z, obj.side, isLeverActive(obj));
-      if (obj.type === "altar") addStoneAltar(g, obj.x, obj.z);
+      if (obj.type === "altar") addStoneAltar(g, obj.x, obj.z, obj.side);
     }
 
     return new Float32Array(g.data);
@@ -588,7 +601,7 @@
     const wx = gridX * CELL;
     const wz = gridZ * CELL;
 
-    // v05: 扉のズレ感を減らすため、扉板・左右枠・上枠をセル中心から対称に配置する。
+    // v06: 扉のズレ感を減らすため、扉板・左右枠・上枠をセル中心から対称に配置する。
     // 開いた後も「扉が消える」状態にせず、枠と開放済み扉板を残す。
     const centerX = wx + CELL / 2;
     const centerZ = wz + CELL / 2;
@@ -627,7 +640,7 @@
       const leafDepth = Math.max(halfLeaf, CELL * 0.28);
       addCube(g, openingX0, y, centerZ - leafDepth, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
       addCube(g, openingX1 - panelThickness, y, centerZ, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
-      // v05: 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
+      // v06: 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
     } else {
       const openingZ0 = wz + frameInset;
       const openingZ1 = wz + CELL - frameInset;
@@ -649,7 +662,7 @@
       const leafDepth = Math.max(halfLeaf, CELL * 0.28);
       addCube(g, centerX - leafDepth, y, openingZ0, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
       addCube(g, centerX, y, openingZ1 - panelThickness, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
-      // v05: 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
+      // v06: 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
     }
   }
 
@@ -690,27 +703,54 @@
     }
   }
 
-  function addChest(g, gridX, gridZ, isOpen) {
+  function sideAdjustedCenter(gridX, gridZ, side, offset) {
     const cx = gridX * CELL + CELL / 2;
     const cz = gridZ * CELL + CELL / 2;
-    const w = CELL * 0.52;
-    const d = CELL * 0.40;
+    if (side === "N") return { cx, cz: gridZ * CELL + offset };
+    if (side === "S") return { cx, cz: gridZ * CELL + CELL - offset };
+    if (side === "W") return { cx: gridX * CELL + offset, cz };
+    if (side === "E") return { cx: gridX * CELL + CELL - offset, cz };
+    return { cx, cz };
+  }
+
+  function addChest(g, gridX, gridZ, side, isOpen) {
+    // v06: 通路中央を塞がないよう、宝箱は壁際に寄せて小型化する。
+    const p = sideAdjustedCenter(gridX, gridZ, side, CELL * 0.20);
+    const horizontal = side === "N" || side === "S";
+    const w = horizontal ? CELL * 0.46 : CELL * 0.28;
+    const d = horizontal ? CELL * 0.28 : CELL * 0.46;
     const y = 0.040;
-    const baseH = ROOM_HEIGHT * 0.17;
-    const lidH = ROOM_HEIGHT * 0.070;
-    const wood = [0.52, 0.31, 0.16];
-    const darkWood = [0.27, 0.15, 0.08];
-    const metal = [0.14, 0.13, 0.11];
-    addCube(g, cx - w / 2, y, cz - d / 2, w, baseH, d, wood, darkWood, SURFACE.DOOR);
-    addCube(g, cx - w * 0.54, y + baseH * 0.42, cz - d / 2 - CELL * 0.010, w * 1.08, CELL * 0.035, CELL * 0.032, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
-    addCube(g, cx - CELL * 0.035, y + baseH * 0.15, cz - d / 2 - CELL * 0.018, CELL * 0.070, baseH * 0.45, CELL * 0.036, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+    const baseH = ROOM_HEIGHT * 0.14;
+    const lidH = ROOM_HEIGHT * 0.052;
+    const wood = [0.45, 0.25, 0.12];
+    const darkWood = [0.25, 0.13, 0.07];
+    const metal = [0.13, 0.12, 0.10];
+    const x0 = p.cx - w / 2;
+    const z0 = p.cz - d / 2;
+
+    addCube(g, x0, y, z0, w, baseH, d, wood, darkWood, SURFACE.PROP);
+
+    if (horizontal) {
+      const frontZ = side === "S" ? z0 : z0 + d - CELL * 0.018;
+      addCube(g, x0 - CELL * 0.010, y + baseH * 0.42, frontZ, w + CELL * 0.020, CELL * 0.028, CELL * 0.026, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+      addCube(g, p.cx - CELL * 0.026, y + baseH * 0.12, frontZ - (side === "S" ? CELL * 0.010 : 0), CELL * 0.052, baseH * 0.46, CELL * 0.032, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+    } else {
+      const frontX = side === "E" ? x0 : x0 + w - CELL * 0.018;
+      addCube(g, frontX, y + baseH * 0.42, z0 - CELL * 0.010, CELL * 0.026, CELL * 0.028, d + CELL * 0.020, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+      addCube(g, frontX - (side === "E" ? CELL * 0.010 : 0), y + baseH * 0.12, p.cz - CELL * 0.026, CELL * 0.032, baseH * 0.46, CELL * 0.052, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+    }
 
     if (isOpen) {
-      addCube(g, cx - w / 2, y + baseH, cz + d / 2 - CELL * 0.040, w, lidH * 2.4, CELL * 0.060, wood, darkWood, SURFACE.DOOR);
-      addCube(g, cx - w * 0.28, y + baseH + CELL * 0.020, cz - d * 0.22, w * 0.56, CELL * 0.025, d * 0.44, [0.18, 0.14, 0.09], [0.10, 0.08, 0.05], SURFACE.PROP);
+      if (horizontal) {
+        const lidZ = side === "S" ? z0 + d - CELL * 0.035 : z0 - CELL * 0.025;
+        addCube(g, x0, y + baseH, lidZ, w, lidH * 2.1, CELL * 0.050, wood, darkWood, SURFACE.PROP);
+      } else {
+        const lidX = side === "E" ? x0 + w - CELL * 0.035 : x0 - CELL * 0.025;
+        addCube(g, lidX, y + baseH, z0, CELL * 0.050, lidH * 2.1, d, wood, darkWood, SURFACE.PROP);
+      }
+      addCube(g, p.cx - w * 0.22, y + baseH + CELL * 0.015, p.cz - d * 0.20, w * 0.44, CELL * 0.020, d * 0.40, [0.18, 0.14, 0.09], [0.10, 0.08, 0.05], SURFACE.PROP);
     } else {
-      addCube(g, cx - w / 2, y + baseH, cz - d / 2, w, lidH, d, wood, darkWood, SURFACE.DOOR);
-      addCube(g, cx - CELL * 0.026, y + baseH + lidH * 0.20, cz - d / 2 - CELL * 0.022, CELL * 0.052, lidH * 0.85, CELL * 0.040, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+      addCube(g, x0, y + baseH, z0, w, lidH, d, wood, darkWood, SURFACE.PROP);
     }
   }
 
@@ -750,16 +790,22 @@
     }
   }
 
-  function addStoneAltar(g, gridX, gridZ) {
-    const cx = gridX * CELL + CELL / 2;
-    const cz = gridZ * CELL + CELL / 2;
+  function addStoneAltar(g, gridX, gridZ, side) {
+    // v06: 石祭壇は通路中央ではなく壁際の低い祠として置く。
+    const p = sideAdjustedCenter(gridX, gridZ, side, CELL * 0.18);
+    const horizontal = side === "N" || side === "S";
     const stone = [0.52, 0.53, 0.55];
     const dark = [0.36, 0.37, 0.39];
     const accent = [0.72, 0.56, 0.25];
-    addCube(g, cx - CELL * 0.34, 0.020, cz - CELL * 0.25, CELL * 0.68, ROOM_HEIGHT * 0.16, CELL * 0.50, stone, dark, SURFACE.WALL);
-    addCube(g, cx - CELL * 0.42, ROOM_HEIGHT * 0.18, cz - CELL * 0.30, CELL * 0.84, ROOM_HEIGHT * 0.07, CELL * 0.60, [0.58,0.59,0.61], dark, SURFACE.WALL);
-    addCube(g, cx - CELL * 0.10, ROOM_HEIGHT * 0.25, cz - CELL * 0.08, CELL * 0.20, ROOM_HEIGHT * 0.13, CELL * 0.16, [0.40,0.41,0.43], dark, SURFACE.WALL);
-    addCube(g, cx - CELL * 0.045, ROOM_HEIGHT * 0.39, cz - CELL * 0.035, CELL * 0.09, ROOM_HEIGHT * 0.035, CELL * 0.07, accent, [0.42,0.32,0.12], SURFACE.PROP);
+    const w = horizontal ? CELL * 0.62 : CELL * 0.28;
+    const d = horizontal ? CELL * 0.28 : CELL * 0.62;
+    const x0 = p.cx - w / 2;
+    const z0 = p.cz - d / 2;
+
+    addCube(g, x0, 0.020, z0, w, ROOM_HEIGHT * 0.12, d, stone, dark, SURFACE.WALL);
+    addCube(g, x0 - CELL * 0.035, ROOM_HEIGHT * 0.14, z0 - CELL * 0.030, w + CELL * 0.070, ROOM_HEIGHT * 0.055, d + CELL * 0.060, [0.58,0.59,0.61], dark, SURFACE.WALL);
+    addCube(g, p.cx - CELL * 0.060, ROOM_HEIGHT * 0.205, p.cz - CELL * 0.045, CELL * 0.120, ROOM_HEIGHT * 0.090, CELL * 0.090, [0.40,0.41,0.43], dark, SURFACE.WALL);
+    addCube(g, p.cx - CELL * 0.032, ROOM_HEIGHT * 0.302, p.cz - CELL * 0.024, CELL * 0.064, ROOM_HEIGHT * 0.028, CELL * 0.048, accent, [0.42,0.32,0.12], SURFACE.PROP);
   }
 
   function addLowPillar(g, cx, cz, color) {
