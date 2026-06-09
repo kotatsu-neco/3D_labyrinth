@@ -44,14 +44,14 @@
 
   const map = [
     [1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,1,0,0,0,0,0,3,1],
+    [1,0,0,0,1,0,0,0,0,0,0,1],
     [1,0,1,0,1,0,1,1,1,0,0,1],
     [1,0,1,0,0,0,0,0,1,0,1,1],
     [1,0,1,1,1,2,1,0,1,0,0,1],
     [1,0,0,0,1,0,1,0,0,0,1,1],
     [1,1,1,0,1,0,1,1,1,0,0,1],
     [1,0,0,0,0,0,0,0,1,1,0,1],
-    [1,0,1,1,1,1,1,0,0,0,0,1],
+    [1,0,1,1,1,1,1,0,3,0,0,1],
     [1,0,0,0,4,0,1,0,1,1,0,1],
     [1,1,1,0,1,0,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1],
@@ -76,7 +76,7 @@
     activatedLevers: new Set(),
     showMap: false,
     animation: null,
-    message: "v06: 通路脇オブジェクト化、扉色の単色化、レバーと扉の対応を追加しました。",
+    message: "v07: 扉色を暗くし、開扉方向を統一。下り階段を角から移動し、床穴式に作り直しました。",
   };
 
   const visual = {
@@ -505,8 +505,8 @@
     const wallDark = [0.58, 0.59, 0.61];
     const floorColor = [0.75, 0.70, 0.62];
     const ceilingColor = [0.58, 0.60, 0.64];
-    const doorColor = [0.55, 0.39, 0.24];
-    const stairColor = [0.72, 0.68, 0.52];
+    const doorColor = [0.30, 0.20, 0.12];
+    const stairColor = [0.62, 0.59, 0.46];
     const markColor = [0.82, 0.65, 0.25];
 
     for (let z = 0; z < map.length; z++) {
@@ -514,12 +514,16 @@
         const tile = map[z][x];
         const wx = x * CELL;
         const wz = z * CELL;
-        const isOpenFloor = tile !== TILE.WALL;
+        const hasStandardFloor = tile !== TILE.WALL && tile !== TILE.STAIR;
+        const hasCeiling = tile !== TILE.WALL;
 
-        if (isOpenFloor) {
+        if (hasStandardFloor) {
           addQuad(g,
             [wx, 0, wz], [wx + CELL, 0, wz], [wx + CELL, 0, wz + CELL], [wx, 0, wz + CELL],
             [0, 1, 0], floorColor, SURFACE.FLOOR, CELL * 0.88, CELL * 0.88);
+        }
+
+        if (hasCeiling) {
           addQuad(g,
             [wx, ROOM_HEIGHT, wz + CELL], [wx + CELL, ROOM_HEIGHT, wz + CELL], [wx + CELL, ROOM_HEIGHT, wz], [wx, ROOM_HEIGHT, wz],
             [0, -1, 0], ceilingColor, SURFACE.CEILING, CELL * 0.72, CELL * 0.72);
@@ -601,7 +605,7 @@
     const wx = gridX * CELL;
     const wz = gridZ * CELL;
 
-    // v06: 扉のズレ感を減らすため、扉板・左右枠・上枠をセル中心から対称に配置する。
+    // v07: 扉板・左右枠・上枠をセル中心から対称に配置する。
     // 開いた後も「扉が消える」状態にせず、枠と開放済み扉板を残す。
     const centerX = wx + CELL / 2;
     const centerZ = wz + CELL / 2;
@@ -611,7 +615,7 @@
     const panelHeight = ROOM_HEIGHT * 0.82;
     const frameHeight = ROOM_HEIGHT * 0.90;
     const y = 0.025;
-    const darkDoor = [0.34, 0.22, 0.13];
+    const darkDoor = [0.17, 0.105, 0.060];
 
     const northOpen = tileAt(gridX, gridZ - 1) !== TILE.WALL;
     const southOpen = tileAt(gridX, gridZ + 1) !== TILE.WALL;
@@ -636,11 +640,12 @@
         return;
       }
 
-      // Opened leaves: keep the door visible by folding both panels to the side of the passage.
+      // v07: 両方の扉板を同じ側へ開く。左右で互い違いに見える配置を避ける。
       const leafDepth = Math.max(halfLeaf, CELL * 0.28);
-      addCube(g, openingX0, y, centerZ - leafDepth, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
-      addCube(g, openingX1 - panelThickness, y, centerZ, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
-      // v06: 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
+      const openZ0 = centerZ - leafDepth;
+      addCube(g, openingX0, y, openZ0, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
+      addCube(g, openingX1 - panelThickness, y, openZ0, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
+      // 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
     } else {
       const openingZ0 = wz + frameInset;
       const openingZ1 = wz + CELL - frameInset;
@@ -658,11 +663,12 @@
         return;
       }
 
-      // Opened leaves: keep the door visible by folding both panels to the side of the passage.
+      // v07: 両方の扉板を同じ側へ開く。左右で互い違いに見える配置を避ける。
       const leafDepth = Math.max(halfLeaf, CELL * 0.28);
-      addCube(g, centerX - leafDepth, y, openingZ0, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
-      addCube(g, centerX, y, openingZ1 - panelThickness, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
-      // v06: 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
+      const openX0 = centerX - leafDepth;
+      addCube(g, openX0, y, openingZ0, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
+      addCube(g, openX0, y, openingZ1 - panelThickness, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
+      // 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
     }
   }
 
@@ -673,33 +679,83 @@
     const cz = wz + CELL / 2;
     const westOpen = tileAt(gridX - 1, gridZ) !== TILE.WALL;
     const eastOpen = tileAt(gridX + 1, gridZ) !== TILE.WALL;
-    const horizontal = westOpen || eastOpen;
-    const stepCount = 5;
-    const total = CELL * 0.76;
-    const stepDepth = total / stepCount;
-    const stepWidth = CELL * 0.62;
-    const baseY = 0.020;
+    const northOpen = tileAt(gridX, gridZ - 1) !== TILE.WALL;
+    const southOpen = tileAt(gridX, gridZ + 1) !== TILE.WALL;
+    const horizontal = (westOpen || eastOpen) && !(northOpen || southOpen);
+    const length = CELL * 0.84;
+    const width = CELL * 0.58;
+    const rim = CELL * 0.10;
+    const shaftDepth = 0.44;
+    const shadow = [0.035, 0.032, 0.030];
+    const shadowDark = [0.012, 0.012, 0.014];
+    const sideWall = [0.40, 0.39, 0.35];
+    const sideWallDark = [0.24, 0.23, 0.22];
+    const floorColor = [0.75, 0.70, 0.62];
 
-    // Dark opening below the steps, so it reads as a stair rather than a low pedestal.
-    addCube(g, cx - CELL * 0.34, baseY, cz - CELL * 0.34, CELL * 0.68, 0.028, CELL * 0.68, [0.08, 0.075, 0.065], [0.04, 0.04, 0.04], SURFACE.PROP);
+    const addFloorStrip = (x0, z0, x1, z1) => {
+      if (x1 <= x0 || z1 <= z0) return;
+      addQuad(g,
+        [x0, 0, z0], [x1, 0, z0], [x1, 0, z1], [x0, 0, z1],
+        [0, 1, 0], floorColor, SURFACE.FLOOR, Math.max(x1 - x0, 0.1), Math.max(z1 - z0, 0.1));
+    };
 
-    for (let i = 0; i < stepCount; i++) {
-      const h = 0.045 + i * 0.032;
-      if (horizontal) {
-        const x = cx - total / 2 + i * stepDepth;
-        addCube(g, x, baseY, cz - stepWidth / 2, stepDepth * 0.92, h, stepWidth, color, darkColor, SURFACE.PROP);
-      } else {
-        const z = cz - total / 2 + i * stepDepth;
-        addCube(g, cx - stepWidth / 2, baseY, z, stepWidth, h, stepDepth * 0.92, color, darkColor, SURFACE.PROP);
-      }
-    }
+    const addDarkQuad = (x0, z0, x1, z1, y) => {
+      addQuad(g,
+        [x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1],
+        [0, 1, 0], shadow, SURFACE.PROP, 1, 1);
+    };
 
     if (horizontal) {
-      addCube(g, cx - total / 2, 0.020, cz - stepWidth / 2 - CELL * 0.055, total, 0.070, CELL * 0.055, darkColor, [0.30, 0.28, 0.22], SURFACE.PROP);
-      addCube(g, cx - total / 2, 0.020, cz + stepWidth / 2, total, 0.070, CELL * 0.055, darkColor, [0.30, 0.28, 0.22], SURFACE.PROP);
+      const x0 = cx - length / 2;
+      const x1 = cx + length / 2;
+      const z0 = cz - width / 2;
+      const z1 = cz + width / 2;
+
+      // v07: 階段は床上の台ではなく、床に開いた穴として見せる。
+      addFloorStrip(wx, wz, wx + CELL, z0 - rim * 0.25);
+      addFloorStrip(wx, z1 + rim * 0.25, wx + CELL, wz + CELL);
+      addFloorStrip(wx, z0 - rim * 0.25, x0 - rim * 0.20, z1 + rim * 0.25);
+      addFloorStrip(x1 + rim * 0.20, z0 - rim * 0.25, wx + CELL, z1 + rim * 0.25);
+      addDarkQuad(x0, z0, x1, z1, -shaftDepth);
+
+      // Side walls below floor level.
+      addCube(g, x0, -shaftDepth, z0 - rim * 0.45, length, shaftDepth, rim * 0.45, sideWall, sideWallDark, SURFACE.WALL);
+      addCube(g, x0, -shaftDepth, z1, length, shaftDepth, rim * 0.45, sideWall, sideWallDark, SURFACE.WALL);
+
+      const stepCount = 6;
+      const stepDepth = length / stepCount;
+      for (let i = 0; i < stepCount; i++) {
+        const drop = 0.035 + i * 0.052;
+        const x = x0 + i * stepDepth;
+        addCube(g, x, -drop, z0, stepDepth * 0.96, 0.032, width, color, darkColor, SURFACE.PROP);
+      }
+
+      // Dark landing at the bottom end.
+      addCube(g, x1 - stepDepth * 0.30, -shaftDepth * 0.88, z0, stepDepth * 0.30, shaftDepth * 0.32, width, shadow, shadowDark, SURFACE.PROP);
     } else {
-      addCube(g, cx - stepWidth / 2 - CELL * 0.055, 0.020, cz - total / 2, CELL * 0.055, 0.070, total, darkColor, [0.30, 0.28, 0.22], SURFACE.PROP);
-      addCube(g, cx + stepWidth / 2, 0.020, cz - total / 2, CELL * 0.055, 0.070, total, darkColor, [0.30, 0.28, 0.22], SURFACE.PROP);
+      const z0 = cz - length / 2;
+      const z1 = cz + length / 2;
+      const x0 = cx - width / 2;
+      const x1 = cx + width / 2;
+
+      addFloorStrip(wx, wz, x0 - rim * 0.25, wz + CELL);
+      addFloorStrip(x1 + rim * 0.25, wz, wx + CELL, wz + CELL);
+      addFloorStrip(x0 - rim * 0.25, wz, x1 + rim * 0.25, z0 - rim * 0.20);
+      addFloorStrip(x0 - rim * 0.25, z1 + rim * 0.20, x1 + rim * 0.25, wz + CELL);
+      addDarkQuad(x0, z0, x1, z1, -shaftDepth);
+
+      addCube(g, x0 - rim * 0.45, -shaftDepth, z0, rim * 0.45, shaftDepth, length, sideWall, sideWallDark, SURFACE.WALL);
+      addCube(g, x1, -shaftDepth, z0, rim * 0.45, shaftDepth, length, sideWall, sideWallDark, SURFACE.WALL);
+
+      const stepCount = 6;
+      const stepDepth = length / stepCount;
+      for (let i = 0; i < stepCount; i++) {
+        const drop = 0.035 + i * 0.052;
+        const z = z0 + i * stepDepth;
+        addCube(g, x0, -drop, z, width, 0.032, stepDepth * 0.96, color, darkColor, SURFACE.PROP);
+      }
+
+      addCube(g, x0, -shaftDepth * 0.88, z1 - stepDepth * 0.30, width, shaftDepth * 0.32, stepDepth * 0.30, shadow, shadowDark, SURFACE.PROP);
     }
   }
 
