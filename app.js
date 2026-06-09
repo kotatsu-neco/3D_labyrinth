@@ -42,6 +42,10 @@
     { x: -1, z: 0, label: "W" },
   ];
 
+  // v13: 起動直後から通路・配置物・移動方向が見える確認用の初期位置にする。
+  // 旧初期位置(x1,y1,E)は視界情報が乏しく、実機上で「黒いだけ」「動けない」に見えやすかったため避ける。
+  const START_POS = { x: 9, z: 10, dir: 3 };
+
   const map = [
     [1,1,1,1,1,1,1,1,1,1,1,1],
     [1,0,0,0,1,0,0,0,0,0,0,1],
@@ -74,9 +78,9 @@
 
   const state = {
     floor: "B1F",
-    x: 1,
-    z: 1,
-    dir: 1,
+    x: START_POS.x,
+    z: START_POS.z,
+    dir: START_POS.dir,
     openedDoors: new Set(),
     openedChests: new Set(),
     checkedChestTraps: new Set(),
@@ -86,7 +90,7 @@
     eventWindowOpen: false,
     showMap: false,
     animation: null,
-    message: "v12: 敵影を削除し、罠床は検知時のみ表示、パーティ表示をWizardry風の表形式に調整しました。",
+    message: "v13: 初期位置を確認しやすい通路へ変更し、3D表示と移動確認を優先しました。",
   };
 
   const visual = {
@@ -522,9 +526,9 @@
 
   function resetPosition() {
     if (state.eventWindowOpen || state.animation) return;
-    state.x = 1;
-    state.z = 1;
-    state.dir = 1;
+    state.x = START_POS.x;
+    state.z = START_POS.z;
+    state.dir = START_POS.dir;
     visual.x = state.x;
     visual.z = state.z;
     visual.dir = state.dir;
