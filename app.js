@@ -65,7 +65,6 @@
     { id: "statue01", type: "statue", x: 5, z: 10, side: "S", blocking: false, mapChar: "P" },
     { id: "magicCircle01", type: "magicCircle", x: 6, z: 10, side: "FLOOR", blocking: false, mapChar: "M" },
     { id: "trapFloor01", type: "trapFloor", x: 7, z: 10, side: "FLOOR", blocking: false, mapChar: "T" },
-    { id: "enemyShadow01", type: "enemyShadow", x: 10, z: 10, side: "S", blocking: false, mapChar: "E" },
   ];
 
   const SIDE_TO_DIR = { N: 0, E: 1, S: 2, W: 3 };
@@ -83,10 +82,11 @@
     checkedChestTraps: new Set(),
     disarmedChests: new Set(),
     activatedLevers: new Set(),
+    trapDetectionActive: false,
     eventWindowOpen: false,
     showMap: false,
     animation: null,
-    message: "v11: 宝箱を同一マスから調べられるようにし、差し替え用画像と確認用オブジェクトを追加しました。",
+    message: "v12: 敵影を削除し、罠床は検知時のみ表示、パーティ表示をWizardry風の表形式に調整しました。",
   };
 
   const visual = {
@@ -310,7 +310,7 @@
       return;
     }
 
-    // v11: 宝箱は同一マスにいれば、向きに関係なく調べられる。
+    // v12: 宝箱は同一マスにいれば、向きに関係なく調べられる。
     const currentChest = DUNGEON_OBJECTS.find((obj) => obj.type === "chest" && obj.x === state.x && obj.z === state.z);
     if (currentChest) {
       inspectDungeonObject(currentChest);
@@ -373,10 +373,6 @@
     }
     if (obj.type === "trapFloor") {
       setMessage("床。", false);
-      return;
-    }
-    if (obj.type === "enemyShadow") {
-      setMessage("影。", false);
       return;
     }
   }
@@ -452,13 +448,13 @@
           </div>
         </div>
         <div class="event-party-frame" aria-hidden="true">
-          <div class="event-party-head"><span>NAME</span><span>CLASS</span><span>HITS</span></div>
-          <div class="event-party-row"><span>アデル</span><span>FIG</span><span>34/34</span></div>
-          <div class="event-party-row"><span>ミラ</span><span>THI</span><span>28/28</span></div>
-          <div class="event-party-row"><span>ガルド</span><span>FIG</span><span>41/41</span></div>
-          <div class="event-party-row"><span>セリン</span><span>PRI</span><span>18/18</span></div>
-          <div class="event-party-row"><span>ロウ</span><span>MAG</span><span>12/12</span></div>
-          <div class="event-party-row"><span>ネネ</span><span>BIS</span><span>21/21</span></div>
+          <div class="event-party-head"><span>NAME</span><span>CLASS</span><span>HITS</span><span>MAGIC</span><span>STATUS</span></div>
+          <div class="event-party-row"><span>アデル</span><span>FIG</span><span>34/34</span><span>0/0</span><span>OK</span></div>
+          <div class="event-party-row"><span>ミラ</span><span>THI</span><span>28/28</span><span>0/0</span><span>OK</span></div>
+          <div class="event-party-row"><span>ガルド</span><span>FIG</span><span>41/41</span><span>0/0</span><span>OK</span></div>
+          <div class="event-party-row"><span>セリン</span><span>PRI</span><span>18/18</span><span>18/18</span><span>OK</span></div>
+          <div class="event-party-row"><span>ロウ</span><span>MAG</span><span>12/12</span><span>12/12</span><span>OK</span></div>
+          <div class="event-party-row"><span>ネネ</span><span>BIS</span><span>21/21</span><span>21/21</span><span>OK</span></div>
         </div>
       </div>`;
 
@@ -668,7 +664,13 @@
     const lines = map.map((row, z) => row.map((tile, x) => {
       if (state.x === x && state.z === z) return ["▲", "▶", "▼", "◀"][state.dir];
       const obj = objectAt(x, z);
-      if (obj) return obj.mapChar;
+      if (obj) {
+        if (obj.type === "trapFloor" && !state.trapDetectionActive) {
+          // 未検知の罠床は簡易マップにも表示しない。
+        } else {
+          return obj.mapChar;
+        }
+      }
       if (tile === TILE.WALL) return "█";
       if (tile === TILE.DOOR) return isDoorOpen(x, z) ? "O" : "D";
       if (tile === TILE.STAIR) return "S";
@@ -732,8 +734,7 @@
       if (obj.type === "altar") addStoneAltar(g, obj.x, obj.z, obj.side);
       if (obj.type === "statue") addWallStatue(g, obj.x, obj.z, obj.side);
       if (obj.type === "magicCircle") addMagicCircle(g, obj.x, obj.z);
-      if (obj.type === "trapFloor") addTrapFloor(g, obj.x, obj.z);
-      if (obj.type === "enemyShadow") addEnemyShadow(g, obj.x, obj.z, obj.side);
+      if (obj.type === "trapFloor" && state.trapDetectionActive) addTrapFloor(g, obj.x, obj.z);
     }
 
     return new Float32Array(g.data);
@@ -1076,28 +1077,13 @@
   function addTrapFloor(g, gridX, gridZ) {
     const wx = gridX * CELL;
     const wz = gridZ * CELL;
-    const y = 0.026;
-    const crack = [0.10, 0.09, 0.08];
-    addCube(g, wx + CELL * 0.18, y, wz + CELL * 0.46, CELL * 0.58, CELL * 0.006, CELL * 0.045, crack, crack, SURFACE.MARK);
-    addCube(g, wx + CELL * 0.46, y + 0.002, wz + CELL * 0.20, CELL * 0.045, CELL * 0.006, CELL * 0.36, crack, crack, SURFACE.MARK);
-    addCube(g, wx + CELL * 0.32, y + 0.004, wz + CELL * 0.64, CELL * 0.045, CELL * 0.006, CELL * 0.24, crack, crack, SURFACE.MARK);
-  }
-
-  function addEnemyShadow(g, gridX, gridZ, side) {
-    const p = sideAdjustedCenter(gridX, gridZ, side, CELL * 0.20);
-    const horizontal = side === "N" || side === "S";
-    const dark = [0.035, 0.030, 0.030];
-    const dim = [0.080, 0.035, 0.030];
-    const w = CELL * 0.34;
-    const h = ROOM_HEIGHT * 0.72;
-    const t = CELL * 0.055;
-    if (horizontal) {
-      addCube(g, p.cx - w / 2, ROOM_HEIGHT * 0.14, p.cz - t / 2, w, h, t, dark, dim, SURFACE.PROP);
-      addCube(g, p.cx - w * 0.22, ROOM_HEIGHT * 0.83, p.cz - t * 0.62, w * 0.44, ROOM_HEIGHT * 0.15, t * 1.24, dark, dim, SURFACE.PROP);
-    } else {
-      addCube(g, p.cx - t / 2, ROOM_HEIGHT * 0.14, p.cz - w / 2, t, h, w, dark, dim, SURFACE.PROP);
-      addCube(g, p.cx - t * 0.62, ROOM_HEIGHT * 0.83, p.cz - w * 0.22, t * 1.24, ROOM_HEIGHT * 0.15, w * 0.44, dark, dim, SURFACE.PROP);
-    }
+    const y = 0.028;
+    const glow = [0.42, 0.78, 0.90];
+    const pale = [0.62, 0.90, 1.00];
+    addQuad(g, [wx + CELL * 0.18, y, wz + CELL * 0.18], [wx + CELL * 0.82, y, wz + CELL * 0.18], [wx + CELL * 0.82, y, wz + CELL * 0.82], [wx + CELL * 0.18, y, wz + CELL * 0.82], [0,1,0], [0.08,0.16,0.20], SURFACE.MARK, 1, 1);
+    addCube(g, wx + CELL * 0.18, y + 0.002, wz + CELL * 0.46, CELL * 0.58, CELL * 0.006, CELL * 0.040, glow, pale, SURFACE.MARK);
+    addCube(g, wx + CELL * 0.46, y + 0.004, wz + CELL * 0.20, CELL * 0.040, CELL * 0.006, CELL * 0.36, glow, pale, SURFACE.MARK);
+    addCube(g, wx + CELL * 0.32, y + 0.006, wz + CELL * 0.64, CELL * 0.040, CELL * 0.006, CELL * 0.24, pale, glow, SURFACE.MARK);
   }
 
   function addLowPillar(g, cx, cz, color) {
@@ -1427,6 +1413,7 @@
   bindButton("inspectBtn", inspectFront);
   bindButton("resetBtn", resetPosition);
   bindButton("mapBtn", toggleMap);
+  bindButton("detectTrapBtn", toggleTrapDetection);
   bindButton("campBtn", () => setMessage("キャンプ画面は未実装です。ここではダンジョン基盤だけ確認します。", false));
   bindButton("formationBtn", () => setMessage("隊列画面は未実装です。パーティ枠表示だけ置いています。", false));
 
