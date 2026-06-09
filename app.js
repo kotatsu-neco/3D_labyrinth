@@ -65,7 +65,7 @@
     openedDoors: new Set(),
     showMap: false,
     animation: null,
-    message: "v03: 通路幅をさらに拡張、扉表示を明確化、歩行揺れを縮小、連打時の意図しない選択を抑止しました。",
+    message: "v04: 扉の中心ズレを修正し、開いた後も扉枠と開放パネルが残るようにしました。",
   };
 
   const visual = {
@@ -408,7 +408,7 @@
     const lines = map.map((row, z) => row.map((tile, x) => {
       if (state.x === x && state.z === z) return ["▲", "▶", "▼", "◀"][state.dir];
       if (tile === TILE.WALL) return "█";
-      if (tile === TILE.DOOR) return isDoorOpen(x, z) ? "·" : "D";
+      if (tile === TILE.DOOR) return isDoorOpen(x, z) ? "O" : "D";
       if (tile === TILE.STAIR) return "S";
       if (tile === TILE.EVENT) return "*";
       return "·";
@@ -446,8 +446,8 @@
           addCube(g, wx, 0, wz, CELL, ROOM_HEIGHT, CELL, wallColor, wallDark, SURFACE.WALL);
         }
 
-        if (tile === TILE.DOOR && !isDoorOpen(x, z)) {
-          addDoor(g, x, z, doorColor, wallColor, wallDark);
+        if (tile === TILE.DOOR) {
+          addDoor(g, x, z, doorColor, wallColor, wallDark, isDoorOpen(x, z));
         }
 
         if (tile === TILE.STAIR) {
@@ -508,32 +508,72 @@
     addQuad(g, [x0,y0,z0], [x1,y0,z0], [x1,y0,z1], [x0,y0,z1], [0,-1,0], altColor, SURFACE.FLOOR, w * 0.88, d * 0.88);
   }
 
-  function addDoor(g, gridX, gridZ, doorColor, frameColor, frameDark) {
+  function addDoor(g, gridX, gridZ, doorColor, frameColor, frameDark, isOpen) {
     const wx = gridX * CELL;
     const wz = gridZ * CELL;
-    const thickness = CELL * 0.075;
-    const margin = CELL * 0.13;
-    const slabHeight = ROOM_HEIGHT * 0.82;
-    const y = 0.035;
+
+    // v04: 扉のズレ感を減らすため、扉板・左右枠・上枠をセル中心から対称に配置する。
+    // 開いた後も「扉が消える」状態にせず、枠と開放済み扉板を残す。
+    const centerX = wx + CELL / 2;
+    const centerZ = wz + CELL / 2;
+    const frameThickness = CELL * 0.105;
+    const panelThickness = CELL * 0.058;
+    const frameInset = CELL * 0.105;
+    const panelHeight = ROOM_HEIGHT * 0.82;
+    const frameHeight = ROOM_HEIGHT * 0.90;
+    const y = 0.025;
     const darkDoor = [0.34, 0.22, 0.13];
+
     const northOpen = tileAt(gridX, gridZ - 1) !== TILE.WALL;
     const southOpen = tileAt(gridX, gridZ + 1) !== TILE.WALL;
     const eastOpen = tileAt(gridX + 1, gridZ) !== TILE.WALL;
     const westOpen = tileAt(gridX - 1, gridZ) !== TILE.WALL;
-    const zAxisDoor = (northOpen || southOpen) && !(eastOpen || westOpen);
+    const northSouthDoor = (northOpen || southOpen) && !(eastOpen || westOpen);
 
-    if (zAxisDoor) {
-      const dz = wz + CELL / 2 - thickness / 2;
-      addCube(g, wx + margin, y, dz, CELL - margin * 2, slabHeight, thickness, doorColor, darkDoor, SURFACE.DOOR);
-      addCube(g, wx + margin * 0.55, 0, dz - thickness * 0.30, margin * 0.36, ROOM_HEIGHT * 0.90, thickness * 1.60, frameColor, frameDark, SURFACE.WALL);
-      addCube(g, wx + CELL - margin * 0.91, 0, dz - thickness * 0.30, margin * 0.36, ROOM_HEIGHT * 0.90, thickness * 1.60, frameColor, frameDark, SURFACE.WALL);
-      addCube(g, wx + margin * 0.55, slabHeight, dz - thickness * 0.30, CELL - margin * 1.10, ROOM_HEIGHT - slabHeight, thickness * 1.60, frameColor, frameDark, SURFACE.WALL);
+    if (northSouthDoor) {
+      const openingX0 = wx + frameInset;
+      const openingX1 = wx + CELL - frameInset;
+      const openingWidth = openingX1 - openingX0;
+      const halfLeaf = openingWidth / 2 - panelThickness * 0.50;
+      const zClosed = centerZ - panelThickness / 2;
+
+      // Symmetric stone frame.
+      addCube(g, openingX0 - frameThickness, 0, zClosed - panelThickness * 0.55, frameThickness, frameHeight, panelThickness * 2.10, frameColor, frameDark, SURFACE.WALL);
+      addCube(g, openingX1, 0, zClosed - panelThickness * 0.55, frameThickness, frameHeight, panelThickness * 2.10, frameColor, frameDark, SURFACE.WALL);
+      addCube(g, openingX0 - frameThickness, panelHeight, zClosed - panelThickness * 0.55, openingWidth + frameThickness * 2, ROOM_HEIGHT - panelHeight, panelThickness * 2.10, frameColor, frameDark, SURFACE.WALL);
+
+      if (!isOpen) {
+        addCube(g, openingX0, y, zClosed, openingWidth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
+        return;
+      }
+
+      // Opened leaves: keep the door visible by folding both panels to the side of the passage.
+      const leafDepth = Math.max(halfLeaf, CELL * 0.28);
+      addCube(g, openingX0, y, centerZ - leafDepth, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
+      addCube(g, openingX1 - panelThickness, y, centerZ, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
+      addCube(g, centerX - CELL * 0.10, panelHeight * 0.56, zClosed - panelThickness * 0.35, CELL * 0.20, CELL * 0.045, panelThickness * 1.70, [0.20, 0.18, 0.14], [0.13, 0.12, 0.10], SURFACE.PROP);
     } else {
-      const dx = wx + CELL / 2 - thickness / 2;
-      addCube(g, dx, y, wz + margin, thickness, slabHeight, CELL - margin * 2, doorColor, darkDoor, SURFACE.DOOR);
-      addCube(g, dx - thickness * 0.30, 0, wz + margin * 0.55, thickness * 1.60, ROOM_HEIGHT * 0.90, margin * 0.36, frameColor, frameDark, SURFACE.WALL);
-      addCube(g, dx - thickness * 0.30, 0, wz + CELL - margin * 0.91, thickness * 1.60, ROOM_HEIGHT * 0.90, margin * 0.36, frameColor, frameDark, SURFACE.WALL);
-      addCube(g, dx - thickness * 0.30, slabHeight, wz + margin * 0.55, thickness * 1.60, ROOM_HEIGHT - slabHeight, CELL - margin * 1.10, frameColor, frameDark, SURFACE.WALL);
+      const openingZ0 = wz + frameInset;
+      const openingZ1 = wz + CELL - frameInset;
+      const openingWidth = openingZ1 - openingZ0;
+      const halfLeaf = openingWidth / 2 - panelThickness * 0.50;
+      const xClosed = centerX - panelThickness / 2;
+
+      // Symmetric stone frame.
+      addCube(g, xClosed - panelThickness * 0.55, 0, openingZ0 - frameThickness, panelThickness * 2.10, frameHeight, frameThickness, frameColor, frameDark, SURFACE.WALL);
+      addCube(g, xClosed - panelThickness * 0.55, 0, openingZ1, panelThickness * 2.10, frameHeight, frameThickness, frameColor, frameDark, SURFACE.WALL);
+      addCube(g, xClosed - panelThickness * 0.55, panelHeight, openingZ0 - frameThickness, panelThickness * 2.10, ROOM_HEIGHT - panelHeight, openingWidth + frameThickness * 2, frameColor, frameDark, SURFACE.WALL);
+
+      if (!isOpen) {
+        addCube(g, xClosed, y, openingZ0, panelThickness, panelHeight, openingWidth, doorColor, darkDoor, SURFACE.DOOR);
+        return;
+      }
+
+      // Opened leaves: keep the door visible by folding both panels to the side of the passage.
+      const leafDepth = Math.max(halfLeaf, CELL * 0.28);
+      addCube(g, centerX - leafDepth, y, openingZ0, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
+      addCube(g, centerX, y, openingZ1 - panelThickness, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
+      addCube(g, xClosed - panelThickness * 0.35, panelHeight * 0.56, centerZ - CELL * 0.10, panelThickness * 1.70, CELL * 0.045, CELL * 0.20, [0.20, 0.18, 0.14], [0.13, 0.12, 0.10], SURFACE.PROP);
     }
   }
 
