@@ -57,15 +57,26 @@
     [1,1,1,1,1,1,1,1,1,1,1,1],
   ];
 
+  const DUNGEON_OBJECTS = [
+    // v05: 3Dダンジョン内の代表的な配置物を、UIに触れず最小テストする。
+    { id: "chest01", type: "chest", x: 8, z: 10, blocking: true, mapChar: "C" },
+    { id: "lever01", type: "lever", x: 9, z: 5, side: "E", blocking: false, mapChar: "L" },
+    { id: "altar01", type: "altar", x: 4, z: 9, blocking: true, mapChar: "A" },
+  ];
+
+  const SIDE_TO_DIR = { N: 0, E: 1, S: 2, W: 3 };
+
   const state = {
     floor: "B1F",
     x: 1,
     z: 1,
     dir: 1,
     openedDoors: new Set(),
+    openedChests: new Set(),
+    activatedLevers: new Set(),
     showMap: false,
     animation: null,
-    message: "v04: 扉の中心ズレを修正し、開いた後も扉枠と開放パネルが残るようにしました。",
+    message: "v05: 開扉後の中央パーツ残りを修正し、階段・宝箱・レバー・祭壇をテスト配置しました。",
   };
 
   const visual = {
@@ -206,10 +217,32 @@
     return state.openedDoors.has(doorKey(x, z));
   }
 
+  function objectKey(obj) {
+    return `${obj.type}:${obj.id}`;
+  }
+
+  function objectAt(x, z) {
+    return DUNGEON_OBJECTS.find((obj) => obj.x === x && obj.z === z) || null;
+  }
+
+  function leverOnCurrentWall(x, z, dir) {
+    return DUNGEON_OBJECTS.find((obj) => obj.type === "lever" && obj.x === x && obj.z === z && SIDE_TO_DIR[obj.side] === dir) || null;
+  }
+
+  function isChestOpen(obj) {
+    return state.openedChests.has(objectKey(obj));
+  }
+
+  function isLeverActive(obj) {
+    return state.activatedLevers.has(objectKey(obj));
+  }
+
   function isBlocked(x, z) {
     const tile = tileAt(x, z);
     if (tile === TILE.WALL) return true;
     if (tile === TILE.DOOR && !isDoorOpen(x, z)) return true;
+    const obj = objectAt(x, z);
+    if (obj && obj.blocking) return true;
     return false;
   }
 
@@ -220,7 +253,7 @@
     const nz = state.z + d.z * step;
     if (isBlocked(nx, nz)) {
       startBumpAnimation(step);
-      setMessage(step > 0 ? "壁または閉じた扉に阻まれています。" : "背後には進めません。", true);
+      setMessage(step > 0 ? "壁・閉じた扉・配置物に阻まれています。" : "背後には進めません。", true);
       return;
     }
     startMoveAnimation(nx, nz, step);
@@ -234,9 +267,44 @@
 
   function inspectFront() {
     if (state.animation) return;
+
+    const wallLever = leverOnCurrentWall(state.x, state.z, state.dir);
+    if (wallLever) {
+      const key = objectKey(wallLever);
+      if (state.activatedLevers.has(key)) {
+        state.activatedLevers.delete(key);
+        scene = buildSceneGeometry();
+        setMessage("壁のレバーを元の位置に戻しました。どこかで石の擦れる音がしました。", false);
+      } else {
+        state.activatedLevers.add(key);
+        scene = buildSceneGeometry();
+        setMessage("壁のレバーを下ろしました。奥で小さな機構音が響きました。", false);
+      }
+      return;
+    }
+
     const d = DIRS[state.dir];
     const fx = state.x + d.x;
     const fz = state.z + d.z;
+    const frontObject = objectAt(fx, fz);
+    if (frontObject) {
+      if (frontObject.type === "chest") {
+        const key = objectKey(frontObject);
+        if (state.openedChests.has(key)) {
+          setMessage("開いた宝箱です。中は空です。", false);
+        } else {
+          state.openedChests.add(key);
+          scene = buildSceneGeometry();
+          setMessage("古い宝箱を開けました。内部に未鑑定の小片が残されています。", false);
+        }
+        return;
+      }
+      if (frontObject.type === "altar") {
+        setMessage("低い石の祭壇です。表面に灰色の印章が刻まれています。", false);
+        return;
+      }
+    }
+
     const tile = tileAt(fx, fz);
 
     if (tile === TILE.DOOR && !isDoorOpen(fx, fz)) {
@@ -407,6 +475,8 @@
     }
     const lines = map.map((row, z) => row.map((tile, x) => {
       if (state.x === x && state.z === z) return ["▲", "▶", "▼", "◀"][state.dir];
+      const obj = objectAt(x, z);
+      if (obj) return obj.mapChar;
       if (tile === TILE.WALL) return "█";
       if (tile === TILE.DOOR) return isDoorOpen(x, z) ? "O" : "D";
       if (tile === TILE.STAIR) return "S";
@@ -451,13 +521,19 @@
         }
 
         if (tile === TILE.STAIR) {
-          addLowPillar(g, wx + CELL / 2, wz + CELL / 2, stairColor);
+          addStaircase(g, x, z, stairColor, [0.44, 0.40, 0.30]);
         }
 
         if (tile === TILE.EVENT) {
           addFlatMarker(g, wx + CELL / 2, wz + CELL / 2, markColor);
         }
       }
+    }
+
+    for (const obj of DUNGEON_OBJECTS) {
+      if (obj.type === "chest") addChest(g, obj.x, obj.z, isChestOpen(obj));
+      if (obj.type === "lever") addWallLever(g, obj.x, obj.z, obj.side, isLeverActive(obj));
+      if (obj.type === "altar") addStoneAltar(g, obj.x, obj.z);
     }
 
     return new Float32Array(g.data);
@@ -512,7 +588,7 @@
     const wx = gridX * CELL;
     const wz = gridZ * CELL;
 
-    // v04: 扉のズレ感を減らすため、扉板・左右枠・上枠をセル中心から対称に配置する。
+    // v05: 扉のズレ感を減らすため、扉板・左右枠・上枠をセル中心から対称に配置する。
     // 開いた後も「扉が消える」状態にせず、枠と開放済み扉板を残す。
     const centerX = wx + CELL / 2;
     const centerZ = wz + CELL / 2;
@@ -551,7 +627,7 @@
       const leafDepth = Math.max(halfLeaf, CELL * 0.28);
       addCube(g, openingX0, y, centerZ - leafDepth, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
       addCube(g, openingX1 - panelThickness, y, centerZ, panelThickness, panelHeight, leafDepth, doorColor, darkDoor, SURFACE.DOOR);
-      addCube(g, centerX - CELL * 0.10, panelHeight * 0.56, zClosed - panelThickness * 0.35, CELL * 0.20, CELL * 0.045, panelThickness * 1.70, [0.20, 0.18, 0.14], [0.13, 0.12, 0.10], SURFACE.PROP);
+      // v05: 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
     } else {
       const openingZ0 = wz + frameInset;
       const openingZ1 = wz + CELL - frameInset;
@@ -573,8 +649,117 @@
       const leafDepth = Math.max(halfLeaf, CELL * 0.28);
       addCube(g, centerX - leafDepth, y, openingZ0, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
       addCube(g, centerX, y, openingZ1 - panelThickness, leafDepth, panelHeight, panelThickness, doorColor, darkDoor, SURFACE.DOOR);
-      addCube(g, xClosed - panelThickness * 0.35, panelHeight * 0.56, centerZ - CELL * 0.10, panelThickness * 1.70, CELL * 0.045, CELL * 0.20, [0.20, 0.18, 0.14], [0.13, 0.12, 0.10], SURFACE.PROP);
+      // v05: 開扉後に中央へ閂のような横長パーツが残らないよう、中央金具は描画しない。
     }
+  }
+
+  function addStaircase(g, gridX, gridZ, color, darkColor) {
+    const wx = gridX * CELL;
+    const wz = gridZ * CELL;
+    const cx = wx + CELL / 2;
+    const cz = wz + CELL / 2;
+    const westOpen = tileAt(gridX - 1, gridZ) !== TILE.WALL;
+    const eastOpen = tileAt(gridX + 1, gridZ) !== TILE.WALL;
+    const horizontal = westOpen || eastOpen;
+    const stepCount = 5;
+    const total = CELL * 0.76;
+    const stepDepth = total / stepCount;
+    const stepWidth = CELL * 0.62;
+    const baseY = 0.020;
+
+    // Dark opening below the steps, so it reads as a stair rather than a low pedestal.
+    addCube(g, cx - CELL * 0.34, baseY, cz - CELL * 0.34, CELL * 0.68, 0.028, CELL * 0.68, [0.08, 0.075, 0.065], [0.04, 0.04, 0.04], SURFACE.PROP);
+
+    for (let i = 0; i < stepCount; i++) {
+      const h = 0.045 + i * 0.032;
+      if (horizontal) {
+        const x = cx - total / 2 + i * stepDepth;
+        addCube(g, x, baseY, cz - stepWidth / 2, stepDepth * 0.92, h, stepWidth, color, darkColor, SURFACE.PROP);
+      } else {
+        const z = cz - total / 2 + i * stepDepth;
+        addCube(g, cx - stepWidth / 2, baseY, z, stepWidth, h, stepDepth * 0.92, color, darkColor, SURFACE.PROP);
+      }
+    }
+
+    if (horizontal) {
+      addCube(g, cx - total / 2, 0.020, cz - stepWidth / 2 - CELL * 0.055, total, 0.070, CELL * 0.055, darkColor, [0.30, 0.28, 0.22], SURFACE.PROP);
+      addCube(g, cx - total / 2, 0.020, cz + stepWidth / 2, total, 0.070, CELL * 0.055, darkColor, [0.30, 0.28, 0.22], SURFACE.PROP);
+    } else {
+      addCube(g, cx - stepWidth / 2 - CELL * 0.055, 0.020, cz - total / 2, CELL * 0.055, 0.070, total, darkColor, [0.30, 0.28, 0.22], SURFACE.PROP);
+      addCube(g, cx + stepWidth / 2, 0.020, cz - total / 2, CELL * 0.055, 0.070, total, darkColor, [0.30, 0.28, 0.22], SURFACE.PROP);
+    }
+  }
+
+  function addChest(g, gridX, gridZ, isOpen) {
+    const cx = gridX * CELL + CELL / 2;
+    const cz = gridZ * CELL + CELL / 2;
+    const w = CELL * 0.52;
+    const d = CELL * 0.40;
+    const y = 0.040;
+    const baseH = ROOM_HEIGHT * 0.17;
+    const lidH = ROOM_HEIGHT * 0.070;
+    const wood = [0.52, 0.31, 0.16];
+    const darkWood = [0.27, 0.15, 0.08];
+    const metal = [0.14, 0.13, 0.11];
+    addCube(g, cx - w / 2, y, cz - d / 2, w, baseH, d, wood, darkWood, SURFACE.DOOR);
+    addCube(g, cx - w * 0.54, y + baseH * 0.42, cz - d / 2 - CELL * 0.010, w * 1.08, CELL * 0.035, CELL * 0.032, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+    addCube(g, cx - CELL * 0.035, y + baseH * 0.15, cz - d / 2 - CELL * 0.018, CELL * 0.070, baseH * 0.45, CELL * 0.036, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+
+    if (isOpen) {
+      addCube(g, cx - w / 2, y + baseH, cz + d / 2 - CELL * 0.040, w, lidH * 2.4, CELL * 0.060, wood, darkWood, SURFACE.DOOR);
+      addCube(g, cx - w * 0.28, y + baseH + CELL * 0.020, cz - d * 0.22, w * 0.56, CELL * 0.025, d * 0.44, [0.18, 0.14, 0.09], [0.10, 0.08, 0.05], SURFACE.PROP);
+    } else {
+      addCube(g, cx - w / 2, y + baseH, cz - d / 2, w, lidH, d, wood, darkWood, SURFACE.DOOR);
+      addCube(g, cx - CELL * 0.026, y + baseH + lidH * 0.20, cz - d / 2 - CELL * 0.022, CELL * 0.052, lidH * 0.85, CELL * 0.040, metal, [0.08, 0.075, 0.065], SURFACE.PROP);
+    }
+  }
+
+  function addWallLever(g, gridX, gridZ, side, active) {
+    const wx = gridX * CELL;
+    const wz = gridZ * CELL;
+    const cx = wx + CELL / 2;
+    const cz = wz + CELL / 2;
+    const plate = [0.26, 0.25, 0.23];
+    const metal = active ? [0.48, 0.34, 0.15] : [0.20, 0.18, 0.16];
+    const y = ROOM_HEIGHT * 0.50;
+    const plateW = CELL * 0.22;
+    const plateH = ROOM_HEIGHT * 0.22;
+    const t = CELL * 0.030;
+    const rod = CELL * 0.18;
+
+    if (side === "E") {
+      const x = wx + CELL - t;
+      addCube(g, x, y, cz - plateW / 2, t, plateH, plateW, plate, [0.14,0.13,0.12], SURFACE.PROP);
+      addCube(g, x - rod, y + (active ? -plateH * 0.10 : plateH * 0.18), cz - CELL * 0.025, rod, CELL * 0.040, CELL * 0.050, metal, [0.10,0.09,0.08], SURFACE.PROP);
+      addCube(g, x - rod - CELL * 0.030, y + (active ? -plateH * 0.12 : plateH * 0.16), cz - CELL * 0.045, CELL * 0.060, CELL * 0.060, CELL * 0.090, metal, [0.10,0.09,0.08], SURFACE.PROP);
+    } else if (side === "W") {
+      const x = wx;
+      addCube(g, x, y, cz - plateW / 2, t, plateH, plateW, plate, [0.14,0.13,0.12], SURFACE.PROP);
+      addCube(g, x + t, y + (active ? -plateH * 0.10 : plateH * 0.18), cz - CELL * 0.025, rod, CELL * 0.040, CELL * 0.050, metal, [0.10,0.09,0.08], SURFACE.PROP);
+      addCube(g, x + t + rod - CELL * 0.030, y + (active ? -plateH * 0.12 : plateH * 0.16), cz - CELL * 0.045, CELL * 0.060, CELL * 0.060, CELL * 0.090, metal, [0.10,0.09,0.08], SURFACE.PROP);
+    } else if (side === "S") {
+      const z = wz + CELL - t;
+      addCube(g, cx - plateW / 2, y, z, plateW, plateH, t, plate, [0.14,0.13,0.12], SURFACE.PROP);
+      addCube(g, cx - CELL * 0.025, y + (active ? -plateH * 0.10 : plateH * 0.18), z - rod, CELL * 0.050, CELL * 0.040, rod, metal, [0.10,0.09,0.08], SURFACE.PROP);
+      addCube(g, cx - CELL * 0.045, y + (active ? -plateH * 0.12 : plateH * 0.16), z - rod - CELL * 0.030, CELL * 0.090, CELL * 0.060, CELL * 0.060, metal, [0.10,0.09,0.08], SURFACE.PROP);
+    } else {
+      const z = wz;
+      addCube(g, cx - plateW / 2, y, z, plateW, plateH, t, plate, [0.14,0.13,0.12], SURFACE.PROP);
+      addCube(g, cx - CELL * 0.025, y + (active ? -plateH * 0.10 : plateH * 0.18), z + t, CELL * 0.050, CELL * 0.040, rod, metal, [0.10,0.09,0.08], SURFACE.PROP);
+      addCube(g, cx - CELL * 0.045, y + (active ? -plateH * 0.12 : plateH * 0.16), z + t + rod - CELL * 0.030, CELL * 0.090, CELL * 0.060, CELL * 0.060, metal, [0.10,0.09,0.08], SURFACE.PROP);
+    }
+  }
+
+  function addStoneAltar(g, gridX, gridZ) {
+    const cx = gridX * CELL + CELL / 2;
+    const cz = gridZ * CELL + CELL / 2;
+    const stone = [0.52, 0.53, 0.55];
+    const dark = [0.36, 0.37, 0.39];
+    const accent = [0.72, 0.56, 0.25];
+    addCube(g, cx - CELL * 0.34, 0.020, cz - CELL * 0.25, CELL * 0.68, ROOM_HEIGHT * 0.16, CELL * 0.50, stone, dark, SURFACE.WALL);
+    addCube(g, cx - CELL * 0.42, ROOM_HEIGHT * 0.18, cz - CELL * 0.30, CELL * 0.84, ROOM_HEIGHT * 0.07, CELL * 0.60, [0.58,0.59,0.61], dark, SURFACE.WALL);
+    addCube(g, cx - CELL * 0.10, ROOM_HEIGHT * 0.25, cz - CELL * 0.08, CELL * 0.20, ROOM_HEIGHT * 0.13, CELL * 0.16, [0.40,0.41,0.43], dark, SURFACE.WALL);
+    addCube(g, cx - CELL * 0.045, ROOM_HEIGHT * 0.39, cz - CELL * 0.035, CELL * 0.09, ROOM_HEIGHT * 0.035, CELL * 0.07, accent, [0.42,0.32,0.12], SURFACE.PROP);
   }
 
   function addLowPillar(g, cx, cz, color) {
