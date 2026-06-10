@@ -47,9 +47,84 @@
     { x: -1, z: 0, label: "W" },
   ];
 
-  // v15b: v14で確認済みの起動位置を維持する。
-  // 通常探索画面のUI変更では、3Dロジックと罠検知ロジックを変更しない。
+  // v22a: 低解像度敵画像を使った敵遭遇ウィンドウの試作。
+  // v23では敵HP生成と前衛攻撃によるHP減少だけを接続する。
+  // 敵の反撃、命中式の本決定、経験値、戦利品処理はまだ行わない。
+  // ENCOUNTER_DEMOS は実機確認用の一時的なUIデモデータであり、正本の遭遇テーブルではない。
+  // データファイル data/encounters_v23.json / data/enemy_definitions_v23.json は参照用として同梱しているが、
+  // v23時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
   const START_POS = { x: 9, z: 10, dir: 3 };
+
+  const BUILD_VERSION = "v23";
+  const PROTOTYPE_TITLE = "タイトル未定";
+  const PROTOTYPE_SUBTITLE = "地下方舟3Dダンジョン試作";
+  const FLOOR_META = {
+    B1F: {
+      layer: "浅層",
+      zone: "外縁部",
+      role: "搬入口・倉庫・飼育区に近い確認階層",
+    },
+  };
+
+  const ENCOUNTER_DEMO_DATA_SOURCE = "data/encounters_v23.json";
+  const ENEMY_DEFINITION_DATA_SOURCE = "data/enemy_definitions_v23.json";
+
+  const ENEMY_DEFINITIONS = {
+    enemy_black_slime_proto: {
+      id: "enemy_black_slime_proto", displayName: "仮分類: 粘性体", layerBand: "shallow", family: "slime", rank: 1, level: 1, hp: { dice: "1d6", fixed: 0 }, ac: 8, xp: 10, assetId: "black_slime",
+      attacks: [{ id: "touch", targetRule: "front_single", hitBonus: 0, damageDice: "1d4", damageBonus: 0, element: "physical", statusEffect: null, chance: 100, messageKey: "enemy_attack_default" }]
+    },
+    enemy_black_wing_bug_proto: {
+      id: "enemy_black_wing_bug_proto", displayName: "仮分類: 虫型", layerBand: "shallow", family: "insect", rank: 1, level: 1, hp: { dice: "1d4", fixed: 0 }, ac: 7, xp: 8, assetId: "black_wing_bug",
+      attacks: [{ id: "bite", targetRule: "front_single", hitBonus: 0, damageDice: "1d3", damageBonus: 0, element: "physical", statusEffect: null, chance: 100, messageKey: "enemy_attack_default" }]
+    },
+    enemy_goblin_raider_proto: {
+      id: "enemy_goblin_raider_proto", displayName: "仮分類: 小型亜人", layerBand: "shallow", family: "goblin", rank: 1, level: 1, hp: { dice: "1d8", fixed: 0 }, ac: 6, xp: 18, assetId: "goblin_raider",
+      attacks: [{ id: "weapon", targetRule: "front_single", hitBonus: 0, damageDice: "1d6", damageBonus: 0, element: "physical", statusEffect: null, chance: 100, messageKey: "enemy_attack_default" }]
+    },
+    enemy_bone_servant_proto: {
+      id: "enemy_bone_servant_proto", displayName: "仮分類: 骨の従者", layerBand: "shallow", family: "undead", rank: 2, level: 1, hp: { dice: "1d8", fixed: 2 }, ac: 7, xp: 22, assetId: "bone_servant",
+      attacks: [{ id: "claw", targetRule: "front_single", hitBonus: 0, damageDice: "1d5", damageBonus: 0, element: "physical", statusEffect: null, chance: 100, messageKey: "enemy_attack_default" }]
+    }
+  };
+
+  const ENCOUNTER_DEMOS = [
+    {
+      id: "encounter_b1_shallow_test_01",
+      floor: "B1F",
+      layer: "浅層",
+      title: "ENCOUNTER",
+      prompt: "敵が現れた。",
+      note: "v23確認用。敵HPと前衛攻撃のみ接続。反撃・経験値・戦利品は未接続。",
+      enemies: [
+        { enemyId: "enemy_black_slime_proto", label: "粘性体", count: 1, assetId: "black_slime", image: "assets/enemies/lowres/enemy_black_slime.png" },
+        { enemyId: "enemy_black_wing_bug_proto", label: "虫型", count: 2, assetId: "black_wing_bug", image: "assets/enemies/lowres/enemy_black_wing_bug.png" }
+      ]
+    },
+    {
+      id: "encounter_b1_shallow_test_02",
+      floor: "B1F",
+      layer: "浅層",
+      title: "ENCOUNTER",
+      prompt: "敵が現れた。",
+      note: "v23確認用。敵名は仮分類であり正本化しない。",
+      enemies: [
+        { enemyId: "enemy_goblin_raider_proto", label: "小型亜人", count: 3, assetId: "goblin_raider", image: "assets/enemies/lowres/enemy_goblin_raider.png" }
+      ]
+    },
+    {
+      id: "encounter_b1_shallow_test_03",
+      floor: "B1F",
+      layer: "浅層",
+      title: "ENCOUNTER",
+      prompt: "敵が現れた。",
+      note: "v23確認用。戦闘画面の密度とHP表示を見るための仮遭遇。",
+      enemies: [
+        { enemyId: "enemy_bone_servant_proto", label: "骨の従者", count: 1, assetId: "bone_servant", image: "assets/enemies/lowres/enemy_bone_servant.png" },
+        { enemyId: "enemy_black_slime_proto", label: "粘性体", count: 1, assetId: "black_slime", image: "assets/enemies/lowres/enemy_black_slime.png" }
+      ]
+    }
+  ];
 
   const map = [
     [1,1,1,1,1,1,1,1,1,1,1,1],
@@ -79,12 +154,48 @@
   const SIDE_TO_DIR = { N: 0, E: 1, S: 2, W: 3 };
 
   const PARTY_MEMBERS = [
-    { id: "adel", name: "アデル", className: "FIG", hp: 34, maxHp: 34, ac: 4, status: "OK", row: "front" },
-    { id: "mira", name: "ミラ", className: "THI", hp: 28, maxHp: 28, ac: 2, status: "OK", row: "front" },
-    { id: "gald", name: "ガルド", className: "FIG", hp: 41, maxHp: 41, ac: 3, status: "OK", row: "front" },
-    { id: "serin", name: "セリン", className: "PRI", hp: 18, maxHp: 18, ac: 6, status: "OK", row: "back" },
-    { id: "row", name: "ロウ", className: "MAG", hp: 12, maxHp: 12, ac: 9, status: "OK", row: "back" },
-    { id: "nene", name: "ネネ", className: "BIS", hp: 21, maxHp: 21, ac: 7, status: "OK", row: "back" },
+    {
+      id: "adel", name: "アデル", className: "FIG", level: 1, alignment: "GOOD", race: "HUM",
+      hp: 34, maxHp: 34, ac: 4, status: "OK", row: "front", gold: 128,
+      stats: { str: 12, iq: 8, pie: 7, vit: 11, agi: 9, luc: 8 },
+      spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
+      items: ["LONG SWORD", "LEATHER ARMOR", "SMALL SHIELD"],
+    },
+    {
+      id: "mira", name: "ミラ", className: "THI", level: 1, alignment: "NEUT", race: "HOB",
+      hp: 28, maxHp: 28, ac: 2, status: "OK", row: "front", gold: 96,
+      stats: { str: 9, iq: 10, pie: 6, vit: 9, agi: 14, luc: 12 },
+      spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
+      items: ["SHORT SWORD", "LEATHER ARMOR", "THIEVES TOOLS"],
+    },
+    {
+      id: "gald", name: "ガルド", className: "FIG", level: 1, alignment: "GOOD", race: "DWF",
+      hp: 41, maxHp: 41, ac: 3, status: "OK", row: "front", gold: 104,
+      stats: { str: 13, iq: 7, pie: 9, vit: 13, agi: 7, luc: 6 },
+      spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
+      items: ["MACE", "CHAIN MAIL", "HELM"],
+    },
+    {
+      id: "serin", name: "セリン", className: "PRI", level: 1, alignment: "GOOD", race: "GNM",
+      hp: 18, maxHp: 18, ac: 6, status: "OK", row: "back", gold: 83,
+      stats: { str: 8, iq: 9, pie: 13, vit: 10, agi: 8, luc: 9 },
+      spells: { mage: [0,0,0,0,0,0,0], priest: [2,0,0,0,0,0,0] },
+      items: ["STAFF", "ROBES", "HOLY SYMBOL"],
+    },
+    {
+      id: "row", name: "ロウ", className: "MAG", level: 1, alignment: "NEUT", race: "ELF",
+      hp: 12, maxHp: 12, ac: 9, status: "OK", row: "back", gold: 74,
+      stats: { str: 6, iq: 14, pie: 8, vit: 7, agi: 10, luc: 9 },
+      spells: { mage: [2,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
+      items: ["DAGGER", "ROBES", "SPELL BOOK"],
+    },
+    {
+      id: "nene", name: "ネネ", className: "BIS", level: 1, alignment: "GOOD", race: "ELF",
+      hp: 21, maxHp: 21, ac: 7, status: "OK", row: "back", gold: 62,
+      stats: { str: 7, iq: 12, pie: 12, vit: 8, agi: 9, luc: 10 },
+      spells: { mage: [1,0,0,0,0,0,0], priest: [1,0,0,0,0,0,0] },
+      items: ["STAFF", "ROBES", "UNIDENTIFIED SCROLL"],
+    },
   ];
 
   const CHEST_ACTORS = PARTY_MEMBERS.map((member) => member.name);
@@ -105,6 +216,8 @@
     showMap: false,
     animation: null,
     message: "",
+    encounterIndex: 0,
+    currentBattle: null,
   };
 
   const visual = {
@@ -244,6 +357,10 @@
     return DUNGEON_OBJECTS.find((obj) => obj.x === x && obj.z === z) || null;
   }
 
+  function floorObjectAt(x, z) {
+    return DUNGEON_OBJECTS.find((obj) => obj.x === x && obj.z === z && obj.side === "FLOOR") || null;
+  }
+
   function objectOnCurrentWall(x, z, dir) {
     return DUNGEON_OBJECTS.find((obj) => obj.x === x && obj.z === z && SIDE_TO_DIR[obj.side] === dir) || null;
   }
@@ -335,6 +452,14 @@
       return;
     }
 
+    const currentFloorObject = floorObjectAt(state.x, state.z);
+    if (currentFloorObject) {
+      if (currentFloorObject.type !== "trapFloor" || state.trapDetectionActive) {
+        inspectDungeonObject(currentFloorObject);
+        return;
+      }
+    }
+
     const d = DIRS[state.dir];
     const fx = state.x + d.x;
     const fz = state.z + d.z;
@@ -377,27 +502,19 @@
       openChestWindow(obj);
       return;
     }
-    if (obj.type === "altar") {
-      setMessage("祭壇がある。", false);
-      return;
-    }
-    if (obj.type === "statue") {
-      setMessage("石像がある。", false);
-      return;
-    }
-    if (obj.type === "magicCircle") {
-      setMessage("床に紋様がある。", false);
-      return;
-    }
-    if (obj.type === "trapFloor") {
-      setMessage("床を調べた。", false);
-      return;
+    if (obj.type === "altar" || obj.type === "statue" || obj.type === "magicCircle" || obj.type === "trapFloor") {
+      openDungeonObjectWindow(obj);
     }
   }
 
   function openChestWindow(chest, notice = "", mode = "main") {
     state.eventWindowOpen = true;
     renderChestWindow(chest, notice, mode);
+  }
+
+  function openDungeonObjectWindow(obj, notice = "") {
+    state.eventWindowOpen = true;
+    renderDungeonObjectWindow(obj, notice);
   }
 
   function closeEventWindow() {
@@ -417,6 +534,28 @@
 
   function partyHpText(member) {
     return `${member.hp}/${member.maxHp}`;
+  }
+
+  function spellLine(points) {
+    const list = Array.isArray(points) ? points.slice(0, 7) : [];
+    while (list.length < 7) list.push(0);
+    return list.map((value) => Number(value) || 0).join("/");
+  }
+
+  function hasSpellPoints(points) {
+    return Array.isArray(points) && points.some((value) => Number(value) > 0);
+  }
+
+  function renderSpellPointRows(member) {
+    const mage = member.spells && member.spells.mage ? member.spells.mage : [];
+    const priest = member.spells && member.spells.priest ? member.spells.priest : [];
+    if (!hasSpellPoints(mage) && !hasSpellPoints(priest)) {
+      return `<div class="spell-none">呪文なし</div>`;
+    }
+    const rows = [];
+    if (hasSpellPoints(mage)) rows.push(`<div><span>MAGE</span><strong>${escapeHtml(spellLine(mage))}</strong></div>`);
+    if (hasSpellPoints(priest)) rows.push(`<div><span>PRIEST</span><strong>${escapeHtml(spellLine(priest))}</strong></div>`);
+    return rows.join("");
   }
 
   function renderPartyCards() {
@@ -455,10 +594,7 @@
     `;
   }
 
-  function openCharacterWindow(memberId) {
-    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
-    if (!member) return;
-    state.eventWindowOpen = true;
+  function getEventOverlay() {
     let overlay = document.getElementById("eventWindowOverlay");
     if (!overlay) {
       overlay = document.createElement("div");
@@ -466,43 +602,658 @@
       overlay.className = "event-window-overlay";
       document.body.appendChild(overlay);
     }
+    return overlay;
+  }
 
-    overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
-        <div class="event-message-box" aria-live="polite">
-          <span id="eventWindowTitle">隊員</span>
-          <span class="event-prompt">${escapeHtml(member.name)}</span>
-          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
-        </div>
-        <div class="event-main-grid">
-          <div class="event-art-frame" aria-hidden="true">
-            <div class="character-rune">${escapeHtml(member.className)}</div>
-          </div>
-          <div class="event-command-frame">
-            <div class="event-command-title">STATUS</div>
-            <div class="character-status-lines">
-              <div><span>CLASS</span><strong>${escapeHtml(member.className)}</strong></div>
-              <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
-              <div><span>AC</span><strong>${escapeHtml(member.ac)}</strong></div>
-              <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
-            </div>
-          </div>
-        </div>
-        <div class="event-party-frame" aria-hidden="true">
-          ${renderEventPartyTable()}
-        </div>
-      </div>`;
-
+  function bindWindowActions(overlay, handler) {
     overlay.querySelectorAll("button[data-action]").forEach((button) => {
       button.addEventListener("pointerdown", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        closeEventWindow();
+        if (button.disabled) return;
+        handler(button.dataset.action || "");
       }, { passive: false });
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
       });
+    });
+  }
+
+  const DUNGEON_EVENT_DEFS = {
+    altar: {
+      title: "祭壇",
+      glyph: "ALTAR",
+      prompt: "祭壇がある。",
+      actions: [
+        { key: "inspect", label: "調べる", result: "祭壇を調べた。" },
+        { key: "pray", label: "祈る", result: "祈った。" },
+      ],
+    },
+    statue: {
+      title: "石像",
+      glyph: "STATUE",
+      prompt: "石像がある。",
+      actions: [
+        { key: "inspect", label: "調べる", result: "石像を調べた。" },
+        { key: "touch", label: "触れる", result: "石像に触れた。" },
+      ],
+    },
+    magicCircle: {
+      title: "床の紋様",
+      glyph: "SIGIL",
+      prompt: "床に紋様がある。",
+      actions: [
+        { key: "inspect", label: "調べる", result: "床の紋様を調べた。" },
+        { key: "step", label: "踏み込む", result: "踏み込んだ。" },
+      ],
+    },
+    trapFloor: {
+      title: "青白い床の印",
+      glyph: "TRAP",
+      prompt: "床が淡く光っている。",
+      actions: [
+        { key: "inspect", label: "調べる", result: "床を調べた。" },
+      ],
+    },
+  };
+
+  function renderDungeonObjectWindow(obj, notice = "") {
+    const def = DUNGEON_EVENT_DEFS[obj.type];
+    if (!def) {
+      closeEventWindow();
+      return;
+    }
+    const overlay = getEventOverlay();
+    const actionButtons = def.actions.map((action) => `<button data-action="event:${escapeHtml(action.key)}">${escapeHtml(action.label)}</button>`).join("");
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel object-event-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">${escapeHtml(def.title)}</span>
+          <span class="event-prompt">${escapeHtml(notice || def.prompt)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="event-main-grid object-event-grid">
+          <div class="event-art-frame object-art-frame" aria-hidden="true">
+            <div class="event-object-glyph ${escapeHtml(obj.type)}">${escapeHtml(def.glyph)}</div>
+          </div>
+          <div class="event-command-frame">
+            <div class="event-command-title">COMMAND</div>
+            <div class="event-actions">
+              ${actionButtons}
+              <button data-action="close">離れる</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        setMessage("離れた。", false);
+        return;
+      }
+      if (action.startsWith("event:")) {
+        const key = action.slice("event:".length);
+        const eventAction = def.actions.find((item) => item.key === key);
+        const result = eventAction ? eventAction.result : "調べた。";
+        renderDungeonObjectWindow(obj, result);
+        setMessage(result, false);
+      }
+    });
+  }
+
+  function normalizeEnemyLabel(displayName) {
+    return String(displayName || "敵").replace(/^仮分類:\s*/, "");
+  }
+
+  function parseDice(diceText) {
+    const match = String(diceText || "1d1").match(/^(\d+)d(\d+)$/i);
+    if (!match) return { count: 1, sides: 1 };
+    return { count: Math.max(1, Number(match[1])), sides: Math.max(1, Number(match[2])) };
+  }
+
+  function rollDice(diceText) {
+    const dice = parseDice(diceText);
+    let total = 0;
+    for (let i = 0; i < dice.count; i += 1) {
+      total += 1 + Math.floor(Math.random() * dice.sides);
+    }
+    return total;
+  }
+
+  function rollEnemyHp(definition) {
+    const hp = definition.hp || { dice: "1d1", fixed: 0 };
+    return Math.max(1, rollDice(hp.dice) + Number(hp.fixed || 0));
+  }
+
+  function createBattleFromEncounter(encounter) {
+    const groups = encounter.enemies.map((entry, groupIndex) => {
+      const definition = ENEMY_DEFINITIONS[entry.enemyId];
+      const label = entry.label || normalizeEnemyLabel(definition ? definition.displayName : entry.enemyId);
+      const instances = [];
+      const count = Math.max(1, Number(entry.count || 1));
+      for (let i = 0; i < count; i += 1) {
+        const maxHp = definition ? rollEnemyHp(definition) : 1;
+        instances.push({
+          instanceId: `${entry.enemyId}_${groupIndex}_${i}`,
+          enemyId: entry.enemyId,
+          currentHp: maxHp,
+          maxHp,
+          status: "OK",
+        });
+      }
+      return { ...entry, label, definition, instances };
+    });
+    return {
+      id: encounter.id,
+      floor: encounter.floor,
+      layer: encounter.layer,
+      title: encounter.title,
+      prompt: encounter.prompt,
+      note: encounter.note,
+      round: 1,
+      groups,
+      finished: false,
+      result: null,
+    };
+  }
+
+  function getAliveEnemies(battle) {
+    return battle.groups.flatMap((group) => group.instances.map((instance) => ({ group, instance }))).filter((item) => item.instance.currentHp > 0);
+  }
+
+  function isBattleFinished(battle) {
+    return getAliveEnemies(battle).length === 0;
+  }
+
+  function memberDamageDice(member) {
+    if (member.className === "FIG") return "1d6";
+    if (member.className === "THI") return "1d4";
+    if (member.className === "PRI") return "1d4";
+    if (member.className === "BIS") return "1d4";
+    return "1d3";
+  }
+
+  function memberDamageBonus(member) {
+    return Math.max(0, Math.floor((((member.stats && member.stats.str) || 10) - 10) / 3));
+  }
+
+  function resolveFrontAttackRound(battle) {
+    if (battle.finished) return "戦闘は終わっている。";
+    const attackers = PARTY_MEMBERS.filter((member) => member.row === "front" && member.status === "OK" && member.hp > 0);
+    let hits = 0;
+    let damageTotal = 0;
+    attackers.forEach((member) => {
+      const target = getAliveEnemies(battle)[0];
+      if (!target) return;
+      const enemyAc = target.group.definition ? Number(target.group.definition.ac || 10) : 10;
+      const hitRoll = rollDice("1d20") + Number(member.level || 1);
+      const targetNumber = Math.max(6, 8 + enemyAc);
+      if (hitRoll >= targetNumber) {
+        const damage = Math.max(1, rollDice(memberDamageDice(member)) + memberDamageBonus(member));
+        target.instance.currentHp = Math.max(0, target.instance.currentHp - damage);
+        hits += 1;
+        damageTotal += damage;
+      }
+    });
+    if (isBattleFinished(battle)) {
+      battle.finished = true;
+      battle.result = "won";
+      return hits > 0 ? `敵を倒した。合計${damageTotal}のダメージ。` : "敵を倒した。";
+    }
+    battle.round += 1;
+    if (hits === 0) return "前衛が攻撃した。命中しなかった。";
+    return `前衛が攻撃した。合計${damageTotal}のダメージ。`;
+  }
+
+  function buildEnemyCards(battle) {
+    return battle.groups.map((group) => {
+      const alive = group.instances.filter((instance) => instance.currentHp > 0);
+      const firstAlive = alive[0];
+      const status = firstAlive ? `HP ${firstAlive.currentHp}/${firstAlive.maxHp}` : "倒れた";
+      return `
+        <div class="enemy-card ${firstAlive ? "" : "defeated"}" data-enemy-id="${escapeHtml(group.enemyId)}" data-asset-id="${escapeHtml(group.assetId)}">
+          <div class="enemy-image-frame">
+            <img src="${escapeHtml(group.image)}" alt="" loading="eager" />
+          </div>
+          <div class="enemy-card-label"><span>${escapeHtml(group.label)}</span><strong>x${escapeHtml(alive.length)}/${escapeHtml(group.instances.length)}</strong></div>
+          <div class="enemy-card-status">${escapeHtml(status)}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function openEncounterWindow() {
+    if (state.eventWindowOpen || state.animation) return;
+    state.eventWindowOpen = true;
+    const encounter = ENCOUNTER_DEMOS[state.encounterIndex % ENCOUNTER_DEMOS.length];
+    state.encounterIndex += 1;
+    state.currentBattle = createBattleFromEncounter(encounter);
+    renderEncounterWindow(state.currentBattle);
+  }
+
+  function renderEncounterWindow(battle, notice = "") {
+    const overlay = getEventOverlay();
+    const enemyCards = buildEnemyCards(battle);
+    const finished = battle.finished || isBattleFinished(battle);
+    const prompt = notice || battle.prompt;
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel encounter-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">${escapeHtml(battle.title)}</span>
+          <span class="event-prompt">${escapeHtml(prompt)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="encounter-body-frame">
+          <div class="encounter-round-line">ROUND ${escapeHtml(battle.round)} / v23 HP確認用</div>
+          <div class="encounter-enemy-grid">
+            ${enemyCards}
+          </div>
+          <div class="encounter-note">${escapeHtml(battle.note)}</div>
+        </div>
+        <div class="event-main-grid encounter-command-grid">
+          <div class="event-command-frame">
+            <div class="event-command-title">COMMAND</div>
+            <div class="event-actions">
+              <button data-action="fight" ${finished ? "disabled" : ""}>戦う</button>
+              <button data-action="guard" ${finished ? "disabled" : ""}>身を守る</button>
+              <button data-action="run" ${finished ? "disabled" : ""}>逃げる</button>
+              <button data-action="close">離れる</button>
+            </div>
+          </div>
+          <div class="event-party-frame">
+            ${renderEventPartyTable()}
+          </div>
+        </div>
+      </div>
+    `;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        state.currentBattle = null;
+        closeEventWindow();
+        return;
+      }
+      if (action === "fight") {
+        const result = resolveFrontAttackRound(battle);
+        renderEncounterWindow(battle, result);
+        return;
+      }
+      if (action === "guard") {
+        renderEncounterWindow(battle, "身を守った。敵の反撃はまだ未接続。");
+        return;
+      }
+      if (action === "run") {
+        state.currentBattle = null;
+        closeEventWindow();
+        setMessage("逃げた。", false);
+      }
+    });
+  }
+
+  function openCampWindow() {
+    if (state.eventWindowOpen || state.animation) return;
+    state.eventWindowOpen = true;
+    renderCampWindow("");
+  }
+
+  function openFormationWindow() {
+    if (state.eventWindowOpen || state.animation) return;
+    state.eventWindowOpen = true;
+    renderFormationWindow("");
+  }
+
+  function renderCampWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel camp-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">キャンプ</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "どうしますか"}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="event-main-grid camp-main-grid">
+          <div class="event-art-frame camp-art-frame" aria-hidden="true">
+            <div class="character-rune">CAMP</div>
+          </div>
+          <div class="event-command-frame">
+            <div class="event-command-title">COMMAND</div>
+            <div class="event-actions">
+              <button data-action="members">メンバーを見る</button>
+              <button data-action="formation">隊列</button>
+              <button data-action="equipAll">装備確認</button>
+              <button data-action="spells">呪文</button>
+              <button data-action="items">アイテム</button>
+              <button data-action="close">出る</button>
+            </div>
+          </div>
+        </div>
+        <div class="camp-note-frame">
+          <span>迷宮内で隊を整える。</span>
+        </div>
+      </div>`;
+
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "members") {
+        renderCampMemberSelectWindow("detail");
+        return;
+      }
+      if (action === "formation") {
+        renderFormationWindow("");
+        return;
+      }
+      if (action === "equipAll") {
+        renderEquipAllWindow();
+        return;
+      }
+      if (action === "spells") {
+        renderCampMemberSelectWindow("spells");
+        return;
+      }
+      if (action === "items") {
+        renderCampMemberSelectWindow("items");
+      }
+    });
+  }
+
+  function renderCampMemberSelectWindow(mode = "detail") {
+    const overlay = getEventOverlay();
+    const titleByMode = {
+      detail: "メンバーを見る",
+      spells: "誰の呪文を見ますか",
+      items: "誰のアイテムを見ますか",
+    };
+    const actionPrefix = mode === "spells" ? "spellMember" : mode === "items" ? "itemMember" : "member";
+    const memberButtons = PARTY_MEMBERS.map((member) => `
+      <button data-action="${actionPrefix}:${escapeHtml(member.id)}">
+        ${escapeHtml(member.name)} <span class="inline-muted">${escapeHtml(member.className)} / HP ${escapeHtml(partyHpText(member))} / AC ${escapeHtml(member.ac)}</span>
+      </button>`).join("");
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel camp-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">キャンプ</span>
+          <span class="event-prompt">${escapeHtml(titleByMode[mode] || titleByMode.detail)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="event-command-frame camp-member-frame">
+          <div class="event-command-title">MEMBER</div>
+          <div class="event-actions camp-member-actions">
+            ${memberButtons}
+            <button data-action="back">戻る</button>
+          </div>
+        </div>
+      </div>`;
+
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "back") {
+        renderCampWindow("");
+        return;
+      }
+      if (action.startsWith("member:")) {
+        openCharacterWindow(action.slice("member:".length), "campMembers");
+        return;
+      }
+      if (action.startsWith("spellMember:")) {
+        renderSpellWindow(action.slice("spellMember:".length));
+        return;
+      }
+      if (action.startsWith("itemMember:")) {
+        renderItemWindow(action.slice("itemMember:".length));
+      }
+    });
+  }
+
+  function updateRowsFromPartyOrder() {
+    PARTY_MEMBERS.forEach((member, index) => {
+      member.row = index < 3 ? "front" : "back";
+    });
+  }
+
+  function movePartyMember(memberId, direction) {
+    const index = PARTY_MEMBERS.findIndex((member) => member.id === memberId);
+    if (index < 0) return false;
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= PARTY_MEMBERS.length) return false;
+    const [member] = PARTY_MEMBERS.splice(index, 1);
+    PARTY_MEMBERS.splice(nextIndex, 0, member);
+    updateRowsFromPartyOrder();
+    renderPartyCards();
+    return true;
+  }
+
+  function renderFormationWindow(notice = "") {
+    const overlay = getEventOverlay();
+    const rows = PARTY_MEMBERS.map((member, index) => `
+      <div class="formation-row ${member.row === "front" ? "front" : "back"}">
+        <span class="formation-pos">${index + 1}</span>
+        <span class="formation-name">${escapeHtml(member.name)}</span>
+        <span class="formation-class">${escapeHtml(member.className)}</span>
+        <span class="formation-line">${member.row === "front" ? "前衛" : "後衛"}</span>
+        <button data-action="up:${escapeHtml(member.id)}" ${index === 0 ? "disabled" : ""}>↑</button>
+        <button data-action="down:${escapeHtml(member.id)}" ${index === PARTY_MEMBERS.length - 1 ? "disabled" : ""}>↓</button>
+      </div>`).join("");
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel camp-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">隊列</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "並びを変える"}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="formation-frame">
+          <div class="formation-head"><span>POS</span><span>NAME</span><span>CLASS</span><span>ROW</span><span></span><span></span></div>
+          ${rows}
+        </div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions">
+            <button data-action="backToCamp">キャンプへ戻る</button>
+            <button data-action="close">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "backToCamp") {
+        renderCampWindow("");
+        return;
+      }
+      if (action.startsWith("up:")) {
+        const changed = movePartyMember(action.slice("up:".length), -1);
+        renderFormationWindow(changed ? "隊列を変えた。" : "これ以上動かせない。");
+        return;
+      }
+      if (action.startsWith("down:")) {
+        const changed = movePartyMember(action.slice("down:".length), 1);
+        renderFormationWindow(changed ? "隊列を変えた。" : "これ以上動かせない。");
+      }
+    });
+  }
+
+  function renderEquipAllWindow() {
+    const overlay = getEventOverlay();
+    const rows = PARTY_MEMBERS.map((member) => `
+      <div class="equip-row">
+        <span>${escapeHtml(member.name)}</span>
+        <span>${escapeHtml(member.className)}</span>
+        <strong>${escapeHtml((member.items || []).slice(0, 2).join(" / ") || "なし")}</strong>
+      </div>`).join("");
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel camp-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">装備確認</span>
+          <span class="event-prompt">所持品を確認する</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="equip-frame">
+          <div class="equip-head"><span>NAME</span><span>CLASS</span><span>ITEMS</span></div>
+          ${rows}
+        </div>
+        <div class="camp-note-frame"><span>装備変更はまだ行わない。</span></div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions">
+            <button data-action="backToCamp">キャンプへ戻る</button>
+            <button data-action="close">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") closeEventWindow();
+      if (action === "backToCamp") renderCampWindow("");
+    });
+  }
+
+  function renderSpellWindow(memberId) {
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member) return;
+    const overlay = getEventOverlay();
+    const mage = spellLine(member.spells && member.spells.mage);
+    const priest = spellLine(member.spells && member.spells.priest);
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">SPELL POINTS</span>
+          <span class="event-prompt">${escapeHtml(member.name)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="spell-detail-frame">
+          <div class="spell-table-head"><span></span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div>
+          <div class="spell-table-row"><span>MAGE</span>${mage.split("/").map((value) => `<strong>${escapeHtml(value)}</strong>`).join("")}</div>
+          <div class="spell-table-row"><span>PRIEST</span>${priest.split("/").map((value) => `<strong>${escapeHtml(value)}</strong>`).join("")}</div>
+        </div>
+        <div class="camp-note-frame"><span>呪文使用はまだ行わない。</span></div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions">
+            <button data-action="backToMembers">メンバーへ戻る</button>
+            <button data-action="backToCamp">キャンプへ戻る</button>
+            <button data-action="close">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") closeEventWindow();
+      if (action === "backToMembers") renderCampMemberSelectWindow("spells");
+      if (action === "backToCamp") renderCampWindow("");
+    });
+  }
+
+  function renderItemWindow(memberId) {
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member) return;
+    const overlay = getEventOverlay();
+    const itemRows = (member.items || []).map((item, index) => `
+      <div class="item-row"><span>${index + 1}</span><strong>${escapeHtml(item)}</strong></div>`).join("") || `<div class="item-row"><span>-</span><strong>なし</strong></div>`;
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">ITEMS</span>
+          <span class="event-prompt">${escapeHtml(member.name)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="item-detail-frame">
+          ${itemRows}
+        </div>
+        <div class="camp-note-frame"><span>使用・受け渡し・破棄はまだ行わない。</span></div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions">
+            <button data-action="backToMembers">メンバーへ戻る</button>
+            <button data-action="backToCamp">キャンプへ戻る</button>
+            <button data-action="close">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") closeEventWindow();
+      if (action === "backToMembers") renderCampMemberSelectWindow("items");
+      if (action === "backToCamp") renderCampWindow("");
+    });
+  }
+
+  function openCharacterWindow(memberId, returnMode = "explore") {
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member) return;
+    state.eventWindowOpen = true;
+    const overlay = getEventOverlay();
+    const spellRows = renderSpellPointRows(member);
+    const itemRows = (member.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    const backButton = returnMode === "campMembers" ? `<button data-action="backToCampMembers">戻る</button>` : "";
+
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">STATUS</span>
+          <span class="event-prompt">${escapeHtml(member.name)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="character-detail-frame">
+          <div class="character-detail-title">
+            <span>${escapeHtml(member.name)}</span>
+            <span>LEVEL ${escapeHtml(member.level)}</span>
+          </div>
+          <div class="character-identity-grid">
+            <div><span>ALIGN</span><strong>${escapeHtml(member.alignment)}</strong></div>
+            <div><span>RACE</span><strong>${escapeHtml(member.race)}</strong></div>
+            <div><span>CLASS</span><strong>${escapeHtml(member.className)}</strong></div>
+          </div>
+          <div class="character-basic-grid">
+            <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
+            <div><span>AC</span><strong>${escapeHtml(member.ac)}</strong></div>
+            <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
+            <div><span>GOLD</span><strong>${escapeHtml(member.gold)}</strong></div>
+          </div>
+          <div class="character-section-title">ATTRIBUTES</div>
+          <div class="character-attribute-grid">
+            <div><span>STR</span><strong>${escapeHtml(member.stats.str)}</strong></div>
+            <div><span>I.Q.</span><strong>${escapeHtml(member.stats.iq)}</strong></div>
+            <div><span>PIE</span><strong>${escapeHtml(member.stats.pie)}</strong></div>
+            <div><span>VIT</span><strong>${escapeHtml(member.stats.vit)}</strong></div>
+            <div><span>AGI</span><strong>${escapeHtml(member.stats.agi)}</strong></div>
+            <div><span>LUC</span><strong>${escapeHtml(member.stats.luc)}</strong></div>
+          </div>
+          <div class="character-section-title">SPELL POINTS</div>
+          <div class="character-spell-grid">
+            <div class="spell-level-head"><span></span><span>1/2/3/4/5/6/7</span></div>
+            ${spellRows}
+          </div>
+          <div class="character-section-title">ITEMS</div>
+          <ol class="character-item-list">${itemRows}</ol>
+        </div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions">
+            <button data-action="spell:${escapeHtml(member.id)}">呪文</button>
+            <button data-action="items:${escapeHtml(member.id)}">アイテム</button>
+            ${backButton}
+            <button data-action="close">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "backToCampMembers") {
+        renderCampMemberSelectWindow("detail");
+        return;
+      }
+      if (action.startsWith("spell:")) {
+        renderSpellWindow(action.slice("spell:".length));
+        return;
+      }
+      if (action.startsWith("items:")) {
+        renderItemWindow(action.slice("items:".length));
+      }
     });
   }
 
@@ -771,7 +1522,9 @@
   }
 
   function updateHud() {
-    positionText.textContent = `${state.floor} x${state.x} y${state.z} ${DIRS[state.dir].label}`;
+    const floorMeta = FLOOR_META[state.floor];
+    const floorLabel = floorMeta ? `${state.floor} ${floorMeta.layer}` : state.floor;
+    positionText.textContent = `${floorLabel} x${state.x} y${state.z} ${DIRS[state.dir].label}`;
     renderMapOverlay();
   }
 
@@ -1550,8 +2303,9 @@
   bindButton("resetBtn", resetPosition);
   bindButton("mapBtn", toggleMap);
   bindButton("detectTrapBtn", toggleTrapDetection);
-  bindButton("campBtn", () => setMessage("キャンプは未実装。", false));
-  bindButton("formationBtn", () => setMessage("隊列は未実装。", false));
+  bindButton("campBtn", openCampWindow);
+  bindButton("formationBtn", openFormationWindow);
+  bindButton("encounterBtn", openEncounterWindow);
 
   window.addEventListener("keydown", (event) => {
     const key = event.key;
