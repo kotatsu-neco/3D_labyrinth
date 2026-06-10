@@ -3,11 +3,16 @@
 
   const canvas = document.getElementById("dungeonCanvas");
   const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
-  const messageLog = document.getElementById("messageLog");
+  const statusToast = document.getElementById("statusToast");
+  const partyCardGrid = document.getElementById("explorePartyCards");
   const positionText = document.getElementById("positionText");
+  let statusToastTimer = 0;
 
   if (!gl) {
-    messageLog.textContent = "このブラウザではWebGLを初期化できませんでした。";
+    if (statusToast) {
+      statusToast.textContent = "このブラウザではWebGLを初期化できませんでした。";
+      statusToast.hidden = false;
+    }
     return;
   }
 
@@ -42,8 +47,8 @@
     { x: -1, z: 0, label: "W" },
   ];
 
-  // v14: 起動直後から通路・配置物・移動方向が見える確認用の初期位置を維持する。
-  // 旧初期位置(x1,y1,E)は視界情報が乏しく、実機上で「黒いだけ」「動けない」に見えやすかったため避ける。
+  // v15b: v14で確認済みの起動位置を維持する。
+  // 通常探索画面のUI変更では、3Dロジックと罠検知ロジックを変更しない。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
   const map = [
@@ -73,8 +78,17 @@
 
   const SIDE_TO_DIR = { N: 0, E: 1, S: 2, W: 3 };
 
-  const CHEST_ACTORS = ["アデル", "ミラ", "ガルド", "セリン", "ロウ", "ネネ"];
-  const CHEST_SPECIALIST = "ロウ";
+  const PARTY_MEMBERS = [
+    { id: "adel", name: "アデル", className: "FIG", hp: 34, maxHp: 34, ac: 4, status: "OK", row: "front" },
+    { id: "mira", name: "ミラ", className: "THI", hp: 28, maxHp: 28, ac: 2, status: "OK", row: "front" },
+    { id: "gald", name: "ガルド", className: "FIG", hp: 41, maxHp: 41, ac: 3, status: "OK", row: "front" },
+    { id: "serin", name: "セリン", className: "PRI", hp: 18, maxHp: 18, ac: 6, status: "OK", row: "back" },
+    { id: "row", name: "ロウ", className: "MAG", hp: 12, maxHp: 12, ac: 9, status: "OK", row: "back" },
+    { id: "nene", name: "ネネ", className: "BIS", hp: 21, maxHp: 21, ac: 7, status: "OK", row: "back" },
+  ];
+
+  const CHEST_ACTORS = PARTY_MEMBERS.map((member) => member.name);
+  const CHEST_SPECIALIST = "ミラ";
 
   const state = {
     floor: "B1F",
@@ -90,7 +104,7 @@
     eventWindowOpen: false,
     showMap: false,
     animation: null,
-    message: "v14: 罠検知トグルの未定義による起動停止を修正し、3D表示と移動操作を復旧しました。",
+    message: "",
   };
 
   const visual = {
@@ -275,7 +289,7 @@
     const nz = state.z + d.z * step;
     if (isBlocked(nx, nz)) {
       startBumpAnimation(step);
-      setMessage(step > 0 ? "壁・閉じた扉・配置物に阻まれています。" : "背後には進めません。", true);
+      setMessage("進めない。", true);
       return;
     }
     startMoveAnimation(nx, nz, step);
@@ -298,12 +312,12 @@
         state.activatedLevers.delete(key);
         if (target) state.openedDoors.delete(doorKey(target.x, target.z));
         scene = buildSceneGeometry();
-        setMessage(target ? "壁のレバーを戻しました。対応する扉が閉じる音がしました。" : "壁のレバーを元の位置に戻しました。", false);
+        setMessage("レバー。", false);
       } else {
         state.activatedLevers.add(key);
         if (target) state.openedDoors.add(doorKey(target.x, target.z));
         scene = buildSceneGeometry();
-        setMessage(target ? "壁のレバーを下ろしました。対応する扉が開く音がしました。" : "壁のレバーを下ろしました。", false);
+        setMessage("レバー。", false);
       }
       return;
     }
@@ -335,27 +349,27 @@
     if (tile === TILE.DOOR && !isDoorOpen(fx, fz)) {
       state.openedDoors.add(doorKey(fx, fz));
       scene = buildSceneGeometry();
-      setMessage("扉を開けました。", false);
+      setMessage("開いた。", false);
       return;
     }
 
     if (tile === TILE.WALL) {
-      setMessage("石壁です。粗い石積みと目地が見えます。", false);
+      setMessage("石壁。", false);
       return;
     }
 
     if (tile === TILE.STAIR) {
-      setMessage("下層へ続く階段が見えます。今回は移動処理は未実装です。", false);
+      setMessage("階段。", false);
       return;
     }
 
     const current = tileAt(state.x, state.z);
     if (current === TILE.EVENT) {
-      setMessage("床に古い紋章があります。目録候補: 『灰冠の印章』。", false);
+      setMessage("床の紋様。", false);
       return;
     }
 
-    setMessage("周囲を調べました。今のところ目立つものはありません。", false);
+    setMessage("何もない。", false);
   }
 
   function inspectDungeonObject(obj) {
@@ -390,6 +404,106 @@
     const overlay = document.getElementById("eventWindowOverlay");
     if (overlay) overlay.remove();
     state.eventWindowOpen = false;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function partyHpText(member) {
+    return `${member.hp}/${member.maxHp}`;
+  }
+
+  function renderPartyCards() {
+    if (!partyCardGrid) return;
+    partyCardGrid.innerHTML = PARTY_MEMBERS.map((member) => `
+      <button class="party-card" type="button" data-member-id="${escapeHtml(member.id)}" aria-label="${escapeHtml(member.name)}の詳細">
+        <span class="party-card-top">
+          <span class="party-card-name">${escapeHtml(member.name)}</span>
+          <span class="party-card-class">${escapeHtml(member.className)}</span>
+        </span>
+        <span class="party-card-line"><span>HP ${escapeHtml(partyHpText(member))}</span><span>AC ${escapeHtml(member.ac)}</span></span>
+        <span class="party-card-line party-card-status"><span>${escapeHtml(member.row === "front" ? "前衛" : "後衛")}</span><span>${escapeHtml(member.status)}</span></span>
+      </button>
+    `).join("");
+
+    partyCardGrid.querySelectorAll("button[data-member-id]").forEach((button) => {
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (state.eventWindowOpen || state.animation) return;
+        openCharacterWindow(button.dataset.memberId);
+      }, { passive: false });
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    });
+  }
+
+  function renderEventPartyTable() {
+    return `
+      <div class="event-party-head"><span>NAME</span><span>CLASS</span><span>HITS</span><span>AC</span><span>STATUS</span></div>
+      ${PARTY_MEMBERS.map((member) => `
+        <div class="event-party-row"><span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.className)}</span><span>${escapeHtml(partyHpText(member))}</span><span>${escapeHtml(member.ac)}</span><span>${escapeHtml(member.status)}</span></div>
+      `).join("")}
+    `;
+  }
+
+  function openCharacterWindow(memberId) {
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member) return;
+    state.eventWindowOpen = true;
+    let overlay = document.getElementById("eventWindowOverlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "eventWindowOverlay";
+      overlay.className = "event-window-overlay";
+      document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">隊員</span>
+          <span class="event-prompt">${escapeHtml(member.name)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="event-main-grid">
+          <div class="event-art-frame" aria-hidden="true">
+            <div class="character-rune">${escapeHtml(member.className)}</div>
+          </div>
+          <div class="event-command-frame">
+            <div class="event-command-title">STATUS</div>
+            <div class="character-status-lines">
+              <div><span>CLASS</span><strong>${escapeHtml(member.className)}</strong></div>
+              <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
+              <div><span>AC</span><strong>${escapeHtml(member.ac)}</strong></div>
+              <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="event-party-frame" aria-hidden="true">
+          ${renderEventPartyTable()}
+        </div>
+      </div>`;
+
+    overlay.querySelectorAll("button[data-action]").forEach((button) => {
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeEventWindow();
+      }, { passive: false });
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    });
   }
 
   function renderChestWindow(chest, notice = "", mode = "main") {
@@ -452,13 +566,7 @@
           </div>
         </div>
         <div class="event-party-frame" aria-hidden="true">
-          <div class="event-party-head"><span>NAME</span><span>CLASS</span><span>HITS</span><span>MAGIC</span><span>STATUS</span></div>
-          <div class="event-party-row"><span>アデル</span><span>FIG</span><span>34/34</span><span>0/0</span><span>OK</span></div>
-          <div class="event-party-row"><span>ミラ</span><span>THI</span><span>28/28</span><span>0/0</span><span>OK</span></div>
-          <div class="event-party-row"><span>ガルド</span><span>FIG</span><span>41/41</span><span>0/0</span><span>OK</span></div>
-          <div class="event-party-row"><span>セリン</span><span>PRI</span><span>18/18</span><span>18/18</span><span>OK</span></div>
-          <div class="event-party-row"><span>ロウ</span><span>MAG</span><span>12/12</span><span>12/12</span><span>OK</span></div>
-          <div class="event-party-row"><span>ネネ</span><span>BIS</span><span>21/21</span><span>21/21</span><span>OK</span></div>
+          ${renderEventPartyTable()}
         </div>
       </div>`;
 
@@ -479,7 +587,7 @@
   function handleChestAction(chest, action, key) {
     if (action === "close") {
       closeEventWindow();
-      setMessage("離れました。", false);
+      setMessage("離れた。", false);
       return;
     }
     if (action === "back") {
@@ -493,7 +601,7 @@
     if (action.startsWith("actor:")) {
       state.checkedChestTraps.add(key);
       renderChestWindow(chest, "罠を発見した。", "main");
-      setMessage("調べました。", false);
+      setMessage("調べた。", false);
       return;
     }
     if (action === "disarm") {
@@ -534,7 +642,7 @@
     visual.dir = state.dir;
     visual.stepBob = 0;
     visual.turnLean = 0;
-    setMessage("初期位置に戻りました。", false);
+    setMessage("戻った。", false);
     updateHud();
   }
 
@@ -549,7 +657,7 @@
     state.trapDetectionActive = !state.trapDetectionActive;
     scene = buildSceneGeometry();
     renderMapOverlay();
-    setMessage(state.trapDetectionActive ? "罠検知を有効にしました。" : "罠検知を解除しました。", false);
+    setMessage(state.trapDetectionActive ? "罠検知。" : "検知解除。", false);
   }
 
   function startMoveAnimation(nx, nz, step) {
@@ -566,9 +674,8 @@
     state.x = nx;
     state.z = nz;
     const tile = tileAt(nx, nz);
-    if (tile === TILE.STAIR) setMessage("階段の前に到達しました。", false);
-    else if (tile === TILE.EVENT) setMessage("足元で古い石板がかすかに鳴りました。", false);
-    else setMessage(step > 0 ? "一歩進みました。" : "一歩下がりました。", false);
+    if (tile === TILE.STAIR) setMessage("階段。", false);
+    else if (tile === TILE.EVENT) setMessage("床の紋様。", false);
     updateHud();
   }
 
@@ -595,7 +702,6 @@
       delta,
     };
     state.dir = ndir;
-    setMessage(delta > 0 ? "右を向きました。" : "左を向きました。", false);
     updateHud();
   }
 
@@ -647,8 +753,21 @@
 
   function setMessage(text, isWarning) {
     state.message = text;
-    messageLog.textContent = text;
-    messageLog.style.borderColor = isWarning ? "rgba(168, 93, 85, .65)" : "rgba(255,255,255,.12)";
+    if (!statusToast) return;
+    if (statusToastTimer) window.clearTimeout(statusToastTimer);
+    if (!text) {
+      statusToast.hidden = true;
+      statusToast.textContent = "";
+      statusToastTimer = 0;
+      return;
+    }
+    statusToast.textContent = text;
+    statusToast.classList.toggle("warning", Boolean(isWarning));
+    statusToast.hidden = false;
+    statusToastTimer = window.setTimeout(() => {
+      statusToast.hidden = true;
+      statusToastTimer = 0;
+    }, isWarning ? 1800 : 1200);
   }
 
   function updateHud() {
@@ -669,9 +788,6 @@
       mapOverlay.className = "map-overlay";
       mapOverlay.setAttribute("aria-label", "簡易マップ");
       document.querySelector(".viewport-panel").appendChild(mapOverlay);
-      const style = document.createElement("style");
-      style.textContent = `.map-overlay{position:absolute;right:10px;top:42px;margin:0;padding:8px 10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:rgba(0,0,0,.62);font:11px/1.05 ui-monospace,SFMono-Regular,Menlo,monospace;color:#d8d1c4;letter-spacing:.02em;}`;
-      document.head.appendChild(style);
     }
     const lines = map.map((row, z) => row.map((tile, x) => {
       if (state.x === x && state.z === z) return ["▲", "▶", "▼", "◀"][state.dir];
@@ -1434,8 +1550,8 @@
   bindButton("resetBtn", resetPosition);
   bindButton("mapBtn", toggleMap);
   bindButton("detectTrapBtn", toggleTrapDetection);
-  bindButton("campBtn", () => setMessage("キャンプ画面は未実装です。ここではダンジョン基盤だけ確認します。", false));
-  bindButton("formationBtn", () => setMessage("隊列画面は未実装です。パーティ枠表示だけ置いています。", false));
+  bindButton("campBtn", () => setMessage("キャンプ未実装。", false));
+  bindButton("formationBtn", () => setMessage("隊列未実装。", false));
 
   window.addEventListener("keydown", (event) => {
     const key = event.key;
@@ -1453,7 +1569,8 @@
     if (key === " " || key === "Enter") inspectFront();
   });
 
-  setMessage(state.message, false);
+  renderPartyCards();
+  if (state.message) setMessage(state.message, false);
   updateHud();
   requestAnimationFrame(render);
 })();
