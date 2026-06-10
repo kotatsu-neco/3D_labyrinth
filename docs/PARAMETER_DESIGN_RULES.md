@@ -1,6 +1,6 @@
 # PARAMETER_DESIGN_RULES
 
-この文書は、アイテム、呪文、敵が持つべきパラメータの設計方針を定義する。
+この文書は、アイテム、呪文、敵、遭遇、宝、状態異常が持つべきパラメータの設計方針を定義する。
 実装前の正本候補であり、名称や文言は後で一覧化してユーザー確認後に正本化する。
 
 関連文書:
@@ -16,12 +16,15 @@
 - アイテム名、呪文名、敵名、説明文、碑文、イベント本文は仮名扱いとし、AI案だけで正本化しない。
 - 表示用名称と内部IDを分離する。
 - 画像・音・演出はパラメータ本体から分離し、参照IDで結びつける。
+- マスターデータとインスタンスデータを分離する。
 - まずは最小戦闘ループに必要な項目を優先し、過度に細かい属性や例外処理は後段へ回す。
 - Wizardry風のAC、HP、職業、前衛/後衛、呪文レベル別使用回数との整合を優先する。
+- アイテムはスタックさせない。薬、鍵、文書、財宝を含め、所持欄上ではすべて1個ずつ扱う。
+- アイテムに物理的な重さ `weight` は持たせない。所持制限を行う場合は、まず所持枠数で管理する。
 
 ## 2. 共通パラメータ
 
-アイテム、呪文、敵に共通して持たせる基本項目。
+各マスターデータに共通して持たせる基本項目。
 
 ```json
 {
@@ -67,34 +70,56 @@
 - 設計メモ。
 - 表示用本文として使わない。
 
-## 3. アイテムパラメータ
+## 3. マスターデータとインスタンスデータの分離
 
-### 3.1 基本構造
+同じ種類のアイテムや敵でも、ゲーム内で実際に存在している個体とは分けて扱う。
+
+### マスターデータ
+
+- アイテム種別、呪文種別、敵種別の固定定義。
+- 基礎性能、分類、装備可否、効果、画像参照などを持つ。
+- 表示名の修正やバランス調整はマスター側で行う。
+
+### インスタンスデータ
+
+- プレイヤーが所持している1個のアイテム。
+- 戦闘中に出現している1体の敵。
+- 鑑定済みか、装備中か、残り使用回数、現在HPなど、状態を持つ。
+
+## 4. アイテム定義
+
+### 4.1 基本構造
 
 ```json
 {
   "id": "item_short_sword",
-  "displayName": "短剣",
+  "displayName": "仮アイテム名",
+  "unknownName": "仮未鑑定名",
   "category": "weapon",
   "subtype": "blade",
   "rarity": "common",
   "tier": 1,
-  "identified": true,
-  "cursed": false,
-  "equippableBy": ["FIG", "THI", "BIS"],
   "slot": "weapon",
+  "equippableBy": ["FIG", "THI", "BIS"],
   "price": 20,
-  "weight": 1,
+  "sellPrice": 10,
+  "unique": false,
+  "sellable": true,
+  "droppable": true,
+  "questItem": false,
+  "curseType": "none",
+  "chargesMax": null,
   "combat": {},
   "useEffect": null,
   "keyEffect": null,
+  "usableIn": ["camp"],
   "sourceLayer": "shallow",
   "tags": [],
   "notes": ""
 }
 ```
 
-### 3.2 category
+### 4.2 category
 
 アイテムの大分類。
 
@@ -109,7 +134,7 @@
 - `quest`: 進行上重要な品
 - `unknown`: 未分類・仮分類
 
-### 3.3 subtype
+### 4.3 subtype
 
 分類内の詳細種別。
 
@@ -120,7 +145,7 @@
 - 消耗品: `healing`, `cure_status`, `light`, `trap_detection`
 - 文書: `record`, `map`, `sealed_note`
 
-### 3.4 rarity
+### 4.4 rarity
 
 希少度。
 
@@ -130,9 +155,9 @@
 - `unique`
 - `story`
 
-希少度は強さだけではなく、入手頻度・売却価値・物語上の重要度にも関わる。
+希少度は強さだけではなく、入手頻度、売却価値、物語上の重要度にも関わる。
 
-### 3.5 tier
+### 4.5 tier
 
 階層進行に応じた段階。
 
@@ -142,45 +167,15 @@
 - 最深層: `4`
 - 例外的な物語重要品: `0` または個別指定
 
-### 3.6 identified
+### 4.6 unknownName
 
-鑑定済みかどうか。
+未鑑定時の表示名。
 
-- `true`: 表示名・性能が明らか。
-- `false`: 未鑑定。仮名や曖昧表示にする。
+- 正式な名称とは別に持つ。
+- 未鑑定状態はアイテムインスタンス側で管理する。
+- 名称そのものは後でユーザー確認後に正本化する。
 
-未鑑定システムを入れる場合、表示名と真名を分ける。
-
-```json
-{
-  "displayName": "古びた剣",
-  "trueName": "後で決める正式名",
-  "identified": false
-}
-```
-
-### 3.7 cursed
-
-呪われたアイテムかどうか。
-
-- 装備解除不可
-- ACや命中に悪影響
-- 特殊イベント発生
-
-などに接続する。
-
-### 3.8 equippableBy
-
-装備可能な職業略称。
-
-- `FIG`
-- `MAG`
-- `PRI`
-- `THI`
-- `BIS`
-- 今後職業追加がある場合は追加定義する。
-
-### 3.9 slot
+### 4.7 slot
 
 装備部位。
 
@@ -194,7 +189,46 @@
 
 初期実装では、`weapon`, `armor`, `shield`, `accessory` 程度に絞ってよい。
 
-### 3.10 combat
+### 4.8 equippableBy
+
+装備可能な職業略称。
+
+- `FIG`
+- `MAG`
+- `PRI`
+- `THI`
+- `BIS`
+- 今後職業追加がある場合は追加定義する。
+
+### 4.9 unique / sellable / droppable / questItem
+
+- `unique`: 一品物かどうか。
+- `sellable`: 店などで売却できるか。
+- `droppable`: 捨てられるか。
+- `questItem`: 進行に関わる重要品か。
+
+重要品は `sellable: false`, `droppable: false` を原則とする。
+
+### 4.10 curseType
+
+呪いの種類。
+
+- `none`
+- `equip_lock`: 装備解除不可
+- `stat_penalty`: 能力値やACなどに悪影響
+- `event`: 特定イベントに関係
+
+呪われているかどうかをプレイヤーが知っているかは、アイテムインスタンス側で管理する。
+
+### 4.11 chargesMax
+
+使用回数の最大値。
+
+- 杖、巻物、特殊道具などに使う。
+- 使用回数を持たないアイテムは `null`。
+- 残り使用回数はアイテムインスタンス側で管理する。
+
+### 4.12 combat
 
 戦闘に関わるアイテム性能。
 
@@ -210,55 +244,17 @@
 }
 ```
 
-#### hitBonus
+- `hitBonus`: 命中補正。
+- `damageDice`: 武器ダメージの基礎ダイス。
+- `damageBonus`: 固定ダメージ補正。
+- `acBonus`: AC補正。ACは低いほど良いので、良い防具は負の補正を持つ場合がある。
+- `attacksBonus`: 複数回攻撃に関わる将来拡張用。
+- `criticalBonus`: クリティカル補正。
+- `specialVs`: 特効対象。
 
-命中補正。
+初期実装では `attacksBonus`, `criticalBonus`, `specialVs` は未使用でもよい。
 
-#### damageDice
-
-武器ダメージの基礎ダイス。
-
-例:
-
-- `1d4`
-- `1d6`
-- `1d8`
-- `2d4`
-
-#### damageBonus
-
-固定ダメージ補正。
-
-#### acBonus
-
-AC補正。
-ACは低いほど良いので、良い防具は負の補正を持つ場合がある。
-例: `-1`, `-2`
-
-#### attacksBonus
-
-複数回攻撃に関わる将来拡張用。
-初期実装では `0` 固定でよい。
-
-#### criticalBonus
-
-クリティカル補正。
-初期実装では `0` 固定でよい。
-
-#### specialVs
-
-特効対象。
-
-例:
-
-- `undead`
-- `beast`
-- `spirit`
-- `humanoid`
-
-初期実装では未使用でもよい。
-
-### 3.11 useEffect
+### 4.13 useEffect
 
 アイテム使用時効果。
 
@@ -281,9 +277,7 @@ ACは低いほど良いので、良い防具は負の補正を持つ場合があ
 - `damage_enemy`
 - `none`
 
-初期実装では、使用処理を入れない場合もデータ項目だけ用意する。
-
-### 3.12 keyEffect
+### 4.14 keyEffect
 
 鍵・証・進行アイテムとしての効果。
 
@@ -295,9 +289,112 @@ ACは低いほど良いので、良い防具は負の補正を持つ場合があ
 }
 ```
 
-## 4. 呪文パラメータ
+### 4.15 usableIn
 
-### 4.1 基本構造
+使用できる場面。
+
+- `combat`
+- `camp`
+- `explore`
+- `event`
+
+装備品のように使用しないものは空配列でもよい。
+
+### 4.16 採用しない項目
+
+以下は初期設計では採用しない。
+
+- `weight`: 物理重量。
+- `stackable`: スタック可否。
+- `maxStack`: 最大スタック数。
+- `quantity`: アイテム定義側の個数。
+
+アイテムはすべて1個ずつのインスタンスとして扱う。薬を3つ持つ場合も、同じ `itemId` を参照する所持品インスタンスが3つ存在する。
+
+## 5. 所持品インスタンス
+
+プレイヤーが実際に持っている1個のアイテムを表す。
+
+```json
+{
+  "instanceId": "inv_000001",
+  "itemId": "item_short_sword",
+  "ownerCharacterId": "adel",
+  "identified": true,
+  "equipped": true,
+  "knownCursed": false,
+  "chargesRemaining": null,
+  "createdFrom": "treasure_shallow_common"
+}
+```
+
+### instanceId
+
+- 所持品1個ごとの固有ID。
+- 同じアイテムを複数持つ場合でも、インスタンスIDは別にする。
+
+### itemId
+
+- 参照するアイテム定義ID。
+
+### ownerCharacterId
+
+- 誰が持っているか。
+- パーティ共有所持品を採用する場合は、`party` などの特別値を使う。
+
+### identified
+
+- その個体を鑑定済みかどうか。
+
+### equipped
+
+- 装備中かどうか。
+
+### knownCursed
+
+- プレイヤーが呪いを認識しているか。
+- 実際の呪い種別はアイテム定義側の `curseType` に置く。
+
+### chargesRemaining
+
+- 残り使用回数。
+- 使用回数を持たないアイテムは `null`。
+
+## 6. 宝テーブル
+
+宝箱や戦闘報酬は、アイテム定義ではなく宝テーブルで管理する。
+
+```json
+{
+  "id": "treasure_shallow_common",
+  "layerBand": "shallow",
+  "gold": { "min": 0, "max": 20 },
+  "entries": [
+    {
+      "itemId": "item_heal_small",
+      "dropWeight": 40,
+      "minInstances": 1,
+      "maxInstances": 2
+    }
+  ]
+}
+```
+
+### dropWeight
+
+- 抽選重み。
+- 物理重量ではない。
+- `weight` という名称は使わない。
+
+### minInstances / maxInstances
+
+- 生成するアイテムインスタンス数。
+- 薬が2個出た場合は、同じ `itemId` のインスタンスを2つ作る。
+- アイテムをスタックして `quantity: 2` にはしない。
+
+## 7. 呪文定義
+
+### 7.1 基本構造
 
 ```json
 {
@@ -305,39 +402,54 @@ ACは低いほど良いので、良い防具は負の補正を持つ場合があ
   "displayName": "仮呪文名",
   "school": "mage",
   "spellLevel": 1,
-  "target": "party",
+  "learnedBy": ["MAG", "BIS"],
+  "targetRule": "party",
   "timing": "camp_or_explore",
   "effect": {},
   "combatUse": false,
   "exploreUse": true,
   "campUse": true,
+  "usesSpellSlot": true,
+  "resistType": "none",
+  "resistModifier": 0,
+  "element": "none",
+  "duration": 0,
+  "messageKey": "spell_light_01",
   "tags": [],
   "notes": ""
 }
 ```
 
-### 4.2 school
+### 7.2 school
 
 呪文系統。
 
 - `mage`: 魔術師系
 - `priest`: 僧侶・祈祷系
 
-表示名は後で決める。
-内部処理では `mage` / `priest` を固定する。
+表示名は後で決める。内部処理では `mage` / `priest` を固定する。
 
-### 4.3 spellLevel
+### 7.3 spellLevel
 
 呪文レベル。
 
 - 1〜7
 
-Wizardry風の7レベル別使用回数と対応させる。
-MP制にはしない。
+Wizardry風の7レベル別使用回数と対応させる。MP制にはしない。
 
-### 4.4 target
+### 7.4 learnedBy
 
-対象。
+その呪文を覚えられる職業。
+
+例:
+
+- `MAG`
+- `PRI`
+- `BIS`
+
+### 7.5 targetRule
+
+対象ルール。
 
 - `self`
 - `ally_single`
@@ -351,17 +463,19 @@ MP制にはしない。
 - `chest`
 - `none`
 
-### 4.5 timing
+### 7.6 timing / combatUse / exploreUse / campUse
 
-使用できる場面。
+使用場面を定義する。
 
-- `combat`
-- `camp`
-- `explore`
-- `camp_or_explore`
-- `any`
+- `combat`: 戦闘中
+- `camp`: キャンプ中
+- `explore`: 探索中
+- `camp_or_explore`: キャンプまたは探索中
+- `any`: 場面を問わない
 
-### 4.6 effect
+個別の真偽値も持たせ、UI側で判定しやすくする。
+
+### 7.7 effect
 
 呪文効果。
 
@@ -369,9 +483,7 @@ MP制にはしない。
 {
   "type": "heal_hp",
   "value": "1d8",
-  "duration": 0,
-  "status": null,
-  "element": null
+  "status": null
 }
 ```
 
@@ -391,45 +503,57 @@ MP制にはしない。
 - `unlock`
 - `none`
 
-### 4.7 combatUse / exploreUse / campUse
-
-各場面で使用できるかを明示する。
-
-- 戦闘呪文は `combatUse: true`
-- 探索補助呪文は `exploreUse: true`
-- 回復・解呪系は `campUse: true`
-
-### 4.8 usesSpellSlot
+### 7.8 usesSpellSlot
 
 呪文使用回数を消費するか。
-
-```json
-{
-  "usesSpellSlot": true
-}
-```
 
 初期設計では、通常呪文はすべて使用回数を消費する。
 イベント専用効果は例外的に `false` にできる。
 
-### 4.9 powerScale
+### 7.9 resistType / resistModifier
 
-レベル・職業・能力値による効果量補正。
+敵の抵抗判定に使う。
 
-```json
-{
-  "base": "1d8",
-  "perCasterLevel": 0,
-  "stat": "PIE"
-}
-```
+- `none`
+- `sleep`
+- `silence`
+- `poison`
+- `death`
+- `spell`
 
-初期実装では、固定値または固定ダイスでよい。
-複雑な補正は後段へ回す。
+初期実装では簡易化してよい。
 
-## 5. 敵パラメータ
+### 7.10 element
 
-### 5.1 基本構造
+属性。
+
+- `none`
+- `physical`
+- `fire`
+- `cold`
+- `poison`
+- `holy`
+- `dark`
+
+初期実装では `none` と `physical` 中心でよい。
+
+### 7.11 duration
+
+持続ターンまたは探索中の持続単位。
+
+- 即時効果は `0`。
+- 持続効果は数値を入れる。
+
+### 7.12 messageKey
+
+表示文をコードから分離するためのキー。
+
+- 呪文名や本文をコード内に直書きしない。
+- 実際の表示文は後で文言リストとして管理する。
+
+## 8. 敵定義
+
+### 8.1 基本構造
 
 ```json
 {
@@ -439,24 +563,30 @@ MP制にはしない。
   "family": "beast",
   "rank": 1,
   "level": 1,
+  "alignment": "neutral",
+  "size": "small",
+  "intelligence": 1,
+  "behaviorType": "beast",
+  "initiative": 0,
   "hp": { "dice": "1d8", "fixed": 0 },
   "ac": 8,
   "attacks": [],
-  "morale": 50,
+  "spellcasting": null,
   "resistances": {},
   "weaknesses": [],
+  "statusImmunities": [],
+  "turnResistance": 0,
   "specialActions": [],
   "xp": 20,
-  "gold": { "min": 0, "max": 5 },
-  "dropTableId": "treasure_shallow_common",
   "assetId": "enemy_asset_0001",
-  "encounter": {},
+  "isBoss": false,
+  "isFixedEnemy": false,
   "tags": [],
   "notes": ""
 }
 ```
 
-### 5.2 layerBand
+### 8.2 layerBand
 
 主な出現階層帯。
 
@@ -468,7 +598,7 @@ MP制にはしない。
 
 `docs/LAYER_DESIGN_RULES.md` と対応させる。
 
-### 5.3 family
+### 8.3 family
 
 敵の生態・分類。
 
@@ -490,28 +620,65 @@ MP制にはしない。
 - `aberration`
 - `boss`
 
-### 5.4 rank
+### 8.4 rank / level
 
-同一階層内での強さ・希少度。
+- `rank`: 同一階層内での強さ・希少度。
+- `level`: 戦闘計算用レベル。
 
-- `1`: 雑魚
-- `2`: やや強い
-- `3`: 危険敵
-- `4`: 固定敵・階層主級
-- `5`: ボス級
+### 8.5 alignment
 
-### 5.5 level
+敵の性質。
 
-戦闘計算用レベル。
+- `good`
+- `neutral`
+- `evil`
+- `holy`
+- `cursed`
+- `none`
 
-- 命中力
-- 抵抗判定
-- 経験値
-- 出現階層
+初期実装では戦闘式に使わなくてもよい。
 
-の基礎値になる。
+### 8.6 size
 
-### 5.6 hp
+敵の大きさ。
+
+- `small`
+- `medium`
+- `large`
+- `huge`
+
+出現数、画像表示、攻撃対象範囲に使える。
+
+### 8.7 intelligence
+
+知性の目安。
+
+- 0: ほぼ本能
+- 1: 低知性
+- 2: 群れ・道具使用
+- 3: 言語・戦術
+- 4: 魔術・信仰・社会構造
+- 5: 管理者・ボス級
+
+浅層から深層への階層勾配と接続する。
+
+### 8.8 behaviorType
+
+行動傾向。
+
+- `beast`
+- `guard`
+- `caster`
+- `priest`
+- `swarm`
+- `ambush`
+- `boss`
+
+### 8.9 initiative
+
+先制・奇襲に関わる補正。
+
+### 8.10 hp
 
 HP。
 
@@ -524,7 +691,7 @@ HP。
 
 ダイス式を基本とし、固定値補正を持てるようにする。
 
-### 5.7 ac
+### 8.11 ac
 
 敵のAC。
 
@@ -532,114 +699,60 @@ HP。
 - 敵もACを必ず持つ。
 - ACはダメージ軽減ではなく、命中判定に使う。
 
-### 5.8 attacks
+### 8.12 attacks
 
 敵の攻撃リスト。
 
 ```json
 [
   {
-    "name": "attack_1",
-    "target": "front_single",
+    "id": "attack_1",
+    "targetRule": "front_single",
     "hitBonus": 0,
     "damageDice": "1d6",
     "damageBonus": 0,
     "element": "physical",
     "statusEffect": null,
-    "chance": 100
+    "chance": 100,
+    "messageKey": "enemy_attack_default"
   }
 ]
 ```
 
-#### target
+### 8.13 spellcasting
 
-- `front_single`: 前衛単体
-- `any_single`: 単体
-- `front_group`: 前衛複数
-- `party_all`: パーティ全体
-
-初期実装では `front_single` 中心でよい。
-
-#### element
-
-- `physical`
-- `fire`
-- `cold`
-- `poison`
-- `holy`
-- `dark`
-- `none`
-
-初期実装では `physical` と `none` 程度に絞ってよい。
-
-#### statusEffect
-
-状態異常。
-
-候補:
-
-- `poison`
-- `sleep`
-- `silence`
-- `paralyze`
-- `fear`
-- `none`
-
-初期実装では未使用でもよい。
-
-### 5.9 morale
-
-逃走・行動継続の基準値。
-
-- 0〜100
-- 高いほど逃げにくい。
-
-初期実装では未使用でもよいが、将来の逃走・降伏・撤退判定用に持つ。
-
-### 5.10 resistances / weaknesses
-
-耐性と弱点。
+敵が呪文を使う場合の設定。
 
 ```json
 {
-  "resistances": {
-    "sleep": 50,
-    "poison": 100
-  },
-  "weaknesses": ["holy"]
+  "school": "mage",
+  "spellLevelMax": 2,
+  "spellIds": ["spell_mage_sleep_01"],
+  "chance": 30
 }
 ```
 
-値は抵抗率または補正値として扱う。
-初期実装では空でよい。
+初期実装では未使用でもよい。
 
-### 5.11 specialActions
+### 8.14 resistances / weaknesses / statusImmunities
 
-特殊行動。
+耐性、弱点、状態異常無効。
 
-候補:
+初期実装では空でよいが、睡眠・毒・沈黙・不死者・精霊などの処理に必要になる。
 
-- `cast_spell`
-- `call_allies`
-- `breath`
-- `drain_level`
-- `poison_attack`
-- `guard`
-- `flee`
+### 8.15 turnResistance
 
-初期実装では未使用でも、データ項目だけ用意する。
+不死者退散系の処理を将来入れる場合の抵抗値。
+初期実装では `0` 固定でよい。
 
-### 5.12 xp / gold / dropTableId
+### 8.16 xp
 
-報酬。
+経験値。
 
-- `xp`: 経験値
-- `gold`: 金銭範囲
-- `dropTableId`: 宝テーブル参照
+敵定義側の基礎値として持つ。
+最終的な戦闘報酬は遭遇グループ側で補正してよい。
 
-階層が深いほど報酬は上がるが、単なるゲーム都合ではなく、階層用途・保管物・敵の社会性と接続する。
-
-### 5.13 assetId
+### 8.17 assetId
 
 敵画像アセット参照ID。
 
@@ -648,76 +761,138 @@ HP。
 
 画像劣化方針は別途 `docs/ENEMY_IMAGE_PROCESSING_RULES.md` で定義する。
 
-### 5.14 encounter
+## 9. 敵インスタンス
 
-遭遇制御。
+戦闘中に実際に出現している1体の敵。
 
 ```json
 {
-  "minCount": 1,
-  "maxCount": 4,
-  "groupType": "same",
-  "weight": 100,
-  "allowedFloors": ["B1F"],
-  "fixedOnly": false
+  "instanceId": "enemy_inst_000001",
+  "enemyId": "enemy_shallow_beast_01",
+  "currentHp": 6,
+  "statusEffects": [],
+  "positionGroup": 0
 }
 ```
 
-#### minCount / maxCount
+## 10. 遭遇テーブル
 
-出現数。
+敵定義と、どこで何体出るかを分離する。
 
-#### groupType
+```json
+{
+  "id": "encounter_b1_shallow_common",
+  "floorId": "B1F",
+  "layerBand": "shallow",
+  "entries": [
+    {
+      "enemyId": "enemy_shallow_beast_01",
+      "dropWeight": 100,
+      "minInstances": 1,
+      "maxInstances": 4,
+      "groupType": "same"
+    }
+  ],
+  "treasureTableId": "treasure_shallow_common",
+  "gold": { "min": 0, "max": 10 }
+}
+```
+
+### groupType
 
 - `same`: 同種群れ
 - `mixed`: 混成
 - `single`: 単体
 - `boss`: 固定ボス
 
-#### weight
+### treasureTableId / gold
 
-ランダム遭遇時の出現重み。
+戦闘後の報酬。
+敵単体ではなく遭遇単位で管理する。
 
-#### allowedFloors
+## 11. 状態異常定義
 
-出現可能フロア。
+敵攻撃、呪文、アイテムが共通参照する。
 
-#### fixedOnly
+```json
+{
+  "id": "poison",
+  "displayName": "仮状態名",
+  "type": "bad",
+  "durationType": "until_cured",
+  "combatEffect": {},
+  "exploreEffect": {},
+  "curableBy": ["spell_priest_cure_poison_01", "item_cure_poison_01"]
+}
+```
 
-固定配置専用かどうか。
+候補:
 
-## 6. 初期実装で最低限必要な項目
+- `ok`
+- `poison`
+- `sleep`
+- `silence`
+- `paralyze`
+- `stone`
+- `dead`
+- `ash`
+- `lost`
 
-### アイテム
+Wizardry風にする場合、死亡、灰、ロストは状態遷移として別途慎重に設計する。
+
+## 12. 初期実装で最低限必要な項目
+
+### アイテム定義
 
 - `id`
 - `displayName`
+- `unknownName`
 - `category`
+- `subtype`
 - `rarity`
 - `tier`
-- `identified`
-- `cursed`
 - `slot`
 - `equippableBy`
+- `price`
+- `sellPrice`
+- `unique`
+- `sellable`
+- `droppable`
+- `questItem`
+- `curseType`
+- `chargesMax`
 - `combat`
 - `useEffect`
 - `keyEffect`
+- `usableIn`
 
-### 呪文
+### 所持品インスタンス
+
+- `instanceId`
+- `itemId`
+- `ownerCharacterId`
+- `identified`
+- `equipped`
+- `knownCursed`
+- `chargesRemaining`
+
+### 呪文定義
 
 - `id`
 - `displayName`
 - `school`
 - `spellLevel`
-- `target`
+- `learnedBy`
+- `targetRule`
 - `timing`
 - `effect`
 - `combatUse`
 - `exploreUse`
 - `campUse`
 - `usesSpellSlot`
+- `messageKey`
 
-### 敵
+### 敵定義
 
 - `id`
 - `displayName`
@@ -729,12 +904,18 @@ HP。
 - `ac`
 - `attacks`
 - `xp`
-- `gold`
-- `dropTableId`
 - `assetId`
-- `encounter`
 
-## 7. 後回しにする項目
+### 遭遇テーブル
+
+- `id`
+- `floorId`
+- `layerBand`
+- `entries`
+- `treasureTableId`
+- `gold`
+
+## 13. 後回しにする項目
 
 以下はデータ項目を用意してもよいが、初期実装では処理しない。
 
@@ -749,8 +930,10 @@ HP。
 - 呪文反射
 - 召喚
 - 交渉
+- 物理重量や装備重量
+- アイテムスタック
 
-## 8. 禁止事項
+## 14. 禁止事項
 
 - 表示名を内部IDとして使わない。
 - アイテム名、呪文名、敵名をAI案だけで正本化しない。
@@ -758,5 +941,8 @@ HP。
 - ACをダメージ軽減値として扱わない。
 - MP制にしない。
 - 呪文使用回数を単一MPに置き換えない。
+- アイテムをスタック管理しない。
+- アイテムの所持数を `quantity` で管理しない。
+- アイテムに物理重量 `weight` を持たせない。
 - 敵画像を高解像度のまま戦闘画面に直接使わない。
 - 戦闘本実装前に、敵・アイテム・呪文データをコード内へ散らさない。
