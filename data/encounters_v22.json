@@ -1,0 +1,71 @@
+{
+  "version": "v22a-reference-data",
+  "status": "prototype_encounter_window_data_not_full_combat",
+  "notes": [
+    "This data is used as a reference for the v22 encounter window prototype.",
+    "Enemy display labels are provisional categories, not finalized enemy names.",
+    "Combat calculation, rewards, experience, drops, and enemy HP changes are not connected yet.",
+    "In v22a, the app UI still uses ENCOUNTER_DEMOS in app.js as a temporary mirror; this JSON is reference data, not yet loaded at runtime."
+  ],
+  "tables": [
+    {
+      "id": "encounter_b1_shallow_demo",
+      "floorId": "B1F",
+      "layerBand": "shallow",
+      "purpose": "window_layout_check",
+      "entries": [
+        {
+          "enemyId": "enemy_black_slime_proto",
+          "dropWeight": 40,
+          "minInstances": 1,
+          "maxInstances": 1,
+          "groupType": "same"
+        },
+        {
+          "enemyId": "enemy_black_wing_bug_proto",
+          "dropWeight": 40,
+          "minInstances": 1,
+          "maxInstances": 2,
+          "groupType": "same"
+        },
+        {
+          "enemyId": "enemy_goblin_raider_proto",
+          "dropWeight": 20,
+          "minInstances": 2,
+          "maxInstances": 3,
+          "groupType": "same"
+        }
+      ],
+      "treasureTableId": null,
+      "gold": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ],
+  "demoEncounters": [
+    {
+      "id": "encounter_b1_shallow_test_01",
+      "enemyAssets": [
+        "black_slime",
+        "black_wing_bug"
+      ],
+      "usedInAppJs": true
+    },
+    {
+      "id": "encounter_b1_shallow_test_02",
+      "enemyAssets": [
+        "goblin_raider"
+      ],
+      "usedInAppJs": true
+    },
+    {
+      "id": "encounter_b1_shallow_test_03",
+      "enemyAssets": [
+        "bone_servant",
+        "black_slime"
+      ],
+      "usedInAppJs": true
+    }
+  ]
+}

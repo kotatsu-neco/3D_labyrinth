@@ -1,0 +1,911 @@
+{
+  "version": "v21",
+  "status": "processed_assets_not_yet_used_in_gameplay",
+  "sourceDirectory": "enemy_assets_check",
+  "rules": {
+    "outputCanvas": "160x160 PNG",
+    "detailDownsample": "80px before nearest upscale to 160px",
+    "paletteColorsTarget": 24,
+    "transparentBackground": true,
+    "highResolutionRuntimeUse": false,
+    "stacking": "not relevant; image assets only"
+  },
+  "records": [
+    {
+      "sourceFile": "enemy_ash_rat.png",
+      "outputFile": "assets/enemies/lowres/enemy_ash_rat.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 4260
+    },
+    {
+      "sourceFile": "enemy_black_slime.png",
+      "outputFile": "assets/enemies/lowres/enemy_black_slime.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5578
+    },
+    {
+      "sourceFile": "enemy_black_wing_bug.png",
+      "outputFile": "assets/enemies/lowres/enemy_black_wing_bug.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5131
+    },
+    {
+      "sourceFile": "enemy_boarfolk_brute.png",
+      "outputFile": "assets/enemies/lowres/enemy_boarfolk_brute.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6595
+    },
+    {
+      "sourceFile": "enemy_bone_servant.png",
+      "outputFile": "assets/enemies/lowres/enemy_bone_servant.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 4637
+    },
+    {
+      "sourceFile": "enemy_crystal_golem.png",
+      "outputFile": "assets/enemies/lowres/enemy_crystal_golem.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 8154
+    },
+    {
+      "sourceFile": "enemy_dark_elf.png",
+      "outputFile": "assets/enemies/lowres/enemy_dark_elf.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5668
+    },
+    {
+      "sourceFile": "enemy_dust_soldier.png",
+      "outputFile": "assets/enemies/lowres/enemy_dust_soldier.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5403
+    },
+    {
+      "sourceFile": "enemy_elf_ranger.png",
+      "outputFile": "assets/enemies/lowres/enemy_elf_ranger.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5644
+    },
+    {
+      "sourceFile": "enemy_flame_spirit.png",
+      "outputFile": "assets/enemies/lowres/enemy_flame_spirit.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 4737
+    },
+    {
+      "sourceFile": "enemy_forest_spirit.png",
+      "outputFile": "assets/enemies/lowres/enemy_forest_spirit.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6024
+    },
+    {
+      "sourceFile": "enemy_gargoyle.png",
+      "outputFile": "assets/enemies/lowres/enemy_gargoyle.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6841
+    },
+    {
+      "sourceFile": "enemy_gate_warden.png",
+      "outputFile": "assets/enemies/lowres/enemy_gate_warden.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6270
+    },
+    {
+      "sourceFile": "enemy_giant_centipede.png",
+      "outputFile": "assets/enemies/lowres/enemy_giant_centipede.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 8446
+    },
+    {
+      "sourceFile": "enemy_goblin_raider.png",
+      "outputFile": "assets/enemies/lowres/enemy_goblin_raider.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6191
+    },
+    {
+      "sourceFile": "enemy_harpy.png",
+      "outputFile": "assets/enemies/lowres/enemy_harpy.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7108
+    },
+    {
+      "sourceFile": "enemy_hobgoblin_spearman.png",
+      "outputFile": "assets/enemies/lowres/enemy_hobgoblin_spearman.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5598
+    },
+    {
+      "sourceFile": "enemy_ice_spirit.png",
+      "outputFile": "assets/enemies/lowres/enemy_ice_spirit.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 4839
+    },
+    {
+      "sourceFile": "enemy_lizardman.png",
+      "outputFile": "assets/enemies/lowres/enemy_lizardman.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5575
+    },
+    {
+      "sourceFile": "enemy_lizardman_skirmisher.png",
+      "outputFile": "assets/enemies/lowres/enemy_lizardman_skirmisher.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6169
+    },
+    {
+      "sourceFile": "enemy_minotaur_warrior.png",
+      "outputFile": "assets/enemies/lowres/enemy_minotaur_warrior.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6606
+    },
+    {
+      "sourceFile": "enemy_mushroom_imp.png",
+      "outputFile": "assets/enemies/lowres/enemy_mushroom_imp.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5945
+    },
+    {
+      "sourceFile": "enemy_ogre_brute.png",
+      "outputFile": "assets/enemies/lowres/enemy_ogre_brute.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7118
+    },
+    {
+      "sourceFile": "enemy_orc_warrior.png",
+      "outputFile": "assets/enemies/lowres/enemy_orc_warrior.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5775
+    },
+    {
+      "sourceFile": "enemy_rusted_sentry.png",
+      "outputFile": "assets/enemies/lowres/enemy_rusted_sentry.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5973
+    },
+    {
+      "sourceFile": "enemy_seal_moth.png",
+      "outputFile": "assets/enemies/lowres/enemy_seal_moth.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7141
+    },
+    {
+      "sourceFile": "enemy_silhouette_ash_rat.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_ash_rat.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5681
+    },
+    {
+      "sourceFile": "enemy_silhouette_black_slime.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_black_slime.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5872
+    },
+    {
+      "sourceFile": "enemy_silhouette_black_wing_bug.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_black_wing_bug.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5962
+    },
+    {
+      "sourceFile": "enemy_silhouette_boarfolk_brute.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_boarfolk_brute.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7320
+    },
+    {
+      "sourceFile": "enemy_silhouette_bone_servant.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_bone_servant.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5199
+    },
+    {
+      "sourceFile": "enemy_silhouette_crystal_golem.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_crystal_golem.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 8017
+    },
+    {
+      "sourceFile": "enemy_silhouette_dark_elf.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_dark_elf.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6659
+    },
+    {
+      "sourceFile": "enemy_silhouette_dust_soldier.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_dust_soldier.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5437
+    },
+    {
+      "sourceFile": "enemy_silhouette_elf_ranger.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_elf_ranger.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6273
+    },
+    {
+      "sourceFile": "enemy_silhouette_flame_spirit.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_flame_spirit.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 4925
+    },
+    {
+      "sourceFile": "enemy_silhouette_forest_spirit.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_forest_spirit.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5572
+    },
+    {
+      "sourceFile": "enemy_silhouette_gargoyle.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_gargoyle.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7740
+    },
+    {
+      "sourceFile": "enemy_silhouette_gate_warden.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_gate_warden.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5422
+    },
+    {
+      "sourceFile": "enemy_silhouette_giant_centipede.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_giant_centipede.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7837
+    },
+    {
+      "sourceFile": "enemy_silhouette_goblin_raider.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_goblin_raider.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6349
+    },
+    {
+      "sourceFile": "enemy_silhouette_harpy.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_harpy.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 8230
+    },
+    {
+      "sourceFile": "enemy_silhouette_hobgoblin_spearman.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_hobgoblin_spearman.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5607
+    },
+    {
+      "sourceFile": "enemy_silhouette_ice_spirit.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_ice_spirit.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5203
+    },
+    {
+      "sourceFile": "enemy_silhouette_lizardman.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_lizardman.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6258
+    },
+    {
+      "sourceFile": "enemy_silhouette_lizardman_skirmisher.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_lizardman_skirmisher.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6388
+    },
+    {
+      "sourceFile": "enemy_silhouette_minotaur_warrior.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_minotaur_warrior.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6384
+    },
+    {
+      "sourceFile": "enemy_silhouette_mushroom_imp.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_mushroom_imp.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6440
+    },
+    {
+      "sourceFile": "enemy_silhouette_ogre_brute.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_ogre_brute.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5901
+    },
+    {
+      "sourceFile": "enemy_silhouette_orc_warrior.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_orc_warrior.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 6785
+    },
+    {
+      "sourceFile": "enemy_silhouette_rusted_sentry.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_rusted_sentry.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5463
+    },
+    {
+      "sourceFile": "enemy_silhouette_seal_moth.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_seal_moth.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7037
+    },
+    {
+      "sourceFile": "enemy_silhouette_tree_spirit.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_tree_spirit.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5474
+    },
+    {
+      "sourceFile": "enemy_silhouette_troll.png",
+      "outputFile": "assets/enemies/silhouettes_lowres/enemy_silhouette_troll.png",
+      "kind": "silhouette",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7335
+    },
+    {
+      "sourceFile": "enemy_tree_spirit.png",
+      "outputFile": "assets/enemies/lowres/enemy_tree_spirit.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 5460
+    },
+    {
+      "sourceFile": "enemy_troll.png",
+      "outputFile": "assets/enemies/lowres/enemy_troll.png",
+      "kind": "enemy",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "outputSize": {
+        "width": 160,
+        "height": 160
+      },
+      "paletteColorsTarget": 24,
+      "detailDownsample": 80,
+      "bytes": 7030
+    }
+  ]
+}

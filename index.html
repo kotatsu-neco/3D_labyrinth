@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>灰の目録 3Dダンジョン試作 v15c</title>
+  <title>タイトル未定 地下方舟3Dダンジョン試作 v23</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <link rel="stylesheet" href="style.css?v=20260609-v15c" />
+  <link rel="stylesheet" href="style.css?v=20260610-v23" />
 </head>
 <body>
   <main class="app-shell">
     <section class="viewport-panel" aria-label="3Dダンジョン表示">
       <canvas id="dungeonCanvas" aria-label="WebGL 3D dungeon viewport"></canvas>
       <div class="hud hud-top">
-        <div class="hud-title">灰の目録 / 3Dダンジョン試作 v15c</div>
+        <div class="hud-title">タイトル未定 / 地下方舟3Dダンジョン試作 v23</div>
         <div id="positionText" class="hud-position">B1F x0 y0 N</div>
       </div>
       <div id="statusToast" class="status-toast" role="status" aria-live="polite" hidden></div>
@@ -36,13 +36,14 @@
         <button id="turnRightBtn" class="move-btn side">→</button>
         <button id="backBtn" class="move-btn back">↓</button>
       </div>
-      <div class="debug-row three">
+      <div class="debug-row four">
         <button id="resetBtn" class="small-btn">初期位置</button>
         <button id="mapBtn" class="small-btn">簡易マップ</button>
         <button id="detectTrapBtn" class="small-btn">罠検知</button>
+        <button id="encounterBtn" class="small-btn">戦闘確認</button>
       </div>
     </section>
   </main>
-  <script src="app.js?v=20260609-v15c"></script>
+  <script src="app.js?v=20260610-v23"></script>
 </body>
 </html>

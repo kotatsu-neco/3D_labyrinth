@@ -1,0 +1,131 @@
+{
+  "version": "v23-reference-data",
+  "status": "prototype_definitions_hp_damage_connected_in_app_local_constants",
+  "records": [
+    {
+      "id": "enemy_black_slime_proto",
+      "displayName": "仮分類: 粘性体",
+      "layerBand": "shallow",
+      "family": "slime",
+      "rank": 1,
+      "level": 1,
+      "hp": {
+        "dice": "1d6",
+        "fixed": 0
+      },
+      "ac": 8,
+      "attacks": [
+        {
+          "id": "touch",
+          "targetRule": "front_single",
+          "hitBonus": 0,
+          "damageDice": "1d4",
+          "damageBonus": 0,
+          "element": "physical",
+          "statusEffect": null,
+          "chance": 100,
+          "messageKey": "enemy_attack_default"
+        }
+      ],
+      "xp": 10,
+      "assetId": "black_slime",
+      "isImplemented": true,
+      "notes": "Display name is a provisional category, not a final enemy name."
+    },
+    {
+      "id": "enemy_black_wing_bug_proto",
+      "displayName": "仮分類: 虫型",
+      "layerBand": "shallow",
+      "family": "insect",
+      "rank": 1,
+      "level": 1,
+      "hp": {
+        "dice": "1d4",
+        "fixed": 0
+      },
+      "ac": 7,
+      "attacks": [
+        {
+          "id": "bite",
+          "targetRule": "front_single",
+          "hitBonus": 0,
+          "damageDice": "1d3",
+          "damageBonus": 0,
+          "element": "physical",
+          "statusEffect": null,
+          "chance": 100,
+          "messageKey": "enemy_attack_default"
+        }
+      ],
+      "xp": 8,
+      "assetId": "black_wing_bug",
+      "isImplemented": true,
+      "notes": "Display name is a provisional category, not a final enemy name."
+    },
+    {
+      "id": "enemy_goblin_raider_proto",
+      "displayName": "仮分類: 小型亜人",
+      "layerBand": "shallow",
+      "family": "goblin",
+      "rank": 1,
+      "level": 1,
+      "hp": {
+        "dice": "1d8",
+        "fixed": 0
+      },
+      "ac": 6,
+      "attacks": [
+        {
+          "id": "weapon",
+          "targetRule": "front_single",
+          "hitBonus": 0,
+          "damageDice": "1d6",
+          "damageBonus": 0,
+          "element": "physical",
+          "statusEffect": null,
+          "chance": 100,
+          "messageKey": "enemy_attack_default"
+        }
+      ],
+      "xp": 18,
+      "assetId": "goblin_raider",
+      "isImplemented": true,
+      "notes": "Display name is a provisional category, not a final enemy name."
+    },
+    {
+      "id": "enemy_bone_servant_proto",
+      "displayName": "仮分類: 骨の従者",
+      "layerBand": "shallow",
+      "family": "undead",
+      "rank": 2,
+      "level": 1,
+      "hp": {
+        "dice": "1d8",
+        "fixed": 2
+      },
+      "ac": 7,
+      "attacks": [
+        {
+          "id": "claw",
+          "targetRule": "front_single",
+          "hitBonus": 0,
+          "damageDice": "1d5",
+          "damageBonus": 0,
+          "element": "physical",
+          "statusEffect": null,
+          "chance": 100,
+          "messageKey": "enemy_attack_default"
+        }
+      ],
+      "xp": 22,
+      "assetId": "bone_servant",
+      "isImplemented": true,
+      "notes": "Display name is provisional. Undead rules are not implemented yet."
+    }
+  ],
+  "notes": [
+    "In v23, app.js contains local constants mirroring these prototype definitions for file:// compatibility.",
+    "Enemy HP generation and front-row attack damage are connected in the encounter confirmation window.",
+    "Display names remain provisional categories, not final enemy names."
+  ]
+}

@@ -1,0 +1,482 @@
+{
+  "version": "v20",
+  "status": "review_only_not_gameplay_data",
+  "records": [
+    {
+      "asset_id": "ash_rat",
+      "image_file": "enemy_ash_rat.png",
+      "silhouette_file": "enemy_silhouette_ash_rat.png",
+      "source_zip": "reliquary_enemy_images_v01(1).zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "shallow",
+      "ecology": "beast",
+      "intelligence": "low",
+      "role_candidate": "small beast / shallow outer area",
+      "name_status": "rename_required_due_to_ash",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "black_slime",
+      "image_file": "enemy_black_slime.png",
+      "silhouette_file": "enemy_silhouette_black_slime.png",
+      "source_zip": "reliquary_enemy_images_v01(1).zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "shallow",
+      "ecology": "slime",
+      "intelligence": "low",
+      "role_candidate": "slime / waste or damp storage",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "black_wing_bug",
+      "image_file": "enemy_black_wing_bug.png",
+      "silhouette_file": "enemy_silhouette_black_wing_bug.png",
+      "source_zip": "reliquary_enemy_images_v01(1).zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "shallow",
+      "ecology": "insect",
+      "intelligence": "low",
+      "role_candidate": "flying insect / outer area",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "boarfolk_brute",
+      "image_file": "enemy_boarfolk_brute.png",
+      "silhouette_file": "enemy_silhouette_boarfolk_brute.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "demihuman",
+      "intelligence": "medium",
+      "role_candidate": "armed brute / tribe or barracks",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "bone_servant",
+      "image_file": "enemy_bone_servant.png",
+      "silhouette_file": "enemy_silhouette_bone_servant.png",
+      "source_zip": "reliquary_enemy_images_v01(1).zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "undead",
+      "intelligence": "low",
+      "role_candidate": "weak undead servant / barracks or old work area",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "crystal_golem",
+      "image_file": "enemy_crystal_golem.png",
+      "silhouette_file": "enemy_silhouette_crystal_golem.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "guardian",
+      "intelligence": "guardian",
+      "role_candidate": "magic guardian / research or sealed chamber",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "dark_elf",
+      "image_file": "enemy_dark_elf.png",
+      "silhouette_file": "enemy_silhouette_dark_elf.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "demihuman",
+      "intelligence": "high",
+      "role_candidate": "intelligent enemy / deep settlement or magic area",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "dust_soldier",
+      "image_file": "enemy_dust_soldier.png",
+      "silhouette_file": "enemy_silhouette_dust_soldier.png",
+      "source_zip": "reliquary_enemy_images_v01(1).zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "undead",
+      "intelligence": "medium",
+      "role_candidate": "old soldier remnant / barracks",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "elf_ranger",
+      "image_file": "enemy_elf_ranger.png",
+      "silhouette_file": "enemy_silhouette_elf_ranger.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "demihuman",
+      "intelligence": "high",
+      "role_candidate": "intelligent ranger / deep transformed faction",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "flame_spirit",
+      "image_file": "enemy_flame_spirit.png",
+      "silhouette_file": "enemy_silhouette_flame_spirit.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "spirit",
+      "intelligence": "high",
+      "role_candidate": "elemental spirit / magic or sealed room",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "forest_spirit",
+      "image_file": "enemy_forest_spirit.png",
+      "silhouette_file": "enemy_silhouette_forest_spirit.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "spirit",
+      "intelligence": "high",
+      "role_candidate": "spirit / preserved ecology or shrine",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "gargoyle",
+      "image_file": "enemy_gargoyle.png",
+      "silhouette_file": "enemy_silhouette_gargoyle.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "guardian",
+      "intelligence": "guardian",
+      "role_candidate": "stone guardian / temple or high storehouse",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "gate_warden",
+      "image_file": "enemy_gate_warden.png",
+      "silhouette_file": "enemy_silhouette_gate_warden.png",
+      "source_zip": "reliquary_enemy_images_v01(1).zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "core",
+      "ecology": "guardian",
+      "intelligence": "guardian",
+      "role_candidate": "gate guardian / core access",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "giant_centipede",
+      "image_file": "enemy_giant_centipede.png",
+      "silhouette_file": "enemy_silhouette_giant_centipede.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "shallow",
+      "ecology": "insect",
+      "intelligence": "low",
+      "role_candidate": "large insect / storage or breeding area",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "goblin_raider",
+      "image_file": "enemy_goblin_raider.png",
+      "silhouette_file": "enemy_silhouette_goblin_raider.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "shallow",
+      "ecology": "demihuman",
+      "intelligence": "medium",
+      "role_candidate": "low goblin / early raider",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "harpy",
+      "image_file": "enemy_harpy.png",
+      "silhouette_file": "enemy_silhouette_harpy.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "beastman",
+      "intelligence": "medium",
+      "role_candidate": "flying demihuman / open shaft or mid layer",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "hobgoblin_spearman",
+      "image_file": "enemy_hobgoblin_spearman.png",
+      "silhouette_file": "enemy_silhouette_hobgoblin_spearman.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "demihuman",
+      "intelligence": "medium",
+      "role_candidate": "armed goblin leader / middle barracks",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "ice_spirit",
+      "image_file": "enemy_ice_spirit.png",
+      "silhouette_file": "enemy_silhouette_ice_spirit.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "spirit",
+      "intelligence": "high",
+      "role_candidate": "elemental spirit / sealed or cold storage",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "lizardman",
+      "image_file": "enemy_lizardman.png",
+      "silhouette_file": "enemy_silhouette_lizardman.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "demihuman",
+      "intelligence": "medium",
+      "role_candidate": "armed lizardman / wet or mid layer",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "lizardman_skirmisher",
+      "image_file": "enemy_lizardman_skirmisher.png",
+      "silhouette_file": "enemy_silhouette_lizardman_skirmisher.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "demihuman",
+      "intelligence": "medium",
+      "role_candidate": "light lizardman / patrol",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "minotaur_warrior",
+      "image_file": "enemy_minotaur_warrior.png",
+      "silhouette_file": "enemy_silhouette_minotaur_warrior.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "beastman",
+      "intelligence": "high",
+      "role_candidate": "large intelligent warrior / deep guard",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "mushroom_imp",
+      "image_file": "enemy_mushroom_imp.png",
+      "silhouette_file": "enemy_silhouette_mushroom_imp.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "shallow",
+      "ecology": "fungus",
+      "intelligence": "low",
+      "role_candidate": "fungal imp / damp storage or waste area",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "ogre_brute",
+      "image_file": "enemy_ogre_brute.png",
+      "silhouette_file": "enemy_silhouette_ogre_brute.png",
+      "source_zip": "reliquary_enemy_additional_set3_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "giantkin",
+      "intelligence": "medium",
+      "role_candidate": "large brute / mid layer threat",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "orc_warrior",
+      "image_file": "enemy_orc_warrior.png",
+      "silhouette_file": "enemy_silhouette_orc_warrior.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "demihuman",
+      "intelligence": "medium",
+      "role_candidate": "armed orc / middle layer tribe",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "rusted_sentry",
+      "image_file": "enemy_rusted_sentry.png",
+      "silhouette_file": "enemy_silhouette_rusted_sentry.png",
+      "source_zip": "reliquary_enemy_images_v01(1).zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "guardian",
+      "intelligence": "guardian",
+      "role_candidate": "old armored sentry / high storage or management area",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "seal_moth",
+      "image_file": "enemy_seal_moth.png",
+      "silhouette_file": "enemy_silhouette_seal_moth.png",
+      "source_zip": "reliquary_enemy_images_v01(1).zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "shallow",
+      "ecology": "insect",
+      "intelligence": "low",
+      "role_candidate": "seal-related moth / outer magical residue",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "tree_spirit",
+      "image_file": "enemy_tree_spirit.png",
+      "silhouette_file": "enemy_silhouette_tree_spirit.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "deep",
+      "ecology": "spirit",
+      "intelligence": "high",
+      "role_candidate": "spirit / preserved forest ecology or shrine",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    },
+    {
+      "asset_id": "troll",
+      "image_file": "enemy_troll.png",
+      "silhouette_file": "enemy_silhouette_troll.png",
+      "source_zip": "reliquary_enemy_set2_20images.zip",
+      "pixel_size": {
+        "width": 1254,
+        "height": 1254
+      },
+      "layer_candidate": "middle",
+      "ecology": "giantkin",
+      "intelligence": "medium",
+      "role_candidate": "large regenerative brute / mid layer",
+      "name_status": "ok_provisional",
+      "confirmed_use": false,
+      "notes": "v20 classification is based on filename plus visual contact-sheet inspection; final naming and adoption are not fixed."
+    }
+  ]
+}

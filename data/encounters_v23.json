@@ -1,0 +1,74 @@
+{
+  "version": "v23-reference-data",
+  "status": "prototype_encounter_window_with_hp_damage",
+  "notes": [
+    "This data is reference data for the v23 battle confirmation window.",
+    "In v23, app.js still uses local constants for file:// compatibility, but enemyId values mirror this reference data.",
+    "Enemy HP and front-row attack damage are connected; enemy counterattacks, rewards, random encounters, and drops are not connected yet.",
+    "Enemy display labels are provisional categories, not finalized enemy names."
+  ],
+  "tables": [
+    {
+      "id": "encounter_b1_shallow_demo",
+      "floorId": "B1F",
+      "layerBand": "shallow",
+      "purpose": "window_layout_check",
+      "entries": [
+        {
+          "enemyId": "enemy_black_slime_proto",
+          "dropWeight": 40,
+          "minInstances": 1,
+          "maxInstances": 1,
+          "groupType": "same"
+        },
+        {
+          "enemyId": "enemy_black_wing_bug_proto",
+          "dropWeight": 40,
+          "minInstances": 1,
+          "maxInstances": 2,
+          "groupType": "same"
+        },
+        {
+          "enemyId": "enemy_goblin_raider_proto",
+          "dropWeight": 20,
+          "minInstances": 2,
+          "maxInstances": 3,
+          "groupType": "same"
+        }
+      ],
+      "treasureTableId": null,
+      "gold": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ],
+  "demoEncounters": [
+    {
+      "id": "encounter_b1_shallow_test_01",
+      "enemyAssets": [
+        "black_slime",
+        "black_wing_bug"
+      ],
+      "usedInAppJs": true,
+      "v23BattleCheck": true
+    },
+    {
+      "id": "encounter_b1_shallow_test_02",
+      "enemyAssets": [
+        "goblin_raider"
+      ],
+      "usedInAppJs": true,
+      "v23BattleCheck": true
+    },
+    {
+      "id": "encounter_b1_shallow_test_03",
+      "enemyAssets": [
+        "bone_servant",
+        "black_slime"
+      ],
+      "usedInAppJs": true,
+      "v23BattleCheck": true
+    }
+  ]
+}

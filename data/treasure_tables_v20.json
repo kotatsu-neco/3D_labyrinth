@@ -1,0 +1,80 @@
+{
+  "version": "v20",
+  "status": "review_only_not_gameplay_data",
+  "tables": {
+    "shallow": [
+      {
+        "id": "shallow_supply_01",
+        "type": "supply_cache",
+        "contents": "consumables and basic survival supplies",
+        "final_name_status": "unfixed"
+      },
+      {
+        "id": "shallow_tool_01",
+        "type": "tool_box",
+        "contents": "simple tools and trap-related tools",
+        "final_name_status": "unfixed"
+      },
+      {
+        "id": "shallow_weapon_01",
+        "type": "basic_equipment",
+        "contents": "low value weapons and armor",
+        "final_name_status": "unfixed"
+      }
+    ],
+    "middle": [
+      {
+        "id": "middle_armory_01",
+        "type": "armory_chest",
+        "contents": "practical weapons and armor",
+        "final_name_status": "unfixed"
+      },
+      {
+        "id": "middle_key_01",
+        "type": "access_key",
+        "contents": "keys or access tokens",
+        "final_name_status": "unfixed"
+      },
+      {
+        "id": "middle_magic_01",
+        "type": "minor_magic_item",
+        "contents": "minor magic items",
+        "final_name_status": "unfixed"
+      }
+    ],
+    "deep": [
+      {
+        "id": "deep_reliquary_01",
+        "type": "reliquary_case",
+        "contents": "relics of temples, royal houses, or mage orders",
+        "final_name_status": "unfixed"
+      },
+      {
+        "id": "deep_archive_01",
+        "type": "archive_box",
+        "contents": "documents, maps, records",
+        "final_name_status": "unfixed"
+      },
+      {
+        "id": "deep_access_01",
+        "type": "authority_item",
+        "contents": "proof or authority for access to core layer",
+        "final_name_status": "unfixed"
+      }
+    ],
+    "core": [
+      {
+        "id": "core_vault_01",
+        "type": "core_vault",
+        "contents": "items related to ark core",
+        "final_name_status": "unfixed"
+      },
+      {
+        "id": "core_authority_01",
+        "type": "final_authority",
+        "contents": "authority for opening, resealing, or controlling the ark",
+        "final_name_status": "unfixed"
+      }
+    ]
+  }
+}
