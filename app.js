@@ -312,12 +312,12 @@
         state.activatedLevers.delete(key);
         if (target) state.openedDoors.delete(doorKey(target.x, target.z));
         scene = buildSceneGeometry();
-        setMessage("レバー。", false);
+        setMessage("レバーを上げた。……どこかで音がした。", false);
       } else {
         state.activatedLevers.add(key);
         if (target) state.openedDoors.add(doorKey(target.x, target.z));
         scene = buildSceneGeometry();
-        setMessage("レバー。", false);
+        setMessage("レバーを下げた。……どこかで音がした。", false);
       }
       return;
     }
@@ -349,27 +349,27 @@
     if (tile === TILE.DOOR && !isDoorOpen(fx, fz)) {
       state.openedDoors.add(doorKey(fx, fz));
       scene = buildSceneGeometry();
-      setMessage("開いた。", false);
+      setMessage("扉を開けた。", false);
       return;
     }
 
     if (tile === TILE.WALL) {
-      setMessage("石壁。", false);
+      setMessage("石壁だ。", false);
       return;
     }
 
     if (tile === TILE.STAIR) {
-      setMessage("階段。", false);
+      setMessage("下り階段がある。", false);
       return;
     }
 
     const current = tileAt(state.x, state.z);
     if (current === TILE.EVENT) {
-      setMessage("床の紋様。", false);
+      setMessage("床に紋様がある。", false);
       return;
     }
 
-    setMessage("何もない。", false);
+    setMessage("何も見つからない。", false);
   }
 
   function inspectDungeonObject(obj) {
@@ -378,19 +378,19 @@
       return;
     }
     if (obj.type === "altar") {
-      setMessage("祭壇。", false);
+      setMessage("祭壇がある。", false);
       return;
     }
     if (obj.type === "statue") {
-      setMessage("石像。", false);
+      setMessage("石像がある。", false);
       return;
     }
     if (obj.type === "magicCircle") {
-      setMessage("床の紋様。", false);
+      setMessage("床に紋様がある。", false);
       return;
     }
     if (obj.type === "trapFloor") {
-      setMessage("床。", false);
+      setMessage("床を調べた。", false);
       return;
     }
   }
@@ -628,7 +628,7 @@
       state.openedChests.add(key);
       scene = buildSceneGeometry();
       renderChestWindow(chest, "開いた。", "main");
-      setMessage("開いた。", false);
+      setMessage("宝箱を開けた。", false);
     }
   }
 
@@ -642,7 +642,7 @@
     visual.dir = state.dir;
     visual.stepBob = 0;
     visual.turnLean = 0;
-    setMessage("戻った。", false);
+    setMessage("初期位置に戻った。", false);
     updateHud();
   }
 
@@ -657,7 +657,7 @@
     state.trapDetectionActive = !state.trapDetectionActive;
     scene = buildSceneGeometry();
     renderMapOverlay();
-    setMessage(state.trapDetectionActive ? "罠検知。" : "検知解除。", false);
+    setMessage(state.trapDetectionActive ? "罠検知を有効にした。" : "罠検知を解除した。", false);
   }
 
   function startMoveAnimation(nx, nz, step) {
@@ -674,8 +674,8 @@
     state.x = nx;
     state.z = nz;
     const tile = tileAt(nx, nz);
-    if (tile === TILE.STAIR) setMessage("階段。", false);
-    else if (tile === TILE.EVENT) setMessage("床の紋様。", false);
+    if (tile === TILE.STAIR) setMessage("下り階段がある。", false);
+    else if (tile === TILE.EVENT) setMessage("床に紋様がある。", false);
     updateHud();
   }
 
@@ -1550,8 +1550,8 @@
   bindButton("resetBtn", resetPosition);
   bindButton("mapBtn", toggleMap);
   bindButton("detectTrapBtn", toggleTrapDetection);
-  bindButton("campBtn", () => setMessage("キャンプ未実装。", false));
-  bindButton("formationBtn", () => setMessage("隊列未実装。", false));
+  bindButton("campBtn", () => setMessage("キャンプは未実装。", false));
+  bindButton("formationBtn", () => setMessage("隊列は未実装。", false));
 
   window.addEventListener("keydown", (event) => {
     const key = event.key;
