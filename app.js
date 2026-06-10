@@ -42,7 +42,7 @@
     { x: -1, z: 0, label: "W" },
   ];
 
-  // v13: 起動直後から通路・配置物・移動方向が見える確認用の初期位置にする。
+  // v14: 起動直後から通路・配置物・移動方向が見える確認用の初期位置を維持する。
   // 旧初期位置(x1,y1,E)は視界情報が乏しく、実機上で「黒いだけ」「動けない」に見えやすかったため避ける。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
@@ -90,7 +90,7 @@
     eventWindowOpen: false,
     showMap: false,
     animation: null,
-    message: "v13: 初期位置を確認しやすい通路へ変更し、3D表示と移動確認を優先しました。",
+    message: "v14: 罠検知トグルの未定義による起動停止を修正し、3D表示と移動操作を復旧しました。",
   };
 
   const visual = {
@@ -542,6 +542,14 @@
     if (state.eventWindowOpen) return;
     state.showMap = !state.showMap;
     renderMapOverlay();
+  }
+
+  function toggleTrapDetection() {
+    if (state.eventWindowOpen || state.animation) return;
+    state.trapDetectionActive = !state.trapDetectionActive;
+    scene = buildSceneGeometry();
+    renderMapOverlay();
+    setMessage(state.trapDetectionActive ? "罠検知を有効にしました。" : "罠検知を解除しました。", false);
   }
 
   function startMoveAnimation(nx, nz, step) {
@@ -1376,6 +1384,14 @@
 
   function bindButton(id, handler) {
     const el = document.getElementById(id);
+    if (!el) {
+      console.warn(`操作ボタンが見つかりません: ${id}`);
+      return;
+    }
+    if (typeof handler !== "function") {
+      console.warn(`操作ハンドラが無効です: ${id}`);
+      return;
+    }
     let lastFire = 0;
 
     const fire = (event) => {
