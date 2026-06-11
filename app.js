@@ -51,13 +51,16 @@
   // v23では敵HP生成と前衛攻撃によるHP減少だけを接続した。
   // v23aでは実機確認結果を受け、戦闘ログ枠追加、コマンド/パーティ位置入れ替え、パーティ表の重なり対策を行う。
   // v23bではログ枠にトースト風のタイプライター表示を追加する。
+  // v23cでは実機確認結果を受け、戦闘UIとステータス画面を圧縮・再配置する。
+  // v23dでは戦闘画面の上部大見出しを排除し、戦闘ウィンドウ内レイアウトを再整理する。
+  // v23eでは完成形から逆算し、キャラクター別コマンド入力、戻る、行動キュー、浮動LOG小窓の骨格を導入する。
   // 敵の反撃、命中式の本決定、経験値、戦利品処理はまだ行わない.
   // ENCOUNTER_DEMOS は実機確認用の一時的なUIデモデータであり、正本の遭遇テーブルではない。
   // データファイル data/encounters_v23.json / data/enemy_definitions_v23.json は参照用として同梱しているが、
   // v23a時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
-  const BUILD_VERSION = "v23b";
+  const BUILD_VERSION = "v23e";
   const PROTOTYPE_TITLE = "タイトル未定";
   const PROTOTYPE_SUBTITLE = "地下方舟3Dダンジョン試作";
   const FLOOR_META = {
@@ -73,8 +76,9 @@
 
   // v23b: 戦闘ログの文字送り速度。0にすると即時表示。
   const BATTLE_LOG_TYPE_SPEED_MS = 18;
-  const BATTLE_LOG_HISTORY_LIMIT = 3;
+  const BATTLE_LOG_HISTORY_LIMIT = 1;
   const BATTLE_LOG_NEXT_DELAY_MS = 180;
+  const BATTLE_PARTY_ACTION_MARKS = { current: "▶", queued: "✓", waiting: "-", unable: "×" };
   let battleLogTimer = 0;
 
   const ENEMY_DEFINITIONS = {
@@ -770,9 +774,117 @@
       logHistory: [],
       logCurrent: { text: encounter.prompt, visibleLength: 0, complete: false },
       logQueue: [],
+      inputPhase: "character_command",
+      inputIndex: 0,
+      commandContext: null,
+      actionQueue: [],
       finished: false,
       result: null,
     };
+  }
+
+  function isBattleLogActive(battle) {
+    if (!battle) return false;
+    ensureBattleLogState(battle);
+    return Boolean((battle.logCurrent && !battle.logCurrent.complete) || battle.logQueue.length);
+  }
+
+  function battleActionableMembers() {
+    return PARTY_MEMBERS.map((member, index) => ({ member, index })).filter(({ member }) => member.status === "OK" && member.hp > 0);
+  }
+
+  function normalizeBattleInputIndex(battle) {
+    if (!battle) return;
+    const members = battleActionableMembers();
+    if (!members.length) {
+      battle.inputIndex = 0;
+      battle.inputPhase = "battle_result";
+      return;
+    }
+    battle.inputIndex = Math.max(0, Math.min(Number(battle.inputIndex || 0), members.length - 1));
+  }
+
+  function currentBattleMemberEntry(battle) {
+    normalizeBattleInputIndex(battle);
+    return battleActionableMembers()[battle.inputIndex] || null;
+  }
+
+  function canMemberCast(member) {
+    if (!member || !member.spells) return false;
+    return hasSpellPoints(member.spells.mage) || hasSpellPoints(member.spells.priest);
+  }
+
+  function canMemberUseItem(member) {
+    return Boolean(member && Array.isArray(member.items) && member.items.length > 0);
+  }
+
+  function resetBattleInputForRound(battle) {
+    battle.inputPhase = "character_command";
+    battle.inputIndex = 0;
+    battle.commandContext = null;
+    battle.actionQueue = [];
+    normalizeBattleInputIndex(battle);
+  }
+
+  function getMemberBattleMark(battle, memberId) {
+    if (!battle) return BATTLE_PARTY_ACTION_MARKS.waiting;
+    const current = currentBattleMemberEntry(battle);
+    if (current && current.member.id === memberId && !battle.finished && battle.inputPhase !== "round_resolving" && battle.inputPhase !== "battle_result") return BATTLE_PARTY_ACTION_MARKS.current;
+    if ((battle.actionQueue || []).some((action) => action.characterId === memberId)) return BATTLE_PARTY_ACTION_MARKS.queued;
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member || member.status !== "OK" || member.hp <= 0) return BATTLE_PARTY_ACTION_MARKS.unable;
+    return BATTLE_PARTY_ACTION_MARKS.waiting;
+  }
+
+  function commitBattleAction(battle, action) {
+    if (!battle || !action) return;
+    battle.actionQueue = Array.isArray(battle.actionQueue) ? battle.actionQueue : [];
+    battle.actionQueue.push(action);
+    const actionable = battleActionableMembers();
+    if (battle.actionQueue.length >= actionable.length) {
+      battle.inputPhase = "round_confirm";
+      battle.commandContext = null;
+      return;
+    }
+    battle.inputIndex = Math.min(battle.actionQueue.length, actionable.length - 1);
+    battle.inputPhase = "character_command";
+    battle.commandContext = null;
+  }
+
+  function backToPreviousBattleInput(battle) {
+    if (!battle) return;
+    if (battle.inputPhase === "target_select" || battle.inputPhase === "spell_select" || battle.inputPhase === "item_select") {
+      battle.inputPhase = "character_command";
+      battle.commandContext = null;
+      return;
+    }
+    if (battle.inputPhase === "round_confirm") {
+      const removed = battle.actionQueue.pop();
+      const actionable = battleActionableMembers();
+      const idx = actionable.findIndex(({ member }) => member.id === (removed && removed.characterId));
+      battle.inputIndex = idx >= 0 ? idx : Math.max(0, battle.actionQueue.length - 1);
+      battle.inputPhase = "character_command";
+      battle.commandContext = null;
+      return;
+    }
+    if (battle.inputPhase === "character_command" && battle.actionQueue.length > 0) {
+      const removed = battle.actionQueue.pop();
+      const actionable = battleActionableMembers();
+      const idx = actionable.findIndex(({ member }) => member.id === (removed && removed.characterId));
+      battle.inputIndex = idx >= 0 ? idx : Math.max(0, battle.actionQueue.length);
+      battle.commandContext = null;
+    }
+  }
+
+  function firstAliveEnemyInGroup(battle, groupIndex) {
+    const group = battle && battle.groups ? battle.groups[Number(groupIndex)] : null;
+    if (!group) return null;
+    const instance = group.instances.find((item) => item.currentHp > 0);
+    return instance ? { group, instance, groupIndex: Number(groupIndex) } : null;
+  }
+
+  function firstAliveEnemy(battle) {
+    return getAliveEnemies(battle)[0] || null;
   }
 
   function clearBattleLogTimer() {
@@ -915,32 +1027,61 @@
     return Math.max(0, Math.floor((((member.stats && member.stats.str) || 10) - 10) / 3));
   }
 
-  function resolveFrontAttackRound(battle) {
-    if (battle.finished) return "戦闘は終わっている。";
-    const attackers = PARTY_MEMBERS.filter((member) => member.row === "front" && member.status === "OK" && member.hp > 0);
-    let hits = 0;
-    let damageTotal = 0;
-    attackers.forEach((member) => {
-      const target = getAliveEnemies(battle)[0];
-      if (!target) return;
-      const enemyAc = target.group.definition ? Number(target.group.definition.ac || 10) : 10;
-      const hitRoll = rollDice("1d20") + Number(member.level || 1);
-      const targetNumber = Math.max(6, 8 + enemyAc);
-      if (hitRoll >= targetNumber) {
-        const damage = Math.max(1, rollDice(memberDamageDice(member)) + memberDamageBonus(member));
-        target.instance.currentHp = Math.max(0, target.instance.currentHp - damage);
-        hits += 1;
-        damageTotal += damage;
-      }
-    });
-    if (isBattleFinished(battle)) {
-      battle.finished = true;
-      battle.result = "won";
-      return hits > 0 ? `敵を倒した。合計${damageTotal}のダメージ。` : "敵を倒した。";
+  function resolveQueuedAttack(battle, action, member) {
+    const target = action.targetGroupIndex !== null && action.targetGroupIndex !== undefined
+      ? firstAliveEnemyInGroup(battle, action.targetGroupIndex)
+      : firstAliveEnemy(battle);
+    if (!target) return `${member.name}は攻撃した。相手はいなかった。`;
+    const enemyAc = target.group.definition ? Number(target.group.definition.ac || 10) : 10;
+    const hitRoll = rollDice("1d20") + Number(member.level || 1);
+    const targetNumber = Math.max(6, 8 + enemyAc);
+    if (hitRoll < targetNumber) {
+      return `${member.name}は${target.group.label}を攻撃した。外れた。`;
     }
-    battle.round += 1;
-    if (hits === 0) return "前衛が攻撃した。命中しなかった。";
-    return `前衛が攻撃した。合計${damageTotal}のダメージ。`;
+    const damage = Math.max(1, rollDice(memberDamageDice(member)) + memberDamageBonus(member));
+    target.instance.currentHp = Math.max(0, target.instance.currentHp - damage);
+    if (target.instance.currentHp <= 0) {
+      return `${member.name}は${target.group.label}を倒した。`;
+    }
+    return `${member.name}は${target.group.label}に${damage}のダメージ。`;
+  }
+
+  function resolveBattleActionQueue(battle) {
+    if (!battle || battle.finished) return ["戦闘は終わっている。"]; 
+    const lines = [];
+    const queue = Array.isArray(battle.actionQueue) ? battle.actionQueue.slice() : [];
+    for (const action of queue) {
+      if (battle.finished) break;
+      const member = PARTY_MEMBERS.find((item) => item.id === action.characterId);
+      if (!member || member.status !== "OK" || member.hp <= 0) {
+        lines.push("行動できない者がいる。");
+        continue;
+      }
+      if (action.command === "attack") {
+        lines.push(resolveQueuedAttack(battle, action, member));
+      } else if (action.command === "defend") {
+        lines.push(`${member.name}は身を守った。`);
+      } else if (action.command === "spell") {
+        lines.push(`${member.name}は呪文を唱えた。効果処理はまだ未接続。`);
+      } else if (action.command === "item") {
+        lines.push(`${member.name}は道具を構えた。効果処理はまだ未接続。`);
+      }
+      if (isBattleFinished(battle)) {
+        battle.finished = true;
+        battle.result = "won";
+        lines.push("敵を倒した。");
+        break;
+      }
+    }
+    if (!battle.finished) {
+      battle.round += 1;
+      resetBattleInputForRound(battle);
+      lines.push(`ROUND ${battle.round}。行動を選ぶ。`);
+    } else {
+      battle.inputPhase = "battle_result";
+      battle.commandContext = null;
+    }
+    return lines;
   }
 
   function buildEnemyCards(battle) {
@@ -960,6 +1101,183 @@
     }).join("");
   }
 
+  function renderBattlePartyStatus(battle) {
+    return PARTY_MEMBERS.map((member) => {
+      const mark = getMemberBattleMark(battle, member.id);
+      const rowLabel = member.row === "front" ? "前" : "後";
+      return `
+        <div class="battle-party-row ${mark === BATTLE_PARTY_ACTION_MARKS.current ? "current" : ""} ${mark === BATTLE_PARTY_ACTION_MARKS.queued ? "queued" : ""}">
+          <span class="battle-party-mark">${escapeHtml(mark)}</span>
+          <span class="battle-party-name">${escapeHtml(member.name)}</span>
+          <span class="battle-party-rowpos">${escapeHtml(rowLabel)}</span>
+          <span class="battle-party-hp">${escapeHtml(partyHpText(member))}</span>
+          <span class="battle-party-ac">AC${escapeHtml(member.ac)}</span>
+          <span class="battle-party-status">${escapeHtml(member.status)}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderBattleEnemyTargetButtons(battle) {
+    return battle.groups.map((group, index) => {
+      const alive = group.instances.filter((instance) => instance.currentHp > 0).length;
+      if (alive <= 0) return "";
+      return `<button data-action="battle:target:${escapeHtml(index)}">${escapeHtml(group.label)} x${escapeHtml(alive)}</button>`;
+    }).join("");
+  }
+
+  function renderBattleSpellOptions(member) {
+    const rows = [];
+    if (member.spells && hasSpellPoints(member.spells.mage)) rows.push(`<button data-action="battle:spell:mage1">MAGE ${escapeHtml(spellLine(member.spells.mage))}</button>`);
+    if (member.spells && hasSpellPoints(member.spells.priest)) rows.push(`<button data-action="battle:spell:priest1">PRIEST ${escapeHtml(spellLine(member.spells.priest))}</button>`);
+    return rows.join("") || `<div class="battle-input-note">使える呪文はない。</div>`;
+  }
+
+  function renderBattleItemOptions(member) {
+    const items = Array.isArray(member.items) ? member.items : [];
+    return items.map((item, index) => `<button data-action="battle:item:${escapeHtml(index)}">${escapeHtml(item)}</button>`).join("") || `<div class="battle-input-note">使える道具はない。</div>`;
+  }
+
+  function renderBattleInputPanel(battle) {
+    const entry = currentBattleMemberEntry(battle);
+    const member = entry && entry.member;
+    if (battle.finished || battle.inputPhase === "battle_result") {
+      return `
+        <div class="battle-input-title">戦闘終了</div>
+        <div class="battle-input-note">敵を倒した。</div>
+        <div class="battle-command-list"><button data-action="close">閉じる</button></div>
+      `;
+    }
+    if (battle.inputPhase === "round_resolving") {
+      return `<div class="battle-input-title">ラウンド処理中</div><div class="battle-input-note">ログを確認してください。</div>`;
+    }
+    if (battle.inputPhase === "round_confirm") {
+      return `
+        <div class="battle-input-title">行動を開始</div>
+        <div class="battle-input-note">${escapeHtml((battle.actionQueue || []).length)}人分の行動を入力済み。</div>
+        <div class="battle-command-list">
+          <button data-action="battle:round:start">決定</button>
+          <button data-action="battle:back">戻る</button>
+        </div>
+      `;
+    }
+    if (!member) {
+      return `<div class="battle-input-title">入力不能</div><div class="battle-input-note">行動できる者がいない。</div>`;
+    }
+    const identity = `${member.name} / ${member.className} / ${member.row === "front" ? "前衛" : "後衛"}`;
+    if (battle.inputPhase === "target_select") {
+      return `
+        <div class="battle-input-title">対象: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list">
+          ${renderBattleEnemyTargetButtons(battle)}
+          <button data-action="battle:target:back">戻る</button>
+        </div>
+      `;
+    }
+    if (battle.inputPhase === "spell_select") {
+      return `
+        <div class="battle-input-title">呪文: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list">
+          ${renderBattleSpellOptions(member)}
+          <button data-action="battle:target:back">戻る</button>
+        </div>
+      `;
+    }
+    if (battle.inputPhase === "item_select") {
+      return `
+        <div class="battle-input-title">道具: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list">
+          ${renderBattleItemOptions(member)}
+          <button data-action="battle:target:back">戻る</button>
+        </div>
+      `;
+    }
+    return `
+      <div class="battle-input-title">入力: ${escapeHtml(identity)}</div>
+      <div class="battle-command-list">
+        <button data-action="battle:cmd:attack">攻撃</button>
+        <button data-action="battle:cmd:defend">守る</button>
+        ${canMemberCast(member) ? `<button data-action="battle:cmd:spell">呪文</button>` : ""}
+        ${canMemberUseItem(member) ? `<button data-action="battle:cmd:item">道具</button>` : ""}
+        <button data-action="battle:cmd:run">逃げる</button>
+        <button data-action="battle:back" ${(battle.actionQueue || []).length ? "" : "disabled"}>戻る</button>
+      </div>
+    `;
+  }
+
+  function handleBattleAction(battle, action) {
+    if (!battle) return;
+    if (action === "battle:back" || action === "battle:target:back") {
+      backToPreviousBattleInput(battle);
+      renderEncounterWindow(battle);
+      return;
+    }
+    const entry = currentBattleMemberEntry(battle);
+    const member = entry && entry.member;
+    if (action === "battle:cmd:attack") {
+      battle.inputPhase = "target_select";
+      battle.commandContext = { command: "attack", characterId: member && member.id };
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action === "battle:cmd:defend" && member) {
+      commitBattleAction(battle, { characterId: member.id, command: "defend", targetGroupIndex: null });
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action === "battle:cmd:spell" && member) {
+      battle.inputPhase = "spell_select";
+      battle.commandContext = { command: "spell", characterId: member.id };
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action === "battle:cmd:item" && member) {
+      battle.inputPhase = "item_select";
+      battle.commandContext = { command: "item", characterId: member.id };
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action === "battle:cmd:run" && member) {
+      battle.inputPhase = "round_confirm";
+      battle.commandContext = { command: "run", characterId: member.id };
+      battle.actionQueue = [{ characterId: member.id, command: "run", targetGroupIndex: null }];
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action.startsWith("battle:target:") && member) {
+      const groupIndexText = action.slice("battle:target:".length);
+      const groupIndex = Number(groupIndexText);
+      if (Number.isFinite(groupIndex)) {
+        commitBattleAction(battle, { characterId: member.id, command: "attack", targetGroupIndex: groupIndex });
+        renderEncounterWindow(battle);
+      }
+      return;
+    }
+    if (action.startsWith("battle:spell:") && member) {
+      commitBattleAction(battle, { characterId: member.id, command: "spell", spellId: action.slice("battle:spell:".length), targetGroupIndex: null });
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action.startsWith("battle:item:") && member) {
+      commitBattleAction(battle, { characterId: member.id, command: "item", itemIndex: Number(action.slice("battle:item:".length)), targetGroupIndex: null });
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action === "battle:round:start") {
+      if ((battle.actionQueue || []).some((item) => item.command === "run")) {
+        clearBattleLogTimer();
+        state.currentBattle = null;
+        closeEventWindow();
+        setMessage("逃げた。", false);
+        return;
+      }
+      battle.inputPhase = "round_resolving";
+      const lines = resolveBattleActionQueue(battle);
+      lines.forEach((line) => pushBattleLog(battle, line));
+      renderEncounterWindow(battle);
+    }
+  }
+
   function openEncounterWindow() {
     if (state.eventWindowOpen || state.animation) return;
     state.eventWindowOpen = true;
@@ -972,39 +1290,26 @@
   function renderEncounterWindow(battle) {
     const overlay = getEventOverlay();
     const enemyCards = buildEnemyCards(battle);
-    const finished = battle.finished || isBattleFinished(battle);
-    const prompt = finished ? "戦闘終了。" : battle.prompt;
+    const inputPanel = renderBattleInputPanel(battle);
     overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel encounter-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
-        <div class="event-message-box" aria-live="polite">
-          <span id="eventWindowTitle">${escapeHtml(battle.title)}</span>
-          <span class="event-prompt">${escapeHtml(prompt)}</span>
-          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
-        </div>
-        <div class="encounter-body-frame">
+      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v23e" role="dialog" aria-modal="true" aria-label="戦闘画面">
+        <button class="event-close-btn panel-close-btn encounter-close-btn" data-action="close" aria-label="閉じる">×</button>
+        <div class="encounter-body-frame battle-enemy-frame">
           <div class="encounter-round-line">ROUND ${escapeHtml(battle.round)} / ${escapeHtml(BUILD_VERSION)}</div>
           <div class="encounter-enemy-grid">
             ${enemyCards}
           </div>
         </div>
-        <div class="encounter-log-frame" aria-live="polite" data-log-skip="true">
+        <div class="event-party-frame encounter-party-frame battle-party-status-frame" aria-label="パーティ状態">
+          ${renderBattlePartyStatus(battle)}
+        </div>
+        <div class="event-command-frame battle-input-frame" aria-label="戦闘入力">
+          ${inputPanel}
+        </div>
+        <div class="encounter-log-frame battle-log-float" aria-live="polite" data-log-skip="true">
           <div class="event-command-title">LOG <span class="log-speed-label">TYPE ${escapeHtml(BATTLE_LOG_TYPE_SPEED_MS)}ms</span></div>
           <div class="encounter-log-lines">
             ${renderBattleLog(battle)}
-          </div>
-        </div>
-        <div class="event-main-grid encounter-command-grid">
-          <div class="event-party-frame encounter-party-frame">
-            ${renderEventPartyTable({ compact: true })}
-          </div>
-          <div class="event-command-frame encounter-command-frame">
-            <div class="event-command-title">COMMAND</div>
-            <div class="event-actions">
-              <button data-action="fight" ${finished ? "disabled" : ""}>戦う</button>
-              <button data-action="guard" ${finished ? "disabled" : ""}>身を守る</button>
-              <button data-action="run" ${finished ? "disabled" : ""}>逃げる</button>
-              <button data-action="close">離れる</button>
-            </div>
           </div>
         </div>
       </div>
@@ -1016,34 +1321,26 @@
         closeEventWindow();
         return;
       }
-      if (finishBattleLogTyping(battle)) {
+      if (isBattleLogActive(battle)) {
+        if (!finishBattleLogTyping(battle) && battle.logQueue && battle.logQueue.length) {
+          advanceBattleLogQueue(battle);
+        }
         return;
       }
-      if (action === "fight") {
-        const result = resolveFrontAttackRound(battle);
-        pushBattleLog(battle, result);
-        renderEncounterWindow(battle);
-        return;
-      }
-      if (action === "guard") {
-        pushBattleLog(battle, "身を守った。敵の反撃はまだ未接続。");
-        renderEncounterWindow(battle);
-        return;
-      }
-      if (action === "run") {
-        clearBattleLogTimer();
-        state.currentBattle = null;
-        closeEventWindow();
-        setMessage("逃げた。", false);
-      }
+      handleBattleAction(battle, action);
     });
     const logFrame = overlay.querySelector("[data-log-skip='true']");
     if (logFrame) {
-      logFrame.addEventListener("pointerdown", (event) => {
+      const skipLog = (event) => {
         event.preventDefault();
         event.stopPropagation();
-        finishBattleLogTyping(battle);
-      }, { passive: false });
+        if (!finishBattleLogTyping(battle) && battle.logQueue && battle.logQueue.length) {
+          advanceBattleLogQueue(battle);
+        }
+      };
+      logFrame.addEventListener("pointerdown", skipLog, { passive: false });
+      logFrame.addEventListener("touchstart", skipLog, { passive: false });
+      logFrame.addEventListener("click", skipLog);
     }
     startBattleLogTyping(battle);
   }
@@ -1346,30 +1643,26 @@
     const backButton = returnMode === "campMembers" ? `<button data-action="backToCampMembers">戻る</button>` : "";
 
     overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
-        <div class="event-message-box" aria-live="polite">
-          <span id="eventWindowTitle">STATUS</span>
-          <span class="event-prompt">${escapeHtml(member.name)}</span>
-          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
-        </div>
-        <div class="character-detail-frame">
-          <div class="character-detail-title">
-            <span>${escapeHtml(member.name)}</span>
-            <span>LEVEL ${escapeHtml(member.level)}</span>
+      <div class="event-window-panel wizardry-event-panel character-detail-panel compact-status-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="character-detail-frame compact-status-frame">
+          <div class="character-detail-title compact-status-title">
+            <span id="eventWindowTitle">${escapeHtml(member.name)}</span>
+            <span>LV ${escapeHtml(member.level)}</span>
+            <button class="event-close-btn compact-close-btn" data-action="close" aria-label="閉じる">×</button>
           </div>
-          <div class="character-identity-grid">
+          <div class="character-identity-grid compact-pair-grid">
             <div><span>ALIGN</span><strong>${escapeHtml(member.alignment)}</strong></div>
             <div><span>RACE</span><strong>${escapeHtml(member.race)}</strong></div>
             <div><span>CLASS</span><strong>${escapeHtml(member.className)}</strong></div>
           </div>
-          <div class="character-basic-grid">
+          <div class="character-basic-grid compact-pair-grid">
             <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
             <div><span>AC</span><strong>${escapeHtml(member.ac)}</strong></div>
             <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
             <div><span>GOLD</span><strong>${escapeHtml(member.gold)}</strong></div>
           </div>
           <div class="character-section-title">ATTRIBUTES</div>
-          <div class="character-attribute-grid">
+          <div class="character-attribute-grid compact-pair-grid">
             <div><span>STR</span><strong>${escapeHtml(member.stats.str)}</strong></div>
             <div><span>I.Q.</span><strong>${escapeHtml(member.stats.iq)}</strong></div>
             <div><span>PIE</span><strong>${escapeHtml(member.stats.pie)}</strong></div>
@@ -1378,14 +1671,13 @@
             <div><span>LUC</span><strong>${escapeHtml(member.stats.luc)}</strong></div>
           </div>
           <div class="character-section-title">SPELL POINTS</div>
-          <div class="character-spell-grid">
-            <div class="spell-level-head"><span></span><span>1/2/3/4/5/6/7</span></div>
+          <div class="character-spell-grid compact-pair-grid">
             ${spellRows}
           </div>
           <div class="character-section-title">ITEMS</div>
-          <ol class="character-item-list">${itemRows}</ol>
+          <ol class="character-item-list compact-item-list">${itemRows}</ol>
         </div>
-        <div class="event-command-frame character-detail-actions">
+        <div class="event-command-frame character-detail-actions compact-status-actions">
           <div class="event-actions">
             <button data-action="spell:${escapeHtml(member.id)}">呪文</button>
             <button data-action="items:${escapeHtml(member.id)}">アイテム</button>
