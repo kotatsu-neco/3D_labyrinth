@@ -1175,3 +1175,754 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     display: none;
   }
 }
+
+/* v23c: compact battle/status UI adjustments from iPhone Safari feedback */
+.encounter-window-panel {
+  max-height: min(86svh, 650px);
+}
+
+.encounter-window-panel .encounter-header-box {
+  min-height: 48px;
+  margin: 8px 8px 6px;
+  padding: 8px 46px 8px 12px;
+  gap: 2px;
+}
+
+.encounter-window-panel .encounter-header-box #eventWindowTitle {
+  font-size: 10px;
+  letter-spacing: .14em;
+}
+
+.encounter-window-panel .encounter-header-box .event-prompt {
+  font-size: 16px;
+  line-height: 1.15;
+}
+
+.encounter-window-panel .encounter-header-box .event-close-btn {
+  right: 9px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  font-size: 21px;
+}
+
+.encounter-body-frame {
+  margin: 0 8px 6px;
+  padding: 7px;
+}
+
+.encounter-round-line {
+  margin-bottom: 4px;
+  font-size: 10px;
+}
+
+.encounter-enemy-grid {
+  gap: 5px;
+}
+
+.enemy-image-frame {
+  width: min(27vw, 110px);
+}
+
+.enemy-card {
+  gap: 4px;
+}
+
+.enemy-card-label {
+  gap: 4px;
+  font-size: 10px;
+}
+
+.enemy-card-status {
+  font-size: 10px;
+}
+
+.encounter-log-frame {
+  height: 72px;
+  min-height: 72px;
+  max-height: 72px;
+  margin: 0 8px 6px;
+  padding: 6px 8px;
+  overflow: hidden;
+}
+
+.encounter-log-frame .event-command-title {
+  margin-bottom: 5px;
+  font-size: 11px;
+}
+
+.encounter-log-lines {
+  height: 42px;
+  min-height: 0;
+  max-height: 42px;
+  overflow: hidden;
+  gap: 2px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.encounter-log-old {
+  font-size: 10px;
+  line-height: 1.12;
+}
+
+.encounter-log-current {
+  min-height: 1.2em;
+  font-size: 11px;
+  line-height: 1.22;
+}
+
+.encounter-command-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 30%);
+  gap: 6px;
+  margin: 0 8px 8px;
+}
+
+.encounter-party-frame {
+  min-height: 126px;
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.encounter-party-frame .event-party-head,
+.encounter-party-frame .event-party-row {
+  grid-template-columns: minmax(0, 1.18fr) .48fr minmax(44px, .78fr) .28fr .42fr;
+  gap: 3px;
+}
+
+.encounter-command-frame {
+  min-height: 126px;
+  padding: 7px 5px;
+}
+
+.encounter-command-frame .event-command-title {
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.encounter-command-frame .event-actions button {
+  min-height: 28px;
+  padding: 3px 3px 3px 20px;
+  font-size: 16px;
+  line-height: 1.08;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.encounter-command-frame .event-actions button::before {
+  left: 3px;
+  font-size: 12px;
+}
+
+.compact-status-panel {
+  max-height: min(86svh, 650px);
+}
+
+.compact-status-frame {
+  margin: 8px 8px 6px;
+  padding: 8px;
+  font-size: 12px;
+  line-height: 1.18;
+  letter-spacing: .03em;
+}
+
+.compact-status-title {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 5px;
+  font-size: 17px;
+}
+
+.compact-close-btn {
+  position: static;
+  transform: none;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  font-size: 21px;
+}
+
+.compact-pair-grid {
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.compact-pair-grid div {
+  grid-template-columns: auto auto !important;
+  justify-content: start;
+  gap: 6px !important;
+  padding-bottom: 2px !important;
+}
+
+.compact-pair-grid strong {
+  justify-self: start !important;
+}
+
+.compact-status-frame .character-section-title {
+  margin-top: 7px;
+  padding-top: 5px;
+  font-size: 10px;
+}
+
+.compact-item-list {
+  max-height: 80px;
+  overflow: auto;
+  margin-top: 4px;
+  padding-left: 22px;
+  gap: 2px;
+}
+
+.compact-status-actions {
+  margin: 0 8px 8px;
+  min-height: 0;
+  padding: 6px;
+}
+
+.compact-status-actions .event-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.compact-status-actions .event-actions button {
+  min-height: 30px;
+  padding: 4px 4px 4px 22px;
+  font-size: 16px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.compact-status-actions .event-actions button::before {
+  left: 4px;
+  font-size: 12px;
+}
+
+@media (max-width: 390px) {
+  .encounter-window-panel .encounter-header-box {
+    min-height: 44px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+  .encounter-window-panel .encounter-header-box .event-prompt {
+    font-size: 15px;
+  }
+  .enemy-image-frame {
+    width: min(26vw, 102px);
+  }
+  .encounter-log-frame {
+    height: 68px;
+    min-height: 68px;
+    max-height: 68px;
+  }
+  .encounter-log-lines {
+    height: 39px;
+    max-height: 39px;
+  }
+  .encounter-party-frame {
+    font-size: 10px;
+    padding: 5px;
+  }
+  .encounter-command-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(92px, 29%);
+  }
+  .encounter-command-frame .event-actions button {
+    font-size: 15px;
+    padding-left: 18px;
+  }
+  .compact-status-frame {
+    font-size: 11px;
+    padding: 7px;
+  }
+  .compact-status-title {
+    font-size: 16px;
+  }
+  .compact-status-actions .event-actions button {
+    font-size: 15px;
+  }
+  .compact-item-list {
+    max-height: 66px;
+  }
+}
+
+/* v23d: remove battle top title block and rebalance battle layout */
+.encounter-window-panel {
+  position: relative;
+  max-height: min(84svh, 620px);
+  overflow: hidden;
+}
+
+.encounter-window-panel .encounter-header-box {
+  display: none !important;
+}
+
+.encounter-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  transform: none;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  font-size: 19px;
+  background: rgba(23, 27, 34, .94);
+}
+
+.encounter-body-frame {
+  margin: 9px 8px 5px;
+  padding: 6px 42px 6px 7px;
+}
+
+.encounter-round-line {
+  margin-bottom: 4px;
+  font-size: 10px;
+  line-height: 1;
+  min-height: 12px;
+}
+
+.encounter-enemy-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.enemy-image-frame {
+  width: min(25vw, 96px);
+}
+
+.enemy-card-label,
+.enemy-card-status {
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.encounter-log-frame {
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  margin: 0 8px 5px;
+  padding: 5px 8px;
+}
+
+.encounter-log-frame .event-command-title {
+  margin-bottom: 3px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.encounter-log-lines {
+  height: 31px;
+  max-height: 31px;
+  font-size: 10.5px;
+  line-height: 1.16;
+  gap: 1px;
+}
+
+.encounter-log-old {
+  font-size: 9.5px;
+  line-height: 1.08;
+}
+
+.encounter-log-current {
+  font-size: 10.5px;
+  line-height: 1.16;
+}
+
+.encounter-command-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(104px, 31%);
+  gap: 6px;
+  margin: 0 8px 8px;
+}
+
+.encounter-party-frame {
+  min-height: 118px;
+  padding: 6px;
+  font-size: 10.5px;
+  line-height: 1.1;
+}
+
+.encounter-party-frame .event-party-head,
+.encounter-party-frame .event-party-row {
+  grid-template-columns: minmax(0, 1.04fr) .42fr minmax(42px, .75fr) .28fr .36fr;
+  gap: 3px;
+}
+
+.encounter-command-frame {
+  min-height: 118px;
+  padding: 6px 5px;
+}
+
+.encounter-command-frame .event-command-title {
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.encounter-command-frame .event-actions button {
+  min-height: 26px;
+  padding: 2px 3px 2px 18px;
+  font-size: 15px;
+  line-height: 1.04;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.encounter-command-frame .event-actions button::before {
+  left: 3px;
+  font-size: 11px;
+}
+
+@media (max-width: 390px) {
+  .encounter-window-panel {
+    max-height: min(82svh, 590px);
+  }
+  .encounter-close-btn {
+    top: 11px;
+    right: 13px;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    font-size: 18px;
+  }
+  .encounter-body-frame {
+    margin: 8px 7px 5px;
+    padding: 6px 38px 6px 6px;
+  }
+  .enemy-image-frame {
+    width: min(24vw, 90px);
+  }
+  .encounter-log-frame {
+    height: 54px;
+    min-height: 54px;
+    max-height: 54px;
+    margin-left: 7px;
+    margin-right: 7px;
+  }
+  .encounter-log-lines {
+    height: 30px;
+    max-height: 30px;
+  }
+  .encounter-command-grid {
+    grid-template-columns: minmax(0, 1fr) 104px;
+    gap: 5px;
+    margin-left: 7px;
+    margin-right: 7px;
+  }
+  .encounter-party-frame {
+    font-size: 10px;
+    padding: 5px;
+  }
+  .encounter-party-frame .event-party-head,
+  .encounter-party-frame .event-party-row {
+    grid-template-columns: minmax(0, 1fr) .40fr minmax(38px, .72fr) .26fr .34fr;
+    gap: 2px;
+  }
+  .encounter-command-frame {
+    padding: 5px 4px;
+  }
+  .encounter-command-frame .event-actions button {
+    min-height: 25px;
+    font-size: 14px;
+    padding-left: 17px;
+  }
+}
+
+/* v23e: battle screen rebuilt from character-by-character command flow */
+.battle-window-v23e {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(98px, 1fr) auto;
+  gap: 6px;
+  height: min(84svh, 620px);
+  max-height: min(84svh, 620px);
+  padding: 8px;
+  overflow: hidden;
+}
+
+.battle-window-v23e .encounter-close-btn {
+  top: 10px;
+  right: 10px;
+  z-index: 7;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  font-size: 18px;
+}
+
+.battle-window-v23e .battle-enemy-frame {
+  margin: 0;
+  padding: 6px 36px 6px 7px;
+  min-height: 0;
+}
+
+.battle-window-v23e .encounter-round-line {
+  margin-bottom: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: #9d9689;
+}
+
+.battle-window-v23e .encounter-enemy-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.battle-window-v23e .enemy-image-frame {
+  width: min(24vw, 92px);
+}
+
+.battle-window-v23e .enemy-card {
+  gap: 3px;
+}
+
+.battle-window-v23e .enemy-card-label,
+.battle-window-v23e .enemy-card-status {
+  font-size: 10px;
+  line-height: 1.08;
+}
+
+.battle-party-status-frame {
+  margin: 0;
+  min-height: 0;
+  padding: 6px;
+  overflow: hidden;
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  font-size: 10.5px;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.battle-party-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1.05fr) 18px minmax(48px, .82fr) 34px 34px;
+  gap: 3px;
+  align-items: center;
+  padding: 1px 2px;
+  border-bottom: 1px solid rgba(232, 226, 212, .12);
+}
+
+.battle-party-row.current {
+  background: rgba(210, 79, 69, .14);
+  outline: 1px solid rgba(210, 79, 69, .45);
+}
+
+.battle-party-row.queued {
+  color: #d7d1c5;
+}
+
+.battle-party-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle-party-mark {
+  color: #d24f45;
+  text-align: center;
+}
+
+.battle-party-row.queued .battle-party-mark {
+  color: #9fc28e;
+}
+
+.battle-party-name {
+  color: #f1eee6;
+  font-weight: 700;
+}
+
+.battle-party-rowpos,
+.battle-party-ac,
+.battle-party-status {
+  color: #c7bfae;
+}
+
+.battle-input-frame {
+  margin: 0;
+  min-height: 146px;
+  max-height: 166px;
+  padding: 7px 8px 8px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+}
+
+.battle-input-title {
+  color: #c7bfae;
+  font-size: 12px;
+  line-height: 1.12;
+  letter-spacing: .06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle-input-note {
+  color: #f1eee6;
+  font-size: 13px;
+  line-height: 1.25;
+  align-self: start;
+}
+
+.battle-command-list {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  overflow: hidden;
+}
+
+.battle-command-list.battle-scroll-list {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.battle-command-list button {
+  position: relative;
+  min-height: 25px;
+  padding: 3px 4px 3px 21px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #f1eee6;
+  text-align: left;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.05;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+.battle-command-list button::before {
+  content: "▶";
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-52%);
+  color: #d24f45;
+  font-size: 11px;
+}
+
+.battle-command-list button:disabled {
+  color: #6e6b65;
+}
+
+.battle-command-list button:disabled::before {
+  opacity: 0;
+}
+
+.battle-command-list button:active,
+.battle-command-list button:focus-visible {
+  background: rgba(232, 226, 212, .10);
+  outline: 1px solid rgba(232, 226, 212, .46);
+}
+
+.battle-log-float {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 158px;
+  z-index: 6;
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  margin: 0;
+  padding: 5px 8px;
+  border: 2px solid rgba(232, 226, 212, .92);
+  background: rgba(5, 6, 7, .94);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .46);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.battle-log-float .event-command-title {
+  margin-bottom: 3px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.battle-log-float .encounter-log-lines {
+  height: 31px;
+  max-height: 31px;
+  min-height: 0;
+  overflow: hidden;
+  font-size: 10.5px;
+  line-height: 1.16;
+  gap: 1px;
+}
+
+.battle-log-float .encounter-log-old {
+  font-size: 9.5px;
+  line-height: 1.08;
+}
+
+.battle-log-float .encounter-log-current {
+  font-size: 10.5px;
+  line-height: 1.16;
+}
+
+@media (max-width: 390px) {
+  .battle-window-v23e {
+    height: min(82svh, 590px);
+    max-height: min(82svh, 590px);
+    padding: 7px;
+    gap: 5px;
+  }
+
+  .battle-window-v23e .battle-enemy-frame {
+    padding: 6px 34px 5px 6px;
+  }
+
+  .battle-window-v23e .enemy-image-frame {
+    width: min(23vw, 86px);
+  }
+
+  .battle-party-status-frame {
+    font-size: 10px;
+    padding: 5px;
+  }
+
+  .battle-party-row {
+    grid-template-columns: 14px minmax(0, 1fr) 17px minmax(42px, .76fr) 32px 30px;
+    gap: 2px;
+  }
+
+  .battle-input-frame {
+    min-height: 140px;
+    max-height: 156px;
+    padding: 6px 7px 7px;
+  }
+
+  .battle-command-list button {
+    min-height: 24px;
+    font-size: 15px;
+    padding-left: 19px;
+  }
+
+  .battle-log-float {
+    left: 9px;
+    right: 9px;
+    bottom: 150px;
+    height: 54px;
+    min-height: 54px;
+    max-height: 54px;
+  }
+
+  .battle-log-float .encounter-log-lines {
+    height: 30px;
+    max-height: 30px;
+  }
+
+  .log-speed-label {
+    display: none;
+  }
+}
