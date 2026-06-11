@@ -48,14 +48,16 @@
   ];
 
   // v22a: 低解像度敵画像を使った敵遭遇ウィンドウの試作。
-  // v23では敵HP生成と前衛攻撃によるHP減少だけを接続する。
-  // 敵の反撃、命中式の本決定、経験値、戦利品処理はまだ行わない。
+  // v23では敵HP生成と前衛攻撃によるHP減少だけを接続した。
+  // v23aでは実機確認結果を受け、戦闘ログ枠追加、コマンド/パーティ位置入れ替え、パーティ表の重なり対策を行う。
+  // v23bではログ枠にトースト風のタイプライター表示を追加する。
+  // 敵の反撃、命中式の本決定、経験値、戦利品処理はまだ行わない.
   // ENCOUNTER_DEMOS は実機確認用の一時的なUIデモデータであり、正本の遭遇テーブルではない。
   // データファイル data/encounters_v23.json / data/enemy_definitions_v23.json は参照用として同梱しているが、
-  // v23時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
+  // v23a時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
-  const BUILD_VERSION = "v23";
+  const BUILD_VERSION = "v23b";
   const PROTOTYPE_TITLE = "タイトル未定";
   const PROTOTYPE_SUBTITLE = "地下方舟3Dダンジョン試作";
   const FLOOR_META = {
@@ -68,6 +70,12 @@
 
   const ENCOUNTER_DEMO_DATA_SOURCE = "data/encounters_v23.json";
   const ENEMY_DEFINITION_DATA_SOURCE = "data/enemy_definitions_v23.json";
+
+  // v23b: 戦闘ログの文字送り速度。0にすると即時表示。
+  const BATTLE_LOG_TYPE_SPEED_MS = 18;
+  const BATTLE_LOG_HISTORY_LIMIT = 3;
+  const BATTLE_LOG_NEXT_DELAY_MS = 180;
+  let battleLogTimer = 0;
 
   const ENEMY_DEFINITIONS = {
     enemy_black_slime_proto: {
@@ -95,7 +103,7 @@
       layer: "浅層",
       title: "ENCOUNTER",
       prompt: "敵が現れた。",
-      note: "v23確認用。敵HPと前衛攻撃のみ接続。反撃・経験値・戦利品は未接続。",
+      note: "確認用。敵HPと前衛攻撃のみ接続。反撃・経験値・戦利品は未接続。",
       enemies: [
         { enemyId: "enemy_black_slime_proto", label: "粘性体", count: 1, assetId: "black_slime", image: "assets/enemies/lowres/enemy_black_slime.png" },
         { enemyId: "enemy_black_wing_bug_proto", label: "虫型", count: 2, assetId: "black_wing_bug", image: "assets/enemies/lowres/enemy_black_wing_bug.png" }
@@ -107,7 +115,7 @@
       layer: "浅層",
       title: "ENCOUNTER",
       prompt: "敵が現れた。",
-      note: "v23確認用。敵名は仮分類であり正本化しない。",
+      note: "確認用。敵名は仮分類であり正本化しない。",
       enemies: [
         { enemyId: "enemy_goblin_raider_proto", label: "小型亜人", count: 3, assetId: "goblin_raider", image: "assets/enemies/lowres/enemy_goblin_raider.png" }
       ]
@@ -118,7 +126,7 @@
       layer: "浅層",
       title: "ENCOUNTER",
       prompt: "敵が現れた。",
-      note: "v23確認用。戦闘画面の密度とHP表示を見るための仮遭遇。",
+      note: "確認用。戦闘画面の密度とHP表示を見るための仮遭遇。",
       enemies: [
         { enemyId: "enemy_bone_servant_proto", label: "骨の従者", count: 1, assetId: "bone_servant", image: "assets/enemies/lowres/enemy_bone_servant.png" },
         { enemyId: "enemy_black_slime_proto", label: "粘性体", count: 1, assetId: "black_slime", image: "assets/enemies/lowres/enemy_black_slime.png" }
@@ -518,6 +526,7 @@
   }
 
   function closeEventWindow() {
+    clearBattleLogTimer();
     const overlay = document.getElementById("eventWindowOverlay");
     if (overlay) overlay.remove();
     state.eventWindowOpen = false;
@@ -585,9 +594,13 @@
     });
   }
 
-  function renderEventPartyTable() {
+  function renderEventPartyTable(options = {}) {
+    const compact = Boolean(options.compact);
+    const labels = compact
+      ? ["NAME", "CLS", "HITS", "AC", "ST"]
+      : ["NAME", "CLASS", "HITS", "AC", "STATUS"];
     return `
-      <div class="event-party-head"><span>NAME</span><span>CLASS</span><span>HITS</span><span>AC</span><span>STATUS</span></div>
+      <div class="event-party-head"><span>${labels.map(escapeHtml).join("</span><span>")}</span></div>
       ${PARTY_MEMBERS.map((member) => `
         <div class="event-party-row"><span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.className)}</span><span>${escapeHtml(partyHpText(member))}</span><span>${escapeHtml(member.ac)}</span><span>${escapeHtml(member.status)}</span></div>
       `).join("")}
@@ -754,9 +767,132 @@
       note: encounter.note,
       round: 1,
       groups,
+      logHistory: [],
+      logCurrent: { text: encounter.prompt, visibleLength: 0, complete: false },
+      logQueue: [],
       finished: false,
       result: null,
     };
+  }
+
+  function clearBattleLogTimer() {
+    if (battleLogTimer) {
+      window.clearTimeout(battleLogTimer);
+      battleLogTimer = 0;
+    }
+  }
+
+  function ensureBattleLogState(battle) {
+    if (!battle) return;
+    battle.logHistory = Array.isArray(battle.logHistory) ? battle.logHistory : [];
+    battle.logQueue = Array.isArray(battle.logQueue) ? battle.logQueue : [];
+    if (!battle.logCurrent) {
+      battle.logCurrent = { text: battle.prompt || "", visibleLength: 0, complete: false };
+    }
+  }
+
+  function trimBattleLogHistory(battle) {
+    battle.logHistory = battle.logHistory.slice(-BATTLE_LOG_HISTORY_LIMIT);
+  }
+
+  function pushBattleLog(battle, line) {
+    if (!battle || !line) return;
+    ensureBattleLogState(battle);
+    const text = String(line);
+    const current = battle.logCurrent;
+    if (current && current.text && !current.complete) {
+      battle.logQueue.push(text);
+      return;
+    }
+    if (current && current.text && current.complete) {
+      battle.logHistory.push(current.text);
+      trimBattleLogHistory(battle);
+    }
+    battle.logCurrent = { text, visibleLength: 0, complete: false };
+  }
+
+  function finishBattleLogTyping(battle) {
+    if (!battle) return false;
+    ensureBattleLogState(battle);
+    const current = battle.logCurrent;
+    if (!current || current.complete) return false;
+    current.visibleLength = current.text.length;
+    current.complete = true;
+    clearBattleLogTimer();
+    updateBattleLogDom(battle);
+    return true;
+  }
+
+  function advanceBattleLogQueue(battle) {
+    if (!battle) return;
+    ensureBattleLogState(battle);
+    const current = battle.logCurrent;
+    if (current && current.text) {
+      battle.logHistory.push(current.text);
+      trimBattleLogHistory(battle);
+    }
+    const next = battle.logQueue.shift();
+    if (!next) {
+      updateBattleLogDom(battle);
+      return;
+    }
+    battle.logCurrent = { text: next, visibleLength: 0, complete: false };
+    updateBattleLogDom(battle);
+    startBattleLogTyping(battle);
+  }
+
+  function visibleBattleLogText(current) {
+    if (!current) return "";
+    if (current.complete || BATTLE_LOG_TYPE_SPEED_MS <= 0) return current.text;
+    return current.text.slice(0, current.visibleLength);
+  }
+
+  function renderBattleLog(battle) {
+    ensureBattleLogState(battle);
+    const history = battle.logHistory.slice(-BATTLE_LOG_HISTORY_LIMIT);
+    const historyHtml = history.map((line) => `<div class="encounter-log-old">${escapeHtml(line)}</div>`).join("");
+    const current = battle.logCurrent;
+    const currentText = visibleBattleLogText(current);
+    const caret = current && !current.complete ? '<span class="log-caret">▌</span>' : '';
+    const queueMark = battle.logQueue.length ? `<span class="log-queue-mark">+${escapeHtml(battle.logQueue.length)}</span>` : "";
+    return `${historyHtml}<div class="encounter-log-current">${escapeHtml(currentText)}${caret}${queueMark}</div>`;
+  }
+
+  function updateBattleLogDom(battle) {
+    const logLines = document.querySelector(".encounter-log-lines");
+    if (!logLines || !battle) return;
+    logLines.innerHTML = renderBattleLog(battle);
+  }
+
+  function startBattleLogTyping(battle) {
+    clearBattleLogTimer();
+    if (!battle) return;
+    ensureBattleLogState(battle);
+    const current = battle.logCurrent;
+    if (!current || current.complete) {
+      if (battle.logQueue.length) {
+        battleLogTimer = window.setTimeout(() => advanceBattleLogQueue(battle), BATTLE_LOG_NEXT_DELAY_MS);
+      }
+      return;
+    }
+    if (BATTLE_LOG_TYPE_SPEED_MS <= 0) {
+      finishBattleLogTyping(battle);
+      if (battle.logQueue.length) advanceBattleLogQueue(battle);
+      return;
+    }
+    if (current.visibleLength >= current.text.length) {
+      current.complete = true;
+      updateBattleLogDom(battle);
+      if (battle.logQueue.length) {
+        battleLogTimer = window.setTimeout(() => advanceBattleLogQueue(battle), BATTLE_LOG_NEXT_DELAY_MS);
+      }
+      return;
+    }
+    battleLogTimer = window.setTimeout(() => {
+      current.visibleLength = Math.min(current.text.length, current.visibleLength + 1);
+      updateBattleLogDom(battle);
+      startBattleLogTyping(battle);
+    }, BATTLE_LOG_TYPE_SPEED_MS);
   }
 
   function getAliveEnemies(battle) {
@@ -833,11 +969,11 @@
     renderEncounterWindow(state.currentBattle);
   }
 
-  function renderEncounterWindow(battle, notice = "") {
+  function renderEncounterWindow(battle) {
     const overlay = getEventOverlay();
     const enemyCards = buildEnemyCards(battle);
     const finished = battle.finished || isBattleFinished(battle);
-    const prompt = notice || battle.prompt;
+    const prompt = finished ? "戦闘終了。" : battle.prompt;
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel encounter-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
         <div class="event-message-box" aria-live="polite">
@@ -846,14 +982,22 @@
           <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
         </div>
         <div class="encounter-body-frame">
-          <div class="encounter-round-line">ROUND ${escapeHtml(battle.round)} / v23 HP確認用</div>
+          <div class="encounter-round-line">ROUND ${escapeHtml(battle.round)} / ${escapeHtml(BUILD_VERSION)}</div>
           <div class="encounter-enemy-grid">
             ${enemyCards}
           </div>
-          <div class="encounter-note">${escapeHtml(battle.note)}</div>
+        </div>
+        <div class="encounter-log-frame" aria-live="polite" data-log-skip="true">
+          <div class="event-command-title">LOG <span class="log-speed-label">TYPE ${escapeHtml(BATTLE_LOG_TYPE_SPEED_MS)}ms</span></div>
+          <div class="encounter-log-lines">
+            ${renderBattleLog(battle)}
+          </div>
         </div>
         <div class="event-main-grid encounter-command-grid">
-          <div class="event-command-frame">
+          <div class="event-party-frame encounter-party-frame">
+            ${renderEventPartyTable({ compact: true })}
+          </div>
+          <div class="event-command-frame encounter-command-frame">
             <div class="event-command-title">COMMAND</div>
             <div class="event-actions">
               <button data-action="fight" ${finished ? "disabled" : ""}>戦う</button>
@@ -862,33 +1006,46 @@
               <button data-action="close">離れる</button>
             </div>
           </div>
-          <div class="event-party-frame">
-            ${renderEventPartyTable()}
-          </div>
         </div>
       </div>
     `;
     bindWindowActions(overlay, (action) => {
       if (action === "close") {
+        clearBattleLogTimer();
         state.currentBattle = null;
         closeEventWindow();
         return;
       }
+      if (finishBattleLogTyping(battle)) {
+        return;
+      }
       if (action === "fight") {
         const result = resolveFrontAttackRound(battle);
-        renderEncounterWindow(battle, result);
+        pushBattleLog(battle, result);
+        renderEncounterWindow(battle);
         return;
       }
       if (action === "guard") {
-        renderEncounterWindow(battle, "身を守った。敵の反撃はまだ未接続。");
+        pushBattleLog(battle, "身を守った。敵の反撃はまだ未接続。");
+        renderEncounterWindow(battle);
         return;
       }
       if (action === "run") {
+        clearBattleLogTimer();
         state.currentBattle = null;
         closeEventWindow();
         setMessage("逃げた。", false);
       }
     });
+    const logFrame = overlay.querySelector("[data-log-skip='true']");
+    if (logFrame) {
+      logFrame.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        finishBattleLogTyping(battle);
+      }, { passive: false });
+    }
+    startBattleLogTyping(battle);
   }
 
   function openCampWindow() {
