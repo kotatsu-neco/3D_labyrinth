@@ -53,14 +53,14 @@
   // v23bではログ枠にトースト風のタイプライター表示を追加する。
   // v23cでは実機確認結果を受け、戦闘UIとステータス画面を圧縮・再配置する。
   // v23dでは戦闘画面の上部大見出しを排除し、戦闘ウィンドウ内レイアウトを再整理する。
-  // v23eでは完成形から逆算し、キャラクター別コマンド入力、戻る、行動キュー、浮動LOG小窓の骨格を導入する。
+  // v23fでは実機確認結果を受け、下部2列操作パッド、閉じられる浮動LOG、ステータス詳細2カラムを導入する。
   // 敵の反撃、命中式の本決定、経験値、戦利品処理はまだ行わない.
   // ENCOUNTER_DEMOS は実機確認用の一時的なUIデモデータであり、正本の遭遇テーブルではない。
   // データファイル data/encounters_v23.json / data/enemy_definitions_v23.json は参照用として同梱しているが、
   // v23a時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
-  const BUILD_VERSION = "v23e";
+  const BUILD_VERSION = "v23f";
   const PROTOTYPE_TITLE = "タイトル未定";
   const PROTOTYPE_SUBTITLE = "地下方舟3Dダンジョン試作";
   const FLOOR_META = {
@@ -774,6 +774,7 @@
       logHistory: [],
       logCurrent: { text: encounter.prompt, visibleLength: 0, complete: false },
       logQueue: [],
+      logPanelOpen: true,
       inputPhase: "character_command",
       inputIndex: 0,
       commandContext: null,
@@ -898,6 +899,7 @@
     if (!battle) return;
     battle.logHistory = Array.isArray(battle.logHistory) ? battle.logHistory : [];
     battle.logQueue = Array.isArray(battle.logQueue) ? battle.logQueue : [];
+    if (typeof battle.logPanelOpen !== "boolean") battle.logPanelOpen = true;
     if (!battle.logCurrent) {
       battle.logCurrent = { text: battle.prompt || "", visibleLength: 0, complete: false };
     }
@@ -975,6 +977,26 @@
     if (!logLines || !battle) return;
     logLines.innerHTML = renderBattleLog(battle);
   }
+  function renderBattleLogPanel(battle) {
+    ensureBattleLogState(battle);
+    if (!battle.logPanelOpen) {
+      return `
+        <button class="battle-log-toggle" data-action="battle:log:open" aria-label="ログを開く">LOG</button>
+      `;
+    }
+    return `
+      <div class="encounter-log-frame battle-log-float" aria-live="polite" data-log-skip="true">
+        <div class="battle-log-title-row">
+          <div class="event-command-title">LOG <span class="log-speed-label">TYPE ${escapeHtml(BATTLE_LOG_TYPE_SPEED_MS)}ms</span></div>
+          <button class="battle-log-close" data-action="battle:log:close" aria-label="ログを閉じる">×</button>
+        </div>
+        <div class="encounter-log-lines">
+          ${renderBattleLog(battle)}
+        </div>
+      </div>
+    `;
+  }
+
 
   function startBattleLogTyping(battle) {
     clearBattleLogTimer();
@@ -1155,7 +1177,7 @@
       return `
         <div class="battle-input-title">行動を開始</div>
         <div class="battle-input-note">${escapeHtml((battle.actionQueue || []).length)}人分の行動を入力済み。</div>
-        <div class="battle-command-list">
+        <div class="battle-command-list battle-command-grid-2">
           <button data-action="battle:round:start">決定</button>
           <button data-action="battle:back">戻る</button>
         </div>
@@ -1167,38 +1189,38 @@
     const identity = `${member.name} / ${member.className} / ${member.row === "front" ? "前衛" : "後衛"}`;
     if (battle.inputPhase === "target_select") {
       return `
-        <div class="battle-input-title">対象: ${escapeHtml(identity)}</div>
-        <div class="battle-command-list battle-scroll-list">
+        <div class="battle-input-title">攻撃対象: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list battle-command-grid-2">
           ${renderBattleEnemyTargetButtons(battle)}
-          <button data-action="battle:target:back">戻る</button>
+          <button class="battle-wide-button" data-action="battle:target:back">戻る</button>
         </div>
       `;
     }
     if (battle.inputPhase === "spell_select") {
       return `
-        <div class="battle-input-title">呪文: ${escapeHtml(identity)}</div>
-        <div class="battle-command-list battle-scroll-list">
+        <div class="battle-input-title">呪文選択: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list battle-command-grid-2">
           ${renderBattleSpellOptions(member)}
-          <button data-action="battle:target:back">戻る</button>
+          <button class="battle-wide-button" data-action="battle:target:back">戻る</button>
         </div>
       `;
     }
     if (battle.inputPhase === "item_select") {
       return `
-        <div class="battle-input-title">道具: ${escapeHtml(identity)}</div>
-        <div class="battle-command-list battle-scroll-list">
+        <div class="battle-input-title">道具選択: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list battle-command-grid-2">
           ${renderBattleItemOptions(member)}
-          <button data-action="battle:target:back">戻る</button>
+          <button class="battle-wide-button" data-action="battle:target:back">戻る</button>
         </div>
       `;
     }
     return `
       <div class="battle-input-title">入力: ${escapeHtml(identity)}</div>
-      <div class="battle-command-list">
+      <div class="battle-command-list battle-command-grid-2 battle-main-command-pad">
         <button data-action="battle:cmd:attack">攻撃</button>
         <button data-action="battle:cmd:defend">守る</button>
-        ${canMemberCast(member) ? `<button data-action="battle:cmd:spell">呪文</button>` : ""}
-        ${canMemberUseItem(member) ? `<button data-action="battle:cmd:item">道具</button>` : ""}
+        <button data-action="battle:cmd:spell" ${canMemberCast(member) ? "" : "disabled"}>呪文</button>
+        <button data-action="battle:cmd:item" ${canMemberUseItem(member) ? "" : "disabled"}>道具</button>
         <button data-action="battle:cmd:run">逃げる</button>
         <button data-action="battle:back" ${(battle.actionQueue || []).length ? "" : "disabled"}>戻る</button>
       </div>
@@ -1207,6 +1229,18 @@
 
   function handleBattleAction(battle, action) {
     if (!battle) return;
+    if (action === "battle:log:close") {
+      ensureBattleLogState(battle);
+      battle.logPanelOpen = false;
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action === "battle:log:open") {
+      ensureBattleLogState(battle);
+      battle.logPanelOpen = true;
+      renderEncounterWindow(battle);
+      return;
+    }
     if (action === "battle:back" || action === "battle:target:back") {
       backToPreviousBattleInput(battle);
       renderEncounterWindow(battle);
@@ -1292,7 +1326,7 @@
     const enemyCards = buildEnemyCards(battle);
     const inputPanel = renderBattleInputPanel(battle);
     overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v23e" role="dialog" aria-modal="true" aria-label="戦闘画面">
+      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v23f" role="dialog" aria-modal="true" aria-label="戦闘画面">
         <button class="event-close-btn panel-close-btn encounter-close-btn" data-action="close" aria-label="閉じる">×</button>
         <div class="encounter-body-frame battle-enemy-frame">
           <div class="encounter-round-line">ROUND ${escapeHtml(battle.round)} / ${escapeHtml(BUILD_VERSION)}</div>
@@ -1306,12 +1340,7 @@
         <div class="event-command-frame battle-input-frame" aria-label="戦闘入力">
           ${inputPanel}
         </div>
-        <div class="encounter-log-frame battle-log-float" aria-live="polite" data-log-skip="true">
-          <div class="event-command-title">LOG <span class="log-speed-label">TYPE ${escapeHtml(BATTLE_LOG_TYPE_SPEED_MS)}ms</span></div>
-          <div class="encounter-log-lines">
-            ${renderBattleLog(battle)}
-          </div>
-        </div>
+        ${renderBattleLogPanel(battle)}
       </div>
     `;
     bindWindowActions(overlay, (action) => {
@@ -1319,6 +1348,10 @@
         clearBattleLogTimer();
         state.currentBattle = null;
         closeEventWindow();
+        return;
+      }
+      if (action === "battle:log:close" || action === "battle:log:open") {
+        handleBattleAction(battle, action);
         return;
       }
       if (isBattleLogActive(battle)) {
@@ -1332,6 +1365,7 @@
     const logFrame = overlay.querySelector("[data-log-skip='true']");
     if (logFrame) {
       const skipLog = (event) => {
+        if (event.target && event.target.closest && event.target.closest("[data-action]")) return;
         event.preventDefault();
         event.stopPropagation();
         if (!finishBattleLogTyping(battle) && battle.logQueue && battle.logQueue.length) {
@@ -1639,45 +1673,50 @@
     state.eventWindowOpen = true;
     const overlay = getEventOverlay();
     const spellRows = renderSpellPointRows(member);
-    const itemRows = (member.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    const itemRows = (member.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || `<li>なし</li>`;
     const backButton = returnMode === "campMembers" ? `<button data-action="backToCampMembers">戻る</button>` : "";
 
     overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel character-detail-panel compact-status-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
-        <div class="character-detail-frame compact-status-frame">
-          <div class="character-detail-title compact-status-title">
+      <div class="event-window-panel wizardry-event-panel character-detail-panel compact-status-panel status-detail-v23f-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="character-detail-frame compact-status-frame status-detail-v23f-frame">
+          <div class="character-detail-title compact-status-title status-detail-v23f-title">
             <span id="eventWindowTitle">${escapeHtml(member.name)}</span>
             <span>LV ${escapeHtml(member.level)}</span>
             <button class="event-close-btn compact-close-btn" data-action="close" aria-label="閉じる">×</button>
           </div>
-          <div class="character-identity-grid compact-pair-grid">
-            <div><span>ALIGN</span><strong>${escapeHtml(member.alignment)}</strong></div>
-            <div><span>RACE</span><strong>${escapeHtml(member.race)}</strong></div>
-            <div><span>CLASS</span><strong>${escapeHtml(member.className)}</strong></div>
+          <div class="status-detail-v23f-body">
+            <div class="status-detail-v23f-left">
+              <div class="status-detail-v23f-list status-detail-v23f-identity">
+                <div><span>ALIGN</span><strong>${escapeHtml(member.alignment)}</strong></div>
+                <div><span>RACE</span><strong>${escapeHtml(member.race)}</strong></div>
+                <div><span>CLASS</span><strong>${escapeHtml(member.className)}</strong></div>
+              </div>
+              <div class="status-detail-v23f-list status-detail-v23f-basic">
+                <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
+                <div><span>AC</span><strong>${escapeHtml(member.ac)}</strong></div>
+                <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
+                <div><span>GOLD</span><strong>${escapeHtml(member.gold)}</strong></div>
+              </div>
+              <div class="status-detail-v23f-list status-detail-v23f-attributes" aria-label="能力値">
+                <div><span>STR</span><strong>${escapeHtml(member.stats.str)}</strong></div>
+                <div><span>VIT</span><strong>${escapeHtml(member.stats.vit)}</strong></div>
+                <div><span>I.Q.</span><strong>${escapeHtml(member.stats.iq)}</strong></div>
+                <div><span>AGI</span><strong>${escapeHtml(member.stats.agi)}</strong></div>
+                <div><span>PIE</span><strong>${escapeHtml(member.stats.pie)}</strong></div>
+                <div><span>LUC</span><strong>${escapeHtml(member.stats.luc)}</strong></div>
+              </div>
+              <div class="character-section-title status-detail-v23f-spell-title">SPELL POINTS</div>
+              <div class="character-spell-grid compact-pair-grid status-detail-v23f-spells">
+                ${spellRows}
+              </div>
+            </div>
+            <div class="status-detail-v23f-items" aria-label="所持アイテム">
+              <div class="character-section-title status-detail-v23f-items-title">ITEMS</div>
+              <ol class="character-item-list compact-item-list status-detail-v23f-item-list">${itemRows}</ol>
+            </div>
           </div>
-          <div class="character-basic-grid compact-pair-grid">
-            <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
-            <div><span>AC</span><strong>${escapeHtml(member.ac)}</strong></div>
-            <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
-            <div><span>GOLD</span><strong>${escapeHtml(member.gold)}</strong></div>
-          </div>
-          <div class="character-section-title">ATTRIBUTES</div>
-          <div class="character-attribute-grid compact-pair-grid">
-            <div><span>STR</span><strong>${escapeHtml(member.stats.str)}</strong></div>
-            <div><span>I.Q.</span><strong>${escapeHtml(member.stats.iq)}</strong></div>
-            <div><span>PIE</span><strong>${escapeHtml(member.stats.pie)}</strong></div>
-            <div><span>VIT</span><strong>${escapeHtml(member.stats.vit)}</strong></div>
-            <div><span>AGI</span><strong>${escapeHtml(member.stats.agi)}</strong></div>
-            <div><span>LUC</span><strong>${escapeHtml(member.stats.luc)}</strong></div>
-          </div>
-          <div class="character-section-title">SPELL POINTS</div>
-          <div class="character-spell-grid compact-pair-grid">
-            ${spellRows}
-          </div>
-          <div class="character-section-title">ITEMS</div>
-          <ol class="character-item-list compact-item-list">${itemRows}</ol>
         </div>
-        <div class="event-command-frame character-detail-actions compact-status-actions">
+        <div class="event-command-frame character-detail-actions compact-status-actions status-detail-v23f-actions">
           <div class="event-actions">
             <button data-action="spell:${escapeHtml(member.id)}">呪文</button>
             <button data-action="items:${escapeHtml(member.id)}">アイテム</button>
