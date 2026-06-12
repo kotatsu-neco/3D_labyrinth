@@ -53,14 +53,14 @@
   // v23bではログ枠にトースト風のタイプライター表示を追加する。
   // v23cでは実機確認結果を受け、戦闘UIとステータス画面を圧縮・再配置する。
   // v23dでは戦闘画面の上部大見出しを排除し、戦闘ウィンドウ内レイアウトを再整理する。
-  // v23fでは実機確認結果を受け、下部2列操作パッド、閉じられる浮動LOG、ステータス詳細2カラムを導入する。
+  // v23gでは実機確認結果を受け、下部2列操作パッド、閉じられる浮動LOG、ステータス詳細2カラムを導入する。
   // 敵の反撃、命中式の本決定、経験値、戦利品処理はまだ行わない.
   // ENCOUNTER_DEMOS は実機確認用の一時的なUIデモデータであり、正本の遭遇テーブルではない。
   // データファイル data/encounters_v23.json / data/enemy_definitions_v23.json は参照用として同梱しているが、
   // v23a時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
-  const BUILD_VERSION = "v23f";
+  const BUILD_VERSION = "v23g";
   const PROTOTYPE_TITLE = "タイトル未定";
   const PROTOTYPE_SUBTITLE = "地下方舟3Dダンジョン試作";
   const FLOOR_META = {
@@ -167,42 +167,42 @@
 
   const PARTY_MEMBERS = [
     {
-      id: "adel", name: "アデル", className: "FIG", level: 1, alignment: "GOOD", race: "HUM",
+      id: "adel", name: "アデル", className: "FIG", level: 1, age: 18, alignment: "GOOD", race: "HUM",
       hp: 34, maxHp: 34, ac: 4, status: "OK", row: "front", gold: 128,
       stats: { str: 12, iq: 8, pie: 7, vit: 11, agi: 9, luc: 8 },
       spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
       items: ["LONG SWORD", "LEATHER ARMOR", "SMALL SHIELD"],
     },
     {
-      id: "mira", name: "ミラ", className: "THI", level: 1, alignment: "NEUT", race: "HOB",
+      id: "mira", name: "ミラ", className: "THI", level: 1, age: 19, alignment: "NEUT", race: "HOB",
       hp: 28, maxHp: 28, ac: 2, status: "OK", row: "front", gold: 96,
       stats: { str: 9, iq: 10, pie: 6, vit: 9, agi: 14, luc: 12 },
       spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
       items: ["SHORT SWORD", "LEATHER ARMOR", "THIEVES TOOLS"],
     },
     {
-      id: "gald", name: "ガルド", className: "FIG", level: 1, alignment: "GOOD", race: "DWF",
+      id: "gald", name: "ガルド", className: "FIG", level: 1, age: 34, alignment: "GOOD", race: "DWF",
       hp: 41, maxHp: 41, ac: 3, status: "OK", row: "front", gold: 104,
       stats: { str: 13, iq: 7, pie: 9, vit: 13, agi: 7, luc: 6 },
       spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
       items: ["MACE", "CHAIN MAIL", "HELM"],
     },
     {
-      id: "serin", name: "セリン", className: "PRI", level: 1, alignment: "GOOD", race: "GNM",
+      id: "serin", name: "セリン", className: "PRI", level: 1, age: 28, alignment: "GOOD", race: "GNM",
       hp: 18, maxHp: 18, ac: 6, status: "OK", row: "back", gold: 83,
       stats: { str: 8, iq: 9, pie: 13, vit: 10, agi: 8, luc: 9 },
       spells: { mage: [0,0,0,0,0,0,0], priest: [2,0,0,0,0,0,0] },
       items: ["STAFF", "ROBES", "HOLY SYMBOL"],
     },
     {
-      id: "row", name: "ロウ", className: "MAG", level: 1, alignment: "NEUT", race: "ELF",
+      id: "row", name: "ロウ", className: "MAG", level: 1, age: 24, alignment: "NEUT", race: "ELF",
       hp: 12, maxHp: 12, ac: 9, status: "OK", row: "back", gold: 74,
       stats: { str: 6, iq: 14, pie: 8, vit: 7, agi: 10, luc: 9 },
       spells: { mage: [2,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
       items: ["DAGGER", "ROBES", "SPELL BOOK"],
     },
     {
-      id: "nene", name: "ネネ", className: "BIS", level: 1, alignment: "GOOD", race: "ELF",
+      id: "nene", name: "ネネ", className: "BIS", level: 1, age: 27, alignment: "GOOD", race: "ELF",
       hp: 21, maxHp: 21, ac: 7, status: "OK", row: "back", gold: 62,
       stats: { str: 7, iq: 12, pie: 12, vit: 8, agi: 9, luc: 10 },
       spells: { mage: [1,0,0,0,0,0,0], priest: [1,0,0,0,0,0,0] },
@@ -1326,7 +1326,7 @@
     const enemyCards = buildEnemyCards(battle);
     const inputPanel = renderBattleInputPanel(battle);
     overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v23f" role="dialog" aria-modal="true" aria-label="戦闘画面">
+      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v23g" role="dialog" aria-modal="true" aria-label="戦闘画面">
         <button class="event-close-btn panel-close-btn encounter-close-btn" data-action="close" aria-label="閉じる">×</button>
         <div class="encounter-body-frame battle-enemy-frame">
           <div class="encounter-round-line">ROUND ${escapeHtml(battle.round)} / ${escapeHtml(BUILD_VERSION)}</div>
@@ -1677,27 +1677,28 @@
     const backButton = returnMode === "campMembers" ? `<button data-action="backToCampMembers">戻る</button>` : "";
 
     overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel character-detail-panel compact-status-panel status-detail-v23f-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
-        <div class="character-detail-frame compact-status-frame status-detail-v23f-frame">
-          <div class="character-detail-title compact-status-title status-detail-v23f-title">
+      <div class="event-window-panel wizardry-event-panel character-detail-panel compact-status-panel status-detail-v23g-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="character-detail-frame compact-status-frame status-detail-v23g-frame">
+          <div class="character-detail-title compact-status-title status-detail-v23g-title">
             <span id="eventWindowTitle">${escapeHtml(member.name)}</span>
             <span>LV ${escapeHtml(member.level)}</span>
             <button class="event-close-btn compact-close-btn" data-action="close" aria-label="閉じる">×</button>
           </div>
-          <div class="status-detail-v23f-body">
-            <div class="status-detail-v23f-left">
-              <div class="status-detail-v23f-list status-detail-v23f-identity">
+          <div class="status-detail-v23g-body">
+            <div class="status-detail-v23g-left">
+              <div class="status-detail-v23g-list status-detail-v23g-identity">
                 <div><span>ALIGN</span><strong>${escapeHtml(member.alignment)}</strong></div>
                 <div><span>RACE</span><strong>${escapeHtml(member.race)}</strong></div>
                 <div><span>CLASS</span><strong>${escapeHtml(member.className)}</strong></div>
+                <div><span>AGE</span><strong>${escapeHtml(member.age ?? "-")}</strong></div>
               </div>
-              <div class="status-detail-v23f-list status-detail-v23f-basic">
+              <div class="status-detail-v23g-list status-detail-v23g-basic">
                 <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
                 <div><span>AC</span><strong>${escapeHtml(member.ac)}</strong></div>
                 <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
                 <div><span>GOLD</span><strong>${escapeHtml(member.gold)}</strong></div>
               </div>
-              <div class="status-detail-v23f-list status-detail-v23f-attributes" aria-label="能力値">
+              <div class="status-detail-v23g-list status-detail-v23g-attributes" aria-label="能力値">
                 <div><span>STR</span><strong>${escapeHtml(member.stats.str)}</strong></div>
                 <div><span>VIT</span><strong>${escapeHtml(member.stats.vit)}</strong></div>
                 <div><span>I.Q.</span><strong>${escapeHtml(member.stats.iq)}</strong></div>
@@ -1705,18 +1706,18 @@
                 <div><span>PIE</span><strong>${escapeHtml(member.stats.pie)}</strong></div>
                 <div><span>LUC</span><strong>${escapeHtml(member.stats.luc)}</strong></div>
               </div>
-              <div class="character-section-title status-detail-v23f-spell-title">SPELL POINTS</div>
-              <div class="character-spell-grid compact-pair-grid status-detail-v23f-spells">
+              <div class="character-section-title status-detail-v23g-spell-title">SPELL POINTS</div>
+              <div class="character-spell-grid compact-pair-grid status-detail-v23g-spells">
                 ${spellRows}
               </div>
             </div>
-            <div class="status-detail-v23f-items" aria-label="所持アイテム">
-              <div class="character-section-title status-detail-v23f-items-title">ITEMS</div>
-              <ol class="character-item-list compact-item-list status-detail-v23f-item-list">${itemRows}</ol>
+            <div class="status-detail-v23g-items" aria-label="所持アイテム">
+              <div class="character-section-title status-detail-v23g-items-title">ITEMS</div>
+              <ul class="character-item-list compact-item-list status-detail-v23g-item-list">${itemRows}</ul>
             </div>
           </div>
         </div>
-        <div class="event-command-frame character-detail-actions compact-status-actions status-detail-v23f-actions">
+        <div class="event-command-frame character-detail-actions compact-status-actions status-detail-v23g-actions">
           <div class="event-actions">
             <button data-action="spell:${escapeHtml(member.id)}">呪文</button>
             <button data-action="items:${escapeHtml(member.id)}">アイテム</button>
