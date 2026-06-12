@@ -54,15 +54,21 @@
   // v23cでは実機確認結果を受け、戦闘UIとステータス画面を圧縮・再配置する。
   // v23dでは戦闘画面の上部大見出しを排除し、戦闘ウィンドウ内レイアウトを再整理する。
   // v23gでは実機確認結果を受け、下部2列操作パッド、閉じられる浮動LOG、ステータス詳細2カラムを導入する。
-  // 敵の反撃、命中式の本決定、経験値、戦利品処理はまだ行わない.
+  // v23hでは正式候補タイトル「暗澹の石櫃」を反映し、LOG小窓を実機スクリーンショットに合わせて少し縮小する。
+  // v24では次段階として敵の反撃、プレイヤーHP減少、暫定逃走判定を接続する。
+  // v25では勝利時の経験値・GOLD報酬を接続する。
+  // v27では戦闘中の呪文・回復道具に対象選択を追加する。
+  // v28ではキャンプ内アイテム操作として、戦闘外HEALING HERB使用・受け渡し・破棄を接続する。
+  // v29ではアイテム個体ごとの装備状態、装備/外す、装備による攻撃ダイスと有効ACを接続する。
+  // v29aでは装備入口から所持品画面へ進んだ場合の戻り先保持を修正する。
   // ENCOUNTER_DEMOS は実機確認用の一時的なUIデモデータであり、正本の遭遇テーブルではない。
   // データファイル data/encounters_v23.json / data/enemy_definitions_v23.json は参照用として同梱しているが、
-  // v23a時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
+  // v28時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
-  const BUILD_VERSION = "v23g";
-  const PROTOTYPE_TITLE = "タイトル未定";
-  const PROTOTYPE_SUBTITLE = "地下方舟3Dダンジョン試作";
+  const BUILD_VERSION = "v29a";
+  const PROTOTYPE_TITLE = "暗澹の石櫃";
+  const PROTOTYPE_SUBTITLE = "Stone Casket of Gloom";
   const FLOOR_META = {
     B1F: {
       layer: "浅層",
@@ -78,8 +84,50 @@
   const BATTLE_LOG_TYPE_SPEED_MS = 18;
   const BATTLE_LOG_HISTORY_LIMIT = 1;
   const BATTLE_LOG_NEXT_DELAY_MS = 180;
+  const BATTLE_ESCAPE_BASE_CHANCE = 0.58;
+  const RANDOM_ENCOUNTER_MIN_STEPS = 4;
+  const RANDOM_ENCOUNTER_STEP_CHANCE = 0.16;
+  const LEVEL_XP_THRESHOLDS = [0, 60, 160, 320, 560, 900];
   const BATTLE_PARTY_ACTION_MARKS = { current: "▶", queued: "✓", waiting: "-", unable: "×" };
   let battleLogTimer = 0;
+
+  const TREASURE_TABLES = {
+    shallow_battle_basic: [
+      { item: "HEALING HERB", chance: 38 },
+      { item: "SMALL KNIFE", chance: 18 },
+      { item: "TORN SCROLL", chance: 14 },
+      { item: "COPPER RING", chance: 10 }
+    ],
+    shallow_chest_basic: [
+      { item: "HEALING HERB", chance: 100 },
+      { item: "IRON KEY", chance: 55 },
+      { item: "OLD COIN", chance: 70 },
+      { item: "UNIDENTIFIED SCROLL", chance: 38 }
+    ]
+  };
+
+  const ITEM_DEFINITIONS = {
+    "LONG SWORD": { slot: "weapon", slotLabel: "WEAPON", damageDice: "1d8", hitBonus: 1 },
+    "SHORT SWORD": { slot: "weapon", slotLabel: "WEAPON", damageDice: "1d6", hitBonus: 0 },
+    "SMALL KNIFE": { slot: "weapon", slotLabel: "WEAPON", damageDice: "1d4", hitBonus: 0 },
+    "MACE": { slot: "weapon", slotLabel: "WEAPON", damageDice: "1d6", hitBonus: 0 },
+    "STAFF": { slot: "weapon", slotLabel: "WEAPON", damageDice: "1d4", hitBonus: 0 },
+    "DAGGER": { slot: "weapon", slotLabel: "WEAPON", damageDice: "1d4", hitBonus: 0 },
+    "LEATHER ARMOR": { slot: "armor", slotLabel: "ARMOR", acBonus: -2 },
+    "CHAIN MAIL": { slot: "armor", slotLabel: "ARMOR", acBonus: -4 },
+    "ROBES": { slot: "armor", slotLabel: "ARMOR", acBonus: -1 },
+    "SMALL SHIELD": { slot: "shield", slotLabel: "SHIELD", acBonus: -1 },
+    "HELM": { slot: "head", slotLabel: "HEAD", acBonus: -1 },
+  };
+
+  const EQUIPMENT_SLOTS = [
+    { key: "weapon", label: "WEAPON" },
+    { key: "armor", label: "ARMOR" },
+    { key: "shield", label: "SHIELD" },
+    { key: "head", label: "HEAD" },
+  ];
+
+  let nextItemInstanceSeq = 1;
 
   const ENEMY_DEFINITIONS = {
     enemy_black_slime_proto: {
@@ -107,7 +155,10 @@
       layer: "浅層",
       title: "ENCOUNTER",
       prompt: "敵が現れた。",
-      note: "確認用。敵HPと前衛攻撃のみ接続。反撃・経験値・戦利品は未接続。",
+      note: "確認用。敵HP、反撃、EXP/GOLD、暫定戦利品を接続。",
+      gold: { min: 8, max: 18 },
+      treasureTableId: "shallow_battle_basic",
+      dropChance: 45,
       enemies: [
         { enemyId: "enemy_black_slime_proto", label: "粘性体", count: 1, assetId: "black_slime", image: "assets/enemies/lowres/enemy_black_slime.png" },
         { enemyId: "enemy_black_wing_bug_proto", label: "虫型", count: 2, assetId: "black_wing_bug", image: "assets/enemies/lowres/enemy_black_wing_bug.png" }
@@ -119,7 +170,10 @@
       layer: "浅層",
       title: "ENCOUNTER",
       prompt: "敵が現れた。",
-      note: "確認用。敵名は仮分類であり正本化しない。",
+      note: "確認用。敵名は仮分類であり正本化しない。EXP/GOLDと暫定戦利品を接続。",
+      gold: { min: 12, max: 28 },
+      treasureTableId: "shallow_battle_basic",
+      dropChance: 55,
       enemies: [
         { enemyId: "enemy_goblin_raider_proto", label: "小型亜人", count: 3, assetId: "goblin_raider", image: "assets/enemies/lowres/enemy_goblin_raider.png" }
       ]
@@ -130,7 +184,10 @@
       layer: "浅層",
       title: "ENCOUNTER",
       prompt: "敵が現れた。",
-      note: "確認用。戦闘画面の密度とHP表示を見るための仮遭遇。",
+      note: "確認用。戦闘画面の密度、HP表示、敵反撃、EXP/GOLD、暫定戦利品を見るための仮遭遇。",
+      gold: { min: 10, max: 24 },
+      treasureTableId: "shallow_battle_basic",
+      dropChance: 50,
       enemies: [
         { enemyId: "enemy_bone_servant_proto", label: "骨の従者", count: 1, assetId: "bone_servant", image: "assets/enemies/lowres/enemy_bone_servant.png" },
         { enemyId: "enemy_black_slime_proto", label: "粘性体", count: 1, assetId: "black_slime", image: "assets/enemies/lowres/enemy_black_slime.png" }
@@ -155,7 +212,7 @@
 
   const DUNGEON_OBJECTS = [
     // 配置物は通路中央を塞がず、壁寄せ・床面模様・確認用の大型表示として扱う。
-    { id: "chest01", type: "chest", x: 8, z: 10, side: "S", blocking: false, mapChar: "C" },
+    { id: "chest01", type: "chest", x: 8, z: 10, side: "S", blocking: false, mapChar: "C", treasureTableId: "shallow_chest_basic" },
     { id: "lever01", type: "lever", x: 9, z: 5, side: "E", blocking: false, mapChar: "L", targetDoor: { x: 5, z: 4 } },
     { id: "altar01", type: "altar", x: 4, z: 9, side: "N", blocking: false, mapChar: "A" },
     { id: "statue01", type: "statue", x: 5, z: 10, side: "S", blocking: false, mapChar: "P" },
@@ -168,42 +225,42 @@
   const PARTY_MEMBERS = [
     {
       id: "adel", name: "アデル", className: "FIG", level: 1, age: 18, alignment: "GOOD", race: "HUM",
-      hp: 34, maxHp: 34, ac: 4, status: "OK", row: "front", gold: 128,
+      hp: 34, maxHp: 34, ac: 4, status: "OK", row: "front", gold: 128, xp: 0,
       stats: { str: 12, iq: 8, pie: 7, vit: 11, agi: 9, luc: 8 },
       spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
       items: ["LONG SWORD", "LEATHER ARMOR", "SMALL SHIELD"],
     },
     {
       id: "mira", name: "ミラ", className: "THI", level: 1, age: 19, alignment: "NEUT", race: "HOB",
-      hp: 28, maxHp: 28, ac: 2, status: "OK", row: "front", gold: 96,
+      hp: 28, maxHp: 28, ac: 2, status: "OK", row: "front", gold: 96, xp: 0,
       stats: { str: 9, iq: 10, pie: 6, vit: 9, agi: 14, luc: 12 },
       spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
       items: ["SHORT SWORD", "LEATHER ARMOR", "THIEVES TOOLS"],
     },
     {
       id: "gald", name: "ガルド", className: "FIG", level: 1, age: 34, alignment: "GOOD", race: "DWF",
-      hp: 41, maxHp: 41, ac: 3, status: "OK", row: "front", gold: 104,
+      hp: 41, maxHp: 41, ac: 3, status: "OK", row: "front", gold: 104, xp: 0,
       stats: { str: 13, iq: 7, pie: 9, vit: 13, agi: 7, luc: 6 },
       spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
       items: ["MACE", "CHAIN MAIL", "HELM"],
     },
     {
       id: "serin", name: "セリン", className: "PRI", level: 1, age: 28, alignment: "GOOD", race: "GNM",
-      hp: 18, maxHp: 18, ac: 6, status: "OK", row: "back", gold: 83,
+      hp: 18, maxHp: 18, ac: 6, status: "OK", row: "back", gold: 83, xp: 0,
       stats: { str: 8, iq: 9, pie: 13, vit: 10, agi: 8, luc: 9 },
       spells: { mage: [0,0,0,0,0,0,0], priest: [2,0,0,0,0,0,0] },
       items: ["STAFF", "ROBES", "HOLY SYMBOL"],
     },
     {
       id: "row", name: "ロウ", className: "MAG", level: 1, age: 24, alignment: "NEUT", race: "ELF",
-      hp: 12, maxHp: 12, ac: 9, status: "OK", row: "back", gold: 74,
+      hp: 12, maxHp: 12, ac: 9, status: "OK", row: "back", gold: 74, xp: 0,
       stats: { str: 6, iq: 14, pie: 8, vit: 7, agi: 10, luc: 9 },
       spells: { mage: [2,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
       items: ["DAGGER", "ROBES", "SPELL BOOK"],
     },
     {
       id: "nene", name: "ネネ", className: "BIS", level: 1, age: 27, alignment: "GOOD", race: "ELF",
-      hp: 21, maxHp: 21, ac: 7, status: "OK", row: "back", gold: 62,
+      hp: 21, maxHp: 21, ac: 7, status: "OK", row: "back", gold: 62, xp: 0,
       stats: { str: 7, iq: 12, pie: 12, vit: 8, agi: 9, luc: 10 },
       spells: { mage: [1,0,0,0,0,0,0], priest: [1,0,0,0,0,0,0] },
       items: ["STAFF", "ROBES", "UNIDENTIFIED SCROLL"],
@@ -229,6 +286,7 @@
     animation: null,
     message: "",
     encounterIndex: 0,
+    randomEncounterSteps: 0,
     currentBattle: null,
   };
 
@@ -579,7 +637,7 @@
           <span class="party-card-name">${escapeHtml(member.name)}</span>
           <span class="party-card-class">${escapeHtml(member.className)}</span>
         </span>
-        <span class="party-card-line"><span>HP ${escapeHtml(partyHpText(member))}</span><span>AC ${escapeHtml(member.ac)}</span></span>
+        <span class="party-card-line"><span>HP ${escapeHtml(partyHpText(member))}</span><span>AC ${escapeHtml(effectiveMemberAc(member))}</span></span>
         <span class="party-card-line party-card-status"><span>${escapeHtml(member.row === "front" ? "前衛" : "後衛")}</span><span>${escapeHtml(member.status)}</span></span>
       </button>
     `).join("");
@@ -606,7 +664,7 @@
     return `
       <div class="event-party-head"><span>${labels.map(escapeHtml).join("</span><span>")}</span></div>
       ${PARTY_MEMBERS.map((member) => `
-        <div class="event-party-row"><span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.className)}</span><span>${escapeHtml(partyHpText(member))}</span><span>${escapeHtml(member.ac)}</span><span>${escapeHtml(member.status)}</span></div>
+        <div class="event-party-row"><span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.className)}</span><span>${escapeHtml(partyHpText(member))}</span><span>${escapeHtml(effectiveMemberAc(member))}</span><span>${escapeHtml(member.status)}</span></div>
       `).join("")}
     `;
   }
@@ -739,9 +797,268 @@
     return total;
   }
 
+  function rollRange(range) {
+    const min = Math.max(0, Number(range && range.min ? range.min : 0));
+    const max = Math.max(min, Number(range && range.max ? range.max : min));
+    return min + Math.floor(Math.random() * (max - min + 1));
+  }
+
   function rollEnemyHp(definition) {
     const hp = definition.hp || { dice: "1d1", fixed: 0 };
     return Math.max(1, rollDice(hp.dice) + Number(hp.fixed || 0));
+  }
+
+  function rollPercent(chance) {
+    return Math.random() * 100 < Math.max(0, Math.min(100, Number(chance || 0)));
+  }
+
+  function rollTreasureItems(tableId, chance = 100) {
+    if (!tableId || !rollPercent(chance)) return [];
+    const table = TREASURE_TABLES[tableId];
+    if (!Array.isArray(table)) return [];
+    const results = [];
+    table.forEach((entry) => {
+      if (entry && entry.item && rollPercent(entry.chance)) results.push(String(entry.item));
+    });
+    return results;
+  }
+
+  function createItemInstance(itemName, equippedSlot = null) {
+    return {
+      instanceId: `item-${nextItemInstanceSeq++}`,
+      name: String(itemName || ""),
+      equippedSlot: equippedSlot || null,
+    };
+  }
+
+  function itemDisplayName(item) {
+    if (!item) return "";
+    if (typeof item === "string") return item;
+    return String(item.name || "");
+  }
+
+  function itemDefinition(item) {
+    return ITEM_DEFINITIONS[itemDisplayName(item)] || null;
+  }
+
+  function itemEquipSlot(item) {
+    const definition = itemDefinition(item);
+    return definition && definition.slot ? definition.slot : null;
+  }
+
+  function isEquipableItem(item) {
+    return Boolean(itemEquipSlot(item));
+  }
+
+  function isItemEquipped(item) {
+    return Boolean(item && typeof item === "object" && item.equippedSlot);
+  }
+
+  function equippedItemsForMember(member) {
+    return (member && Array.isArray(member.items) ? member.items : []).filter((item) => isItemEquipped(item));
+  }
+
+  function equippedItemForSlot(member, slot) {
+    return equippedItemsForMember(member).find((item) => item.equippedSlot === slot) || null;
+  }
+
+  function equippedItemLabel(member, slot) {
+    const item = equippedItemForSlot(member, slot);
+    return item ? itemDisplayName(item) : "-";
+  }
+
+  function equippedItemSummary(member) {
+    return EQUIPMENT_SLOTS.map((slot) => `${slot.label}:${equippedItemLabel(member, slot.key)}`).join(" / ");
+  }
+
+  function itemStatusLabel(item) {
+    const definition = itemDefinition(item);
+    if (isItemEquipped(item)) return "E";
+    if (definition && definition.slotLabel) return definition.slotLabel;
+    if (isCampUsableItem(item)) return "USE";
+    return "-";
+  }
+
+  function normalizeMemberItems(member) {
+    if (!member) return;
+    const sourceItems = Array.isArray(member.items) ? member.items : [];
+    member.items = sourceItems.map((item) => {
+      if (item && typeof item === "object" && item.name) {
+        if (!item.instanceId) item.instanceId = `item-${nextItemInstanceSeq++}`;
+        if (item.equippedSlot === undefined) item.equippedSlot = null;
+        return item;
+      }
+      return createItemInstance(item);
+    });
+
+    const usedSlots = new Set();
+    member.items.forEach((item) => {
+      const slot = itemEquipSlot(item);
+      if (!slot) {
+        item.equippedSlot = null;
+        return;
+      }
+      if (item.equippedSlot && item.equippedSlot !== slot) item.equippedSlot = null;
+      if (item.equippedSlot && usedSlots.has(item.equippedSlot)) item.equippedSlot = null;
+      if (item.equippedSlot) usedSlots.add(item.equippedSlot);
+    });
+
+    member.items.forEach((item) => {
+      const slot = itemEquipSlot(item);
+      if (!slot || usedSlots.has(slot)) return;
+      item.equippedSlot = slot;
+      usedSlots.add(slot);
+    });
+
+    const equippedAc = member.items.reduce((sum, item) => {
+      const definition = itemDefinition(item);
+      return sum + (isItemEquipped(item) ? Number(definition && definition.acBonus ? definition.acBonus : 0) : 0);
+    }, 0);
+    if (!Number.isFinite(Number(member.baseAc))) {
+      member.baseAc = Number(member.ac || 10) - equippedAc;
+    }
+  }
+
+  function normalizePartyEquipment() {
+    PARTY_MEMBERS.forEach(normalizeMemberItems);
+  }
+
+  function effectiveMemberAc(member) {
+    if (!member) return 10;
+    const base = Number.isFinite(Number(member.baseAc)) ? Number(member.baseAc) : Number(member.ac || 10);
+    return equippedItemsForMember(member).reduce((sum, item) => {
+      const definition = itemDefinition(item);
+      return sum + Number(definition && definition.acBonus ? definition.acBonus : 0);
+    }, base);
+  }
+
+  function equipMemberItem(member, itemIndex) {
+    const item = itemAtIndex(member, itemIndex);
+    const slot = itemEquipSlot(item);
+    const itemName = itemDisplayName(item);
+    if (!member || !item) return { ok: false, notice: "道具が見つからない。" };
+    if (!slot) return { ok: false, notice: `${itemName}は装備できない。` };
+    if (isItemEquipped(item)) {
+      item.equippedSlot = null;
+      renderPartyCards();
+      return { ok: true, notice: `${member.name}は${itemName}を外した。` };
+    }
+    (member.items || []).forEach((candidate) => {
+      if (candidate && typeof candidate === "object" && candidate.equippedSlot === slot) candidate.equippedSlot = null;
+    });
+    item.equippedSlot = slot;
+    renderPartyCards();
+    return { ok: true, notice: `${member.name}は${itemName}を装備した。` };
+  }
+
+  function firstLivingMember() {
+    return livingPartyMembers()[0] || PARTY_MEMBERS.find((member) => member.hp > 0) || PARTY_MEMBERS[0] || null;
+  }
+
+  function mostWoundedLivingMember() {
+    const candidates = livingPartyMembers().filter((member) => Number(member.hp || 0) < Number(member.maxHp || 0));
+    if (!candidates.length) return null;
+    return candidates.sort((a, b) => ((a.hp / Math.max(1, a.maxHp)) - (b.hp / Math.max(1, b.maxHp))))[0];
+  }
+
+  function findPartyMember(memberId) {
+    return PARTY_MEMBERS.find((member) => member.id === memberId) || null;
+  }
+
+  function isLivingMember(member) {
+    return Boolean(member && member.status === "OK" && Number(member.hp || 0) > 0);
+  }
+
+  function isWoundedLivingMember(member) {
+    return Boolean(isLivingMember(member) && Number(member.hp || 0) < Number(member.maxHp || 0));
+  }
+
+  function isBattleUsableItem(item) {
+    return itemDisplayName(item) === "HEALING HERB";
+  }
+
+  function isCampUsableItem(item) {
+    return itemDisplayName(item) === "HEALING HERB";
+  }
+
+  function itemAtIndex(member, itemIndex) {
+    if (!member || !Array.isArray(member.items)) return null;
+    const index = Number(itemIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= member.items.length) return null;
+    return member.items[index];
+  }
+
+  function useCampItemOnTarget(member, itemIndex, targetMemberId) {
+    const index = Number(itemIndex);
+    const item = itemAtIndex(member, index);
+    const itemName = itemDisplayName(item);
+    if (!item) return { ok: false, notice: "道具が見つからない。" };
+    if (!isCampUsableItem(item)) return { ok: false, notice: `${itemName}はまだ使えない。` };
+    const target = findPartyMember(targetMemberId);
+    if (!isLivingMember(target)) return { ok: false, notice: "対象を回復できない。" };
+    if (!isWoundedLivingMember(target)) return { ok: false, notice: `${target.name}に傷はない。` };
+    member.items.splice(index, 1);
+    const amount = Math.max(1, rollDice("1d6") + 3);
+    target.hp = Math.min(Number(target.maxHp || 1), Number(target.hp || 0) + amount);
+    renderPartyCards();
+    return { ok: true, notice: `${member.name}は${itemName}で${target.name}を${amount}回復した。` };
+  }
+
+  function transferItemToMember(member, itemIndex, targetMemberId) {
+    const index = Number(itemIndex);
+    const item = itemAtIndex(member, index);
+    const itemName = itemDisplayName(item);
+    const target = findPartyMember(targetMemberId);
+    if (!item) return { ok: false, notice: "道具が見つからない。" };
+    if (!target) return { ok: false, notice: "渡す相手が見つからない。" };
+    if (target.id === member.id) return { ok: false, notice: "同じメンバーには渡せない。" };
+    if (item && typeof item === "object") item.equippedSlot = null;
+    member.items.splice(index, 1);
+    addItemToMember(target, item);
+    renderPartyCards();
+    return { ok: true, notice: `${member.name}は${target.name}に${itemName}を渡した。` };
+  }
+
+  function dropMemberItem(member, itemIndex) {
+    const index = Number(itemIndex);
+    const item = itemAtIndex(member, index);
+    const itemName = itemDisplayName(item);
+    if (!item) return { ok: false, notice: "道具が見つからない。" };
+    if (item && typeof item === "object") item.equippedSlot = null;
+    member.items.splice(index, 1);
+    renderPartyCards();
+    return { ok: true, notice: `${member.name}は${itemName}を捨てた。` };
+  }
+
+  function addItemToMember(member, item) {
+    if (!member || !item) return false;
+    if (!Array.isArray(member.items)) member.items = [];
+    if (item && typeof item === "object" && item.name) {
+      item.equippedSlot = null;
+      if (!item.instanceId) item.instanceId = `item-${nextItemInstanceSeq++}`;
+      member.items.push(item);
+      return true;
+    }
+    member.items.push(createItemInstance(item));
+    return true;
+  }
+
+  function createBattleReward(groups, encounter) {
+    const totalXp = groups.reduce((sum, group) => {
+      const xp = Number(group.definition && group.definition.xp ? group.definition.xp : 0);
+      return sum + xp * group.instances.length;
+    }, 0);
+    const totalGold = rollRange(encounter && encounter.gold);
+    const items = rollTreasureItems(encounter && encounter.treasureTableId, encounter && encounter.dropChance);
+    return {
+      totalXp,
+      totalGold,
+      items,
+      applied: false,
+      eligibleCount: 0,
+      shares: [],
+      itemRecipient: null,
+    };
   }
 
   function createBattleFromEncounter(encounter) {
@@ -781,6 +1098,7 @@
       actionQueue: [],
       finished: false,
       result: null,
+      reward: createBattleReward(groups, encounter),
     };
   }
 
@@ -816,7 +1134,7 @@
   }
 
   function canMemberUseItem(member) {
-    return Boolean(member && Array.isArray(member.items) && member.items.length > 0);
+    return Boolean(member && Array.isArray(member.items) && member.items.some((item) => isBattleUsableItem(item)));
   }
 
   function resetBattleInputForRound(battle) {
@@ -854,7 +1172,21 @@
 
   function backToPreviousBattleInput(battle) {
     if (!battle) return;
-    if (battle.inputPhase === "target_select" || battle.inputPhase === "spell_select" || battle.inputPhase === "item_select") {
+    if (["target_select", "spell_select", "item_select", "spell_target_enemy", "spell_target_ally", "item_target_ally"].includes(battle.inputPhase)) {
+      if (battle.inputPhase === "spell_target_enemy" || battle.inputPhase === "spell_target_ally") {
+        battle.inputPhase = "spell_select";
+        if (battle.commandContext) {
+          battle.commandContext = { command: "spell", characterId: battle.commandContext.characterId };
+        }
+        return;
+      }
+      if (battle.inputPhase === "item_target_ally") {
+        battle.inputPhase = "item_select";
+        if (battle.commandContext) {
+          battle.commandContext = { command: "item", characterId: battle.commandContext.characterId };
+        }
+        return;
+      }
       battle.inputPhase = "character_command";
       battle.commandContext = null;
       return;
@@ -1037,7 +1369,34 @@
     return getAliveEnemies(battle).length === 0;
   }
 
+  function livingPartyMembers() {
+    return PARTY_MEMBERS.filter((member) => member.status === "OK" && member.hp > 0);
+  }
+
+  function isPartyDefeated() {
+    return livingPartyMembers().length === 0;
+  }
+
+  function hitTargetNumberForAc(ac) {
+    // ACは低いほどよい。低ACほど命中に必要な値が高くなるようにする。
+    const numericAc = Number.isFinite(Number(ac)) ? Number(ac) : 10;
+    return Math.max(5, Math.min(18, 16 - numericAc));
+  }
+
+  function memberHitBonus(member) {
+    const level = Number(member && member.level ? member.level : 1);
+    const stats = (member && member.stats) || {};
+    const strBonus = Math.floor((Number(stats.str || 10) - 10) / 4);
+    const agiBonus = member && member.className === "THI" ? Math.floor((Number(stats.agi || 10) - 10) / 5) : 0;
+    const weapon = equippedItemForSlot(member, "weapon");
+    const weaponBonus = Number((itemDefinition(weapon) && itemDefinition(weapon).hitBonus) || 0);
+    return level + strBonus + agiBonus + weaponBonus;
+  }
+
   function memberDamageDice(member) {
+    const weapon = equippedItemForSlot(member, "weapon");
+    const definition = itemDefinition(weapon);
+    if (definition && definition.damageDice) return definition.damageDice;
     if (member.className === "FIG") return "1d6";
     if (member.className === "THI") return "1d4";
     if (member.className === "PRI") return "1d4";
@@ -1049,51 +1408,285 @@
     return Math.max(0, Math.floor((((member.stats && member.stats.str) || 10) - 10) / 3));
   }
 
+  function enemyDisplayName(group) {
+    return group && group.label ? group.label : "敵";
+  }
+
+  function chooseEnemyAttack(definition) {
+    const attacks = definition && Array.isArray(definition.attacks) ? definition.attacks : [];
+    if (!attacks.length) return { id: "attack", targetRule: "front_single", hitBonus: 0, damageDice: "1d3", damageBonus: 0 };
+    const total = attacks.reduce((sum, attack) => sum + Math.max(0, Number(attack.chance || 0)), 0);
+    if (total <= 0) return attacks[0];
+    let roll = Math.random() * total;
+    for (const attack of attacks) {
+      roll -= Math.max(0, Number(attack.chance || 0));
+      if (roll <= 0) return attack;
+    }
+    return attacks[0];
+  }
+
+  function chooseEnemyTarget() {
+    const living = livingPartyMembers();
+    const front = living.filter((member) => member.row === "front");
+    const candidates = front.length ? front : living;
+    if (!candidates.length) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  function isMemberDefending(actionSet, memberId) {
+    return Boolean(actionSet && actionSet.has(memberId));
+  }
+
+  function setMemberDown(member) {
+    member.hp = 0;
+    member.status = "DOWN";
+  }
+
+  function distributeRewardAmount(total, recipients) {
+    const count = recipients.length;
+    if (!count || total <= 0) return new Map();
+    const base = Math.floor(total / count);
+    let remainder = total % count;
+    const result = new Map();
+    recipients.forEach((member) => {
+      const share = base + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder -= 1;
+      result.set(member.id, share);
+    });
+    return result;
+  }
+
+  function xpForNextLevel(member) {
+    const currentLevel = Math.max(1, Number(member && member.level ? member.level : 1));
+    return LEVEL_XP_THRESHOLDS[currentLevel] || null;
+  }
+
+  function tryApplyLevelUp(member) {
+    const lines = [];
+    if (!member) return lines;
+    let next = xpForNextLevel(member);
+    while (next !== null && Number(member.xp || 0) >= next) {
+      member.level = Number(member.level || 1) + 1;
+      const hpGain = Math.max(2, rollDice(member.className === "FIG" ? "1d8" : member.className === "THI" ? "1d6" : "1d4"));
+      member.maxHp = Number(member.maxHp || 1) + hpGain;
+      member.hp = member.maxHp;
+      if (member.spells && (member.className === "PRI" || member.className === "BIS")) {
+        member.spells.priest[0] = Number(member.spells.priest[0] || 0) + 1;
+      }
+      if (member.spells && (member.className === "MAG" || member.className === "BIS")) {
+        member.spells.mage[0] = Number(member.spells.mage[0] || 0) + 1;
+      }
+      lines.push(`${member.name}はLV ${member.level}になった。`);
+      next = xpForNextLevel(member);
+    }
+    return lines;
+  }
+
+  function applyBattleVictoryRewards(battle) {
+    if (!battle || !battle.reward || battle.reward.applied) return [];
+    const recipients = livingPartyMembers();
+    const lines = [];
+    battle.reward.applied = true;
+    battle.reward.eligibleCount = recipients.length;
+    battle.reward.shares = [];
+    if (!recipients.length) return ["報酬を受け取れる者がいない。"];
+
+    const xpShares = distributeRewardAmount(Number(battle.reward.totalXp || 0), recipients);
+    const goldShares = distributeRewardAmount(Number(battle.reward.totalGold || 0), recipients);
+    recipients.forEach((member) => {
+      const xpShare = xpShares.get(member.id) || 0;
+      const goldShare = goldShares.get(member.id) || 0;
+      member.xp = Number(member.xp || 0) + xpShare;
+      member.gold = Number(member.gold || 0) + goldShare;
+      battle.reward.shares.push({ memberId: member.id, name: member.name, xp: xpShare, gold: goldShare });
+      lines.push(...tryApplyLevelUp(member));
+    });
+
+    lines.unshift(`${recipients.length}人に配分した。`);
+    lines.unshift(`GOLD ${battle.reward.totalGold} を得た。`);
+    lines.unshift(`EXP ${battle.reward.totalXp} を得た。`);
+
+    const loot = Array.isArray(battle.reward.items) ? battle.reward.items : [];
+    if (loot.length) {
+      const recipient = firstLivingMember();
+      loot.forEach((itemName) => addItemToMember(recipient, itemName));
+      battle.reward.itemRecipient = recipient ? recipient.name : null;
+      lines.push(`${recipient ? recipient.name : "隊"}は${loot.join(" / ")}を得た。`);
+    } else {
+      lines.push("戦利品はなかった。");
+    }
+    renderPartyCards();
+    return lines;
+  }
+
   function resolveQueuedAttack(battle, action, member) {
     const target = action.targetGroupIndex !== null && action.targetGroupIndex !== undefined
       ? firstAliveEnemyInGroup(battle, action.targetGroupIndex)
       : firstAliveEnemy(battle);
     if (!target) return `${member.name}は攻撃した。相手はいなかった。`;
     const enemyAc = target.group.definition ? Number(target.group.definition.ac || 10) : 10;
-    const hitRoll = rollDice("1d20") + Number(member.level || 1);
-    const targetNumber = Math.max(6, 8 + enemyAc);
+    const hitRoll = rollDice("1d20") + memberHitBonus(member);
+    const targetNumber = hitTargetNumberForAc(enemyAc);
     if (hitRoll < targetNumber) {
-      return `${member.name}は${target.group.label}を攻撃した。外れた。`;
+      return `${member.name}は${enemyDisplayName(target.group)}を攻撃した。外れた。`;
     }
     const damage = Math.max(1, rollDice(memberDamageDice(member)) + memberDamageBonus(member));
     target.instance.currentHp = Math.max(0, target.instance.currentHp - damage);
     if (target.instance.currentHp <= 0) {
-      return `${member.name}は${target.group.label}を倒した。`;
+      return `${member.name}は${enemyDisplayName(target.group)}を倒した。`;
     }
-    return `${member.name}は${target.group.label}に${damage}のダメージ。`;
+    return `${member.name}は${enemyDisplayName(target.group)}に${damage}のダメージ。`;
+  }
+
+  function resolveMageSpell(battle, member, targetGroupIndex) {
+    if (!member.spells || !member.spells.mage || Number(member.spells.mage[0] || 0) <= 0) {
+      return `${member.name}は呪文を唱えようとした。呪文回数がない。`;
+    }
+    const target = targetGroupIndex !== null && targetGroupIndex !== undefined
+      ? (firstAliveEnemyInGroup(battle, targetGroupIndex) || firstAliveEnemy(battle))
+      : firstAliveEnemy(battle);
+    if (!target) return `${member.name}は呪文を唱えた。相手はいなかった。`;
+    member.spells.mage[0] = Math.max(0, Number(member.spells.mage[0] || 0) - 1);
+    const iqBonus = Math.max(0, Math.floor((Number((member.stats && member.stats.iq) || 10) - 10) / 3));
+    const damage = Math.max(1, rollDice("1d6") + iqBonus);
+    target.instance.currentHp = Math.max(0, target.instance.currentHp - damage);
+    if (target.instance.currentHp <= 0) {
+      return `${member.name}の火花が${enemyDisplayName(target.group)}を倒した。`;
+    }
+    return `${member.name}の火花が${enemyDisplayName(target.group)}に${damage}のダメージ。`;
+  }
+
+  function resolvePriestSpell(member, targetMemberId) {
+    if (!member.spells || !member.spells.priest || Number(member.spells.priest[0] || 0) <= 0) {
+      return `${member.name}は祈ろうとした。呪文回数がない。`;
+    }
+    const target = findPartyMember(targetMemberId);
+    if (!isLivingMember(target)) return `${member.name}は祈った。対象を回復できない。`;
+    if (!isWoundedLivingMember(target)) return `${member.name}は祈った。${target.name}に傷はない。`;
+    member.spells.priest[0] = Math.max(0, Number(member.spells.priest[0] || 0) - 1);
+    const pieBonus = Math.max(0, Math.floor((Number((member.stats && member.stats.pie) || 10) - 10) / 3));
+    const amount = Math.max(1, rollDice("1d8") + 2 + pieBonus);
+    target.hp = Math.min(Number(target.maxHp || 1), Number(target.hp || 0) + amount);
+    return `${member.name}は${target.name}を${amount}回復した。`;
+  }
+
+  function resolveQueuedSpell(battle, action, member) {
+    if (action.spellId === "mage1") return resolveMageSpell(battle, member, action.targetGroupIndex);
+    if (action.spellId === "priest1") return resolvePriestSpell(member, action.targetMemberId);
+    return `${member.name}は呪文を唱えた。効果処理は未定義。`;
+  }
+
+  function resolveQueuedItem(action, member) {
+    const index = Number(action.itemIndex);
+    const items = Array.isArray(member.items) ? member.items : [];
+    const item = Number.isFinite(index) ? items[index] : null;
+    const itemName = itemDisplayName(item);
+    if (!item) return `${member.name}は道具を探した。見つからない。`;
+    if (isBattleUsableItem(item)) {
+      const target = findPartyMember(action.targetMemberId);
+      if (!isLivingMember(target)) return `${member.name}は${itemName}を使えなかった。対象を回復できない。`;
+      if (!isWoundedLivingMember(target)) return `${member.name}は${itemName}を使わなかった。${target.name}に傷はない。`;
+      items.splice(index, 1);
+      const amount = Math.max(1, rollDice("1d6") + 3);
+      target.hp = Math.min(Number(target.maxHp || 1), Number(target.hp || 0) + amount);
+      return `${member.name}は${itemName}で${target.name}を${amount}回復した。`;
+    }
+    return `${member.name}は${itemName}を構えた。効果処理はまだ未接続。`;
+  }
+
+  function resolveEnemySingleAttack(battle, enemyEntry, defendingMembers) {
+    const target = chooseEnemyTarget();
+    if (!target) return null;
+    const attack = chooseEnemyAttack(enemyEntry.group.definition);
+    const enemyLevel = Number((enemyEntry.group.definition && enemyEntry.group.definition.level) || 1);
+    const hitBonus = enemyLevel + Number(attack.hitBonus || 0);
+    const defending = isMemberDefending(defendingMembers, target.id);
+    const hitRoll = rollDice("1d20") + hitBonus;
+    const targetNumber = hitTargetNumberForAc(effectiveMemberAc(target)) + (defending ? 2 : 0);
+    const enemyName = enemyDisplayName(enemyEntry.group);
+    if (hitRoll < targetNumber) {
+      return `${enemyName}の攻撃。${target.name}はかわした。`;
+    }
+    let damage = Math.max(1, rollDice(attack.damageDice || "1d3") + Number(attack.damageBonus || 0));
+    if (defending) damage = Math.max(1, Math.ceil(damage / 2));
+    target.hp = Math.max(0, Number(target.hp || 0) - damage);
+    if (target.hp <= 0) {
+      setMemberDown(target);
+      return `${enemyName}は${target.name}に${damage}のダメージ。${target.name}は倒れた。`;
+    }
+    return `${enemyName}は${target.name}に${damage}のダメージ。`;
+  }
+
+  function resolveEnemyCounterattacks(battle, defendingMembers) {
+    const lines = [];
+    const enemies = getAliveEnemies(battle);
+    for (const enemyEntry of enemies) {
+      if (isPartyDefeated()) break;
+      const line = resolveEnemySingleAttack(battle, enemyEntry, defendingMembers);
+      if (line) lines.push(line);
+    }
+    if (isPartyDefeated()) {
+      battle.finished = true;
+      battle.result = "lost";
+      battle.inputPhase = "battle_result";
+      battle.commandContext = null;
+      lines.push("全員が行動不能になった。");
+    }
+    renderPartyCards();
+    return lines;
+  }
+
+  function resolveEscapeAttempt(battle, member) {
+    const agi = Number((member && member.stats && member.stats.agi) || 10);
+    const aliveEnemyCount = getAliveEnemies(battle).length;
+    const chance = Math.max(0.25, Math.min(0.82, BATTLE_ESCAPE_BASE_CHANCE + (agi - 10) * 0.025 - Math.max(0, aliveEnemyCount - 1) * 0.04));
+    if (Math.random() < chance) {
+      battle.finished = true;
+      battle.result = "escaped";
+      battle.inputPhase = "battle_result";
+      battle.commandContext = null;
+      return `${member ? member.name : "隊"}は逃げ切った。`;
+    }
+    return `${member ? member.name : "隊"}は逃げようとした。逃げられない。`;
   }
 
   function resolveBattleActionQueue(battle) {
     if (!battle || battle.finished) return ["戦闘は終わっている。"]; 
     const lines = [];
     const queue = Array.isArray(battle.actionQueue) ? battle.actionQueue.slice() : [];
-    for (const action of queue) {
-      if (battle.finished) break;
-      const member = PARTY_MEMBERS.find((item) => item.id === action.characterId);
-      if (!member || member.status !== "OK" || member.hp <= 0) {
-        lines.push("行動できない者がいる。");
-        continue;
+    const defendingMembers = new Set(queue.filter((action) => action.command === "defend").map((action) => action.characterId));
+    const runAction = queue.find((action) => action.command === "run");
+    if (runAction) {
+      const runner = PARTY_MEMBERS.find((item) => item.id === runAction.characterId && item.status === "OK" && item.hp > 0);
+      lines.push(resolveEscapeAttempt(battle, runner));
+    } else {
+      for (const action of queue) {
+        if (battle.finished) break;
+        const member = PARTY_MEMBERS.find((item) => item.id === action.characterId);
+        if (!member || member.status !== "OK" || member.hp <= 0) {
+          lines.push("行動できない者がいる。");
+          continue;
+        }
+        if (action.command === "attack") {
+          lines.push(resolveQueuedAttack(battle, action, member));
+        } else if (action.command === "defend") {
+          lines.push(`${member.name}は身を守った。`);
+        } else if (action.command === "spell") {
+          lines.push(resolveQueuedSpell(battle, action, member));
+        } else if (action.command === "item") {
+          lines.push(resolveQueuedItem(action, member));
+        }
+        if (isBattleFinished(battle)) {
+          battle.finished = true;
+          battle.result = "won";
+          lines.push("敵を倒した。");
+          lines.push(...applyBattleVictoryRewards(battle));
+          break;
+        }
       }
-      if (action.command === "attack") {
-        lines.push(resolveQueuedAttack(battle, action, member));
-      } else if (action.command === "defend") {
-        lines.push(`${member.name}は身を守った。`);
-      } else if (action.command === "spell") {
-        lines.push(`${member.name}は呪文を唱えた。効果処理はまだ未接続。`);
-      } else if (action.command === "item") {
-        lines.push(`${member.name}は道具を構えた。効果処理はまだ未接続。`);
-      }
-      if (isBattleFinished(battle)) {
-        battle.finished = true;
-        battle.result = "won";
-        lines.push("敵を倒した。");
-        break;
-      }
+    }
+    if (!battle.finished) {
+      lines.push(...resolveEnemyCounterattacks(battle, defendingMembers));
     }
     if (!battle.finished) {
       battle.round += 1;
@@ -1102,6 +1695,7 @@
     } else {
       battle.inputPhase = "battle_result";
       battle.commandContext = null;
+      renderPartyCards();
     }
     return lines;
   }
@@ -1133,7 +1727,7 @@
           <span class="battle-party-name">${escapeHtml(member.name)}</span>
           <span class="battle-party-rowpos">${escapeHtml(rowLabel)}</span>
           <span class="battle-party-hp">${escapeHtml(partyHpText(member))}</span>
-          <span class="battle-party-ac">AC${escapeHtml(member.ac)}</span>
+          <span class="battle-party-ac">AC${escapeHtml(effectiveMemberAc(member))}</span>
           <span class="battle-party-status">${escapeHtml(member.status)}</span>
         </div>
       `;
@@ -1150,23 +1744,63 @@
 
   function renderBattleSpellOptions(member) {
     const rows = [];
-    if (member.spells && hasSpellPoints(member.spells.mage)) rows.push(`<button data-action="battle:spell:mage1">MAGE ${escapeHtml(spellLine(member.spells.mage))}</button>`);
-    if (member.spells && hasSpellPoints(member.spells.priest)) rows.push(`<button data-action="battle:spell:priest1">PRIEST ${escapeHtml(spellLine(member.spells.priest))}</button>`);
+    if (member.spells && hasSpellPoints(member.spells.mage)) rows.push(`<button data-action="battle:spell:mage1">MAGE 火花 ${escapeHtml(spellLine(member.spells.mage))}</button>`);
+    if (member.spells && hasSpellPoints(member.spells.priest)) rows.push(`<button data-action="battle:spell:priest1">PRIEST 治癒 ${escapeHtml(spellLine(member.spells.priest))}</button>`);
     return rows.join("") || `<div class="battle-input-note">使える呪文はない。</div>`;
   }
 
   function renderBattleItemOptions(member) {
     const items = Array.isArray(member.items) ? member.items : [];
-    return items.map((item, index) => `<button data-action="battle:item:${escapeHtml(index)}">${escapeHtml(item)}</button>`).join("") || `<div class="battle-input-note">使える道具はない。</div>`;
+    const rows = items.map((item, index) => {
+      const usable = isBattleUsableItem(item);
+      const suffix = usable ? "" : " 未接続";
+      return `<button data-action="battle:item:${escapeHtml(index)}" ${usable ? "" : "disabled"}>${escapeHtml(itemDisplayName(item))}${escapeHtml(suffix)}</button>`;
+    }).join("");
+    return rows || `<div class="battle-input-note">使える道具はない。</div>`;
+  }
+
+  function renderBattlePartyTargetButtons(actionPrefix, options = {}) {
+    const woundedOnly = Boolean(options.woundedOnly);
+    const rows = PARTY_MEMBERS.map((partyMember) => {
+      const living = isLivingMember(partyMember);
+      const wounded = isWoundedLivingMember(partyMember);
+      const disabled = !living || (woundedOnly && !wounded);
+      const label = `${partyMember.name} ${partyHpText(partyMember)} ${partyMember.status}`;
+      return `<button data-action="${escapeHtml(actionPrefix)}:${escapeHtml(partyMember.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
+    }).join("");
+    if (woundedOnly && !PARTY_MEMBERS.some((partyMember) => isWoundedLivingMember(partyMember))) {
+      return `<div class="battle-input-note">回復対象はいない。</div>${rows}`;
+    }
+    return rows;
+  }
+
+  function renderBattleRewardSummary(battle) {
+    const reward = battle && battle.reward;
+    if (!reward || battle.result !== "won") return "";
+    const distributed = Number(reward.eligibleCount || 0);
+    const loot = Array.isArray(reward.items) && reward.items.length ? reward.items.join(" / ") : "なし";
+    return `
+      <div class="battle-reward-summary" aria-label="戦闘報酬">
+        <div class="battle-reward-totals">
+          <div><span>EXP</span><strong>${escapeHtml(reward.totalXp || 0)}</strong></div>
+          <div><span>GOLD</span><strong>${escapeHtml(reward.totalGold || 0)}</strong></div>
+        </div>
+        <div class="battle-reward-note">${escapeHtml(distributed)}人に配分済み。</div>
+        <div class="battle-reward-note">ITEM ${escapeHtml(loot)}</div>
+      </div>
+    `;
   }
 
   function renderBattleInputPanel(battle) {
     const entry = currentBattleMemberEntry(battle);
     const member = entry && entry.member;
     if (battle.finished || battle.inputPhase === "battle_result") {
+      const title = battle.result === "lost" ? "全滅" : battle.result === "escaped" ? "逃走" : "戦闘終了";
+      const note = battle.result === "lost" ? "全員が行動不能になった。" : battle.result === "escaped" ? "隊は戦闘から離脱した。" : "敵を倒した。";
       return `
-        <div class="battle-input-title">戦闘終了</div>
-        <div class="battle-input-note">敵を倒した。</div>
+        <div class="battle-input-title">${escapeHtml(title)}</div>
+        <div class="battle-input-note">${escapeHtml(note)}</div>
+        ${renderBattleRewardSummary(battle)}
         <div class="battle-command-list"><button data-action="close">閉じる</button></div>
       `;
     }
@@ -1205,11 +1839,44 @@
         </div>
       `;
     }
+    if (battle.inputPhase === "spell_target_enemy") {
+      return `
+        <div class="battle-input-title">火花の対象: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list battle-command-grid-2">
+          ${battle.groups.map((group, index) => {
+            const alive = group.instances.filter((instance) => instance.currentHp > 0).length;
+            if (alive <= 0) return "";
+            return `<button data-action="battle:spellTargetEnemy:${escapeHtml(index)}">${escapeHtml(group.label)} x${escapeHtml(alive)}</button>`;
+          }).join("")}
+          <button class="battle-wide-button" data-action="battle:target:back">戻る</button>
+        </div>
+      `;
+    }
+    if (battle.inputPhase === "spell_target_ally") {
+      return `
+        <div class="battle-input-title">治癒の対象: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list battle-command-grid-2">
+          ${renderBattlePartyTargetButtons("battle:spellTargetAlly", { woundedOnly: true })}
+          <button class="battle-wide-button" data-action="battle:target:back">戻る</button>
+        </div>
+      `;
+    }
     if (battle.inputPhase === "item_select") {
       return `
         <div class="battle-input-title">道具選択: ${escapeHtml(identity)}</div>
         <div class="battle-command-list battle-scroll-list battle-command-grid-2">
           ${renderBattleItemOptions(member)}
+          <button class="battle-wide-button" data-action="battle:target:back">戻る</button>
+        </div>
+      `;
+    }
+    if (battle.inputPhase === "item_target_ally") {
+      const itemIndex = battle.commandContext ? battle.commandContext.itemIndex : null;
+      const itemName = Number.isFinite(Number(itemIndex)) && Array.isArray(member.items) ? itemDisplayName(member.items[Number(itemIndex)]) : "道具";
+      return `
+        <div class="battle-input-title">${escapeHtml(itemName)}の対象: ${escapeHtml(identity)}</div>
+        <div class="battle-command-list battle-scroll-list battle-command-grid-2">
+          ${renderBattlePartyTargetButtons("battle:itemTargetAlly", { woundedOnly: true })}
           <button class="battle-wide-button" data-action="battle:target:back">戻る</button>
         </div>
       `;
@@ -1288,23 +1955,57 @@
       return;
     }
     if (action.startsWith("battle:spell:") && member) {
-      commitBattleAction(battle, { characterId: member.id, command: "spell", spellId: action.slice("battle:spell:".length), targetGroupIndex: null });
+      const spellId = action.slice("battle:spell:".length);
+      if (spellId === "mage1") {
+        battle.inputPhase = "spell_target_enemy";
+        battle.commandContext = { command: "spell", characterId: member.id, spellId };
+      } else if (spellId === "priest1") {
+        battle.inputPhase = "spell_target_ally";
+        battle.commandContext = { command: "spell", characterId: member.id, spellId };
+      } else {
+        commitBattleAction(battle, { characterId: member.id, command: "spell", spellId, targetGroupIndex: null, targetMemberId: null });
+      }
+      renderEncounterWindow(battle);
+      return;
+    }
+    if (action.startsWith("battle:spellTargetEnemy:") && member) {
+      const groupIndex = Number(action.slice("battle:spellTargetEnemy:".length));
+      const spellId = battle.commandContext && battle.commandContext.spellId ? battle.commandContext.spellId : "mage1";
+      if (Number.isFinite(groupIndex)) {
+        commitBattleAction(battle, { characterId: member.id, command: "spell", spellId, targetGroupIndex: groupIndex, targetMemberId: null });
+        renderEncounterWindow(battle);
+      }
+      return;
+    }
+    if (action.startsWith("battle:spellTargetAlly:") && member) {
+      const targetMemberId = action.slice("battle:spellTargetAlly:".length);
+      const spellId = battle.commandContext && battle.commandContext.spellId ? battle.commandContext.spellId : "priest1";
+      commitBattleAction(battle, { characterId: member.id, command: "spell", spellId, targetGroupIndex: null, targetMemberId });
       renderEncounterWindow(battle);
       return;
     }
     if (action.startsWith("battle:item:") && member) {
-      commitBattleAction(battle, { characterId: member.id, command: "item", itemIndex: Number(action.slice("battle:item:".length)), targetGroupIndex: null });
+      const itemIndex = Number(action.slice("battle:item:".length));
+      const item = Number.isFinite(itemIndex) && Array.isArray(member.items) ? member.items[itemIndex] : null;
+      if (isBattleUsableItem(item)) {
+        battle.inputPhase = "item_target_ally";
+        battle.commandContext = { command: "item", characterId: member.id, itemIndex };
+      } else {
+        commitBattleAction(battle, { characterId: member.id, command: "item", itemIndex, targetMemberId: null });
+      }
       renderEncounterWindow(battle);
       return;
     }
-    if (action === "battle:round:start") {
-      if ((battle.actionQueue || []).some((item) => item.command === "run")) {
-        clearBattleLogTimer();
-        state.currentBattle = null;
-        closeEventWindow();
-        setMessage("逃げた。", false);
-        return;
+    if (action.startsWith("battle:itemTargetAlly:") && member) {
+      const targetMemberId = action.slice("battle:itemTargetAlly:".length);
+      const itemIndex = battle.commandContext ? Number(battle.commandContext.itemIndex) : NaN;
+      if (Number.isFinite(itemIndex)) {
+        commitBattleAction(battle, { characterId: member.id, command: "item", itemIndex, targetMemberId });
+        renderEncounterWindow(battle);
       }
+      return;
+    }
+    if (action === "battle:round:start") {
       battle.inputPhase = "round_resolving";
       const lines = resolveBattleActionQueue(battle);
       lines.forEach((line) => pushBattleLog(battle, line));
@@ -1312,13 +2013,34 @@
     }
   }
 
-  function openEncounterWindow() {
+  function chooseRandomEncounter() {
+    return ENCOUNTER_DEMOS[Math.floor(Math.random() * ENCOUNTER_DEMOS.length)] || ENCOUNTER_DEMOS[0];
+  }
+
+  function openEncounterWindow(encounter = null) {
     if (state.eventWindowOpen || state.animation) return;
     state.eventWindowOpen = true;
-    const encounter = ENCOUNTER_DEMOS[state.encounterIndex % ENCOUNTER_DEMOS.length];
-    state.encounterIndex += 1;
-    state.currentBattle = createBattleFromEncounter(encounter);
+    const selected = encounter || ENCOUNTER_DEMOS[state.encounterIndex % ENCOUNTER_DEMOS.length];
+    if (!encounter) state.encounterIndex += 1;
+    state.currentBattle = createBattleFromEncounter(selected);
     renderEncounterWindow(state.currentBattle);
+  }
+
+  function canRandomEncounterOnCurrentTile() {
+    if (state.eventWindowOpen || state.animation || isPartyDefeated()) return false;
+    const tile = tileAt(state.x, state.z);
+    if (tile !== TILE.EMPTY) return false;
+    if (objectAt(state.x, state.z)) return false;
+    return true;
+  }
+
+  function maybeOpenRandomEncounterAfterMove() {
+    if (!canRandomEncounterOnCurrentTile()) return;
+    state.randomEncounterSteps += 1;
+    if (state.randomEncounterSteps < RANDOM_ENCOUNTER_MIN_STEPS) return;
+    if (Math.random() >= RANDOM_ENCOUNTER_STEP_CHANCE) return;
+    state.randomEncounterSteps = 0;
+    openEncounterWindow(chooseRandomEncounter());
   }
 
   function renderEncounterWindow(battle) {
@@ -1326,7 +2048,7 @@
     const enemyCards = buildEnemyCards(battle);
     const inputPanel = renderBattleInputPanel(battle);
     overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v23g" role="dialog" aria-modal="true" aria-label="戦闘画面">
+      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v29a" role="dialog" aria-modal="true" aria-label="戦闘画面">
         <button class="event-close-btn panel-close-btn encounter-close-btn" data-action="close" aria-label="閉じる">×</button>
         <div class="encounter-body-frame battle-enemy-frame">
           <div class="encounter-round-line">ROUND ${escapeHtml(battle.round)} / ${escapeHtml(BUILD_VERSION)}</div>
@@ -1409,7 +2131,7 @@
             <div class="event-actions">
               <button data-action="members">メンバーを見る</button>
               <button data-action="formation">隊列</button>
-              <button data-action="equipAll">装備確認</button>
+              <button data-action="equipAll">装備</button>
               <button data-action="spells">呪文</button>
               <button data-action="items">アイテム</button>
               <button data-action="close">出る</button>
@@ -1458,7 +2180,7 @@
     const actionPrefix = mode === "spells" ? "spellMember" : mode === "items" ? "itemMember" : "member";
     const memberButtons = PARTY_MEMBERS.map((member) => `
       <button data-action="${actionPrefix}:${escapeHtml(member.id)}">
-        ${escapeHtml(member.name)} <span class="inline-muted">${escapeHtml(member.className)} / HP ${escapeHtml(partyHpText(member))} / AC ${escapeHtml(member.ac)}</span>
+        ${escapeHtml(member.name)} <span class="inline-muted">${escapeHtml(member.className)} / HP ${escapeHtml(partyHpText(member))} / AC ${escapeHtml(effectiveMemberAc(member))}</span>
       </button>`).join("");
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel camp-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
@@ -1571,23 +2293,24 @@
   function renderEquipAllWindow() {
     const overlay = getEventOverlay();
     const rows = PARTY_MEMBERS.map((member) => `
-      <div class="equip-row">
+      <button class="equip-row equip-select-row" data-action="equipMember:${escapeHtml(member.id)}">
         <span>${escapeHtml(member.name)}</span>
         <span>${escapeHtml(member.className)}</span>
-        <strong>${escapeHtml((member.items || []).slice(0, 2).join(" / ") || "なし")}</strong>
-      </div>`).join("");
+        <span>AC ${escapeHtml(effectiveMemberAc(member))}</span>
+        <strong>${escapeHtml(equippedItemSummary(member))}</strong>
+      </button>`).join("");
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel camp-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
         <div class="event-message-box" aria-live="polite">
-          <span id="eventWindowTitle">装備確認</span>
-          <span class="event-prompt">所持品を確認する</span>
+          <span id="eventWindowTitle">装備</span>
+          <span class="event-prompt">誰の装備を変えますか</span>
           <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
         </div>
-        <div class="equip-frame">
-          <div class="equip-head"><span>NAME</span><span>CLASS</span><span>ITEMS</span></div>
+        <div class="equip-frame equip-v29-frame">
+          <div class="equip-head equip-v29-head"><span>NAME</span><span>CLS</span><span>AC</span><span>EQUIP</span></div>
           ${rows}
         </div>
-        <div class="camp-note-frame"><span>装備変更はまだ行わない。</span></div>
+        <div class="camp-note-frame"><span>装備変更はメンバーの所持品から行う。</span></div>
         <div class="event-command-frame character-detail-actions">
           <div class="event-actions">
             <button data-action="backToCamp">キャンプへ戻る</button>
@@ -1596,8 +2319,17 @@
         </div>
       </div>`;
     bindWindowActions(overlay, (action) => {
-      if (action === "close") closeEventWindow();
-      if (action === "backToCamp") renderCampWindow("");
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "backToCamp") {
+        renderCampWindow("");
+        return;
+      }
+      if (action.startsWith("equipMember:")) {
+        renderItemWindow(action.slice("equipMember:".length), "", "equipAll");
+      }
     });
   }
 
@@ -1635,35 +2367,271 @@
     });
   }
 
-  function renderItemWindow(memberId) {
+  function renderItemWindow(memberId, notice = "", returnMode = "items") {
     const member = PARTY_MEMBERS.find((item) => item.id === memberId);
     if (!member) return;
     const overlay = getEventOverlay();
-    const itemRows = (member.items || []).map((item, index) => `
-      <div class="item-row"><span>${index + 1}</span><strong>${escapeHtml(item)}</strong></div>`).join("") || `<div class="item-row"><span>-</span><strong>なし</strong></div>`;
+    const backAction = returnMode === "equipAll" ? "backToEquip" : "backToMembers";
+    const backLabel = returnMode === "equipAll" ? "装備一覧へ戻る" : "メンバーへ戻る";
+    const itemRows = (member.items || []).map((item, index) => {
+      const statusLabel = itemStatusLabel(item);
+      const equippedClass = isItemEquipped(item) ? " equipped" : "";
+      return `
+        <button class="item-row item-select-row${equippedClass}" data-action="itemSelect:${escapeHtml(index)}">
+          <span>${index + 1}</span><strong>${escapeHtml(itemDisplayName(item))}</strong><em>${escapeHtml(statusLabel)}</em>
+        </button>`;
+    }).join("") || `<div class="item-row item-empty-row"><span>-</span><strong>なし</strong><em>-</em></div>`;
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
         <div class="event-message-box" aria-live="polite">
           <span id="eventWindowTitle">ITEMS</span>
-          <span class="event-prompt">${escapeHtml(member.name)}</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : escapeHtml(member.name)}</span>
           <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
         </div>
-        <div class="item-detail-frame">
+        <div class="item-detail-frame item-manage-frame">
           ${itemRows}
         </div>
-        <div class="camp-note-frame"><span>使用・受け渡し・破棄はまだ行わない。</span></div>
+        <div class="camp-note-frame"><span>道具を選択すると、使用・装備/外す・渡す・捨てるを選べる。</span></div>
         <div class="event-command-frame character-detail-actions">
           <div class="event-actions">
-            <button data-action="backToMembers">メンバーへ戻る</button>
+            <button data-action="${escapeHtml(backAction)}">${escapeHtml(backLabel)}</button>
             <button data-action="backToCamp">キャンプへ戻る</button>
             <button data-action="close">閉じる</button>
           </div>
         </div>
       </div>`;
     bindWindowActions(overlay, (action) => {
-      if (action === "close") closeEventWindow();
-      if (action === "backToMembers") renderCampMemberSelectWindow("items");
-      if (action === "backToCamp") renderCampWindow("");
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "backToEquip") {
+        renderEquipAllWindow();
+        return;
+      }
+      if (action === "backToMembers") {
+        renderCampMemberSelectWindow("items");
+        return;
+      }
+      if (action === "backToCamp") {
+        renderCampWindow("");
+        return;
+      }
+      if (action.startsWith("itemSelect:")) {
+        renderItemActionWindow(member.id, Number(action.slice("itemSelect:".length)), "", returnMode);
+      }
+    });
+  }
+
+  function renderItemActionWindow(memberId, itemIndex, notice = "", returnMode = "items") {
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member) return;
+    const item = itemAtIndex(member, itemIndex);
+    const itemName = itemDisplayName(item);
+    if (!item) {
+      renderItemWindow(memberId, "道具が見つからない。", returnMode);
+      return;
+    }
+    const overlay = getEventOverlay();
+    const usable = isCampUsableItem(item);
+    const equipable = isEquipableItem(item);
+    const equipped = isItemEquipped(item);
+    const definition = itemDefinition(item);
+    const equipText = equipped ? "外す" : "装備";
+    const equipState = equipable ? (equipped ? "装備中" : "装備可能") : "装備不可";
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">ITEM</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : escapeHtml(itemName)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="item-selected-frame">
+          <div><span>OWNER</span><strong>${escapeHtml(member.name)}</strong></div>
+          <div><span>ITEM</span><strong>${escapeHtml(itemName)}</strong></div>
+          <div><span>TYPE</span><strong>${escapeHtml(definition && definition.slotLabel ? definition.slotLabel : "-")}</strong></div>
+          <div><span>USE</span><strong>${usable ? "使用可能" : "未接続"}</strong></div>
+          <div><span>EQUIP</span><strong>${escapeHtml(equipState)}</strong></div>
+        </div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions">
+            <button data-action="use" ${usable ? "" : "disabled"}>使う</button>
+            <button data-action="equipToggle" ${equipable ? "" : "disabled"}>${escapeHtml(equipText)}</button>
+            <button data-action="give">渡す</button>
+            <button data-action="drop">捨てる</button>
+            <button data-action="backToItems">戻る</button>
+            <button data-action="backToCamp">キャンプへ戻る</button>
+            <button data-action="close">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "backToItems") {
+        renderItemWindow(member.id, "", returnMode);
+        return;
+      }
+      if (action === "backToCamp") {
+        renderCampWindow("");
+        return;
+      }
+      if (action === "use") {
+        renderItemUseTargetWindow(member.id, itemIndex, "", returnMode);
+        return;
+      }
+      if (action === "equipToggle") {
+        const result = equipMemberItem(member, itemIndex);
+        renderItemWindow(member.id, result.notice, returnMode);
+        return;
+      }
+      if (action === "give") {
+        renderItemTransferTargetWindow(member.id, itemIndex, "", returnMode);
+        return;
+      }
+      if (action === "drop") {
+        renderItemDropConfirmWindow(member.id, itemIndex, returnMode);
+      }
+    });
+  }
+
+  function renderItemUseTargetWindow(memberId, itemIndex, notice = "", returnMode = "items") {
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member) return;
+    const item = itemAtIndex(member, itemIndex);
+    const itemName = itemDisplayName(item);
+    if (!item) {
+      renderItemWindow(memberId, "道具が見つからない。", returnMode);
+      return;
+    }
+    const overlay = getEventOverlay();
+    const targetButtons = PARTY_MEMBERS.map((target) => {
+      const disabled = !isWoundedLivingMember(target);
+      const label = `${target.name} HP ${partyHpText(target)} ${target.status}`;
+      return `<button data-action="target:${escapeHtml(target.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
+    }).join("");
+    const targetNotice = notice || (PARTY_MEMBERS.some((target) => isWoundedLivingMember(target)) ? "誰に使いますか" : "回復対象はいない。");
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">USE ITEM</span>
+          <span class="event-prompt">${escapeHtml(targetNotice)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="event-command-frame camp-member-frame">
+          <div class="event-command-title">${escapeHtml(itemName)}</div>
+          <div class="event-actions camp-member-actions">
+            ${targetButtons}
+            <button data-action="back">戻る</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "back") {
+        renderItemActionWindow(member.id, itemIndex, "", returnMode);
+        return;
+      }
+      if (action.startsWith("target:")) {
+        const result = useCampItemOnTarget(member, itemIndex, action.slice("target:".length));
+        renderItemWindow(member.id, result.notice, returnMode);
+      }
+    });
+  }
+
+  function renderItemTransferTargetWindow(memberId, itemIndex, notice = "", returnMode = "items") {
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member) return;
+    const item = itemAtIndex(member, itemIndex);
+    const itemName = itemDisplayName(item);
+    if (!item) {
+      renderItemWindow(memberId, "道具が見つからない。", returnMode);
+      return;
+    }
+    const overlay = getEventOverlay();
+    const targetButtons = PARTY_MEMBERS.map((target) => {
+      const disabled = target.id === member.id;
+      const label = `${target.name} ${target.className}`;
+      return `<button data-action="target:${escapeHtml(target.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
+    }).join("");
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">GIVE ITEM</span>
+          <span class="event-prompt">${escapeHtml(notice || "誰に渡しますか")}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="event-command-frame camp-member-frame">
+          <div class="event-command-title">${escapeHtml(itemName)}</div>
+          <div class="event-actions camp-member-actions">
+            ${targetButtons}
+            <button data-action="back">戻る</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "back") {
+        renderItemActionWindow(member.id, itemIndex, "", returnMode);
+        return;
+      }
+      if (action.startsWith("target:")) {
+        const result = transferItemToMember(member, itemIndex, action.slice("target:".length));
+        renderItemWindow(member.id, result.notice, returnMode);
+      }
+    });
+  }
+
+  function renderItemDropConfirmWindow(memberId, itemIndex, returnMode = "items") {
+    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    if (!member) return;
+    const item = itemAtIndex(member, itemIndex);
+    const itemName = itemDisplayName(item);
+    if (!item) {
+      renderItemWindow(memberId, "道具が見つからない。", returnMode);
+      return;
+    }
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">DROP ITEM</span>
+          <span class="event-prompt">捨てますか</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="item-selected-frame">
+          <div><span>OWNER</span><strong>${escapeHtml(member.name)}</strong></div>
+          <div><span>ITEM</span><strong>${escapeHtml(itemName)}</strong></div>
+        </div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions">
+            <button data-action="confirmDrop">捨てる</button>
+            <button data-action="cancel">戻る</button>
+            <button data-action="close">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "cancel") {
+        renderItemActionWindow(member.id, itemIndex, "", returnMode);
+        return;
+      }
+      if (action === "confirmDrop") {
+        const result = dropMemberItem(member, itemIndex);
+        renderItemWindow(member.id, result.notice, returnMode);
+      }
     });
   }
 
@@ -1673,7 +2641,7 @@
     state.eventWindowOpen = true;
     const overlay = getEventOverlay();
     const spellRows = renderSpellPointRows(member);
-    const itemRows = (member.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || `<li>なし</li>`;
+    const itemRows = (member.items || []).map((item) => `<li>${isItemEquipped(item) ? "[E] " : ""}${escapeHtml(itemDisplayName(item))}</li>`).join("") || `<li>なし</li>`;
     const backButton = returnMode === "campMembers" ? `<button data-action="backToCampMembers">戻る</button>` : "";
 
     overlay.innerHTML = `
@@ -1694,9 +2662,10 @@
               </div>
               <div class="status-detail-v23g-list status-detail-v23g-basic">
                 <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
-                <div><span>AC</span><strong>${escapeHtml(member.ac)}</strong></div>
+                <div><span>AC</span><strong>${escapeHtml(effectiveMemberAc(member))}</strong></div>
                 <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
                 <div><span>GOLD</span><strong>${escapeHtml(member.gold)}</strong></div>
+                <div><span>EXP</span><strong>${escapeHtml(member.xp ?? 0)}</strong></div>
               </div>
               <div class="status-detail-v23g-list status-detail-v23g-attributes" aria-label="能力値">
                 <div><span>STR</span><strong>${escapeHtml(member.stats.str)}</strong></div>
@@ -1824,6 +2793,15 @@
     });
   }
 
+  function grantChestLoot(chest) {
+    const loot = rollTreasureItems(chest && chest.treasureTableId, 100);
+    if (!loot.length) return "中は空だった。";
+    const recipient = firstLivingMember();
+    loot.forEach((itemName) => addItemToMember(recipient, itemName));
+    renderPartyCards();
+    return `${recipient ? recipient.name : "隊"}は${loot.join(" / ")}を得た。`;
+  }
+
   function handleChestAction(chest, action, key) {
     if (action === "close") {
       closeEventWindow();
@@ -1867,7 +2845,8 @@
       }
       state.openedChests.add(key);
       scene = buildSceneGeometry();
-      renderChestWindow(chest, "開いた。", "main");
+      const lootNotice = grantChestLoot(chest);
+      renderChestWindow(chest, `開いた。${lootNotice}`, "main");
       setMessage("宝箱を開けた。", false);
     }
   }
@@ -1982,12 +2961,14 @@
     }
 
     if (t >= 1) {
+      const completedType = a.type;
       visual.x = state.x;
       visual.z = state.z;
       visual.dir = state.dir;
       visual.stepBob = 0;
       visual.turnLean = 0;
       state.animation = null;
+      if (completedType === "move") maybeOpenRandomEncounterAfterMove();
     }
   }
 
@@ -2812,6 +3793,7 @@
     if (key === " " || key === "Enter") inspectFront();
   });
 
+  normalizePartyEquipment();
   renderPartyCards();
   if (state.message) setMessage(state.message, false);
   updateHud();
