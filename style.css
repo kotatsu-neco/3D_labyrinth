@@ -1632,7 +1632,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 /* v23e-v23g: battle screen rebuilt from character-by-character command flow */
-.battle-window-v23g {
+.battle-window-v29a {
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(98px, 1fr) auto;
@@ -1643,7 +1643,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   overflow: hidden;
 }
 
-.battle-window-v23g .encounter-close-btn {
+.battle-window-v29a .encounter-close-btn {
   top: 10px;
   right: 10px;
   z-index: 7;
@@ -1654,34 +1654,34 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-size: 18px;
 }
 
-.battle-window-v23g .battle-enemy-frame {
+.battle-window-v29a .battle-enemy-frame {
   margin: 0;
   padding: 6px 36px 6px 7px;
   min-height: 0;
 }
 
-.battle-window-v23g .encounter-round-line {
+.battle-window-v29a .encounter-round-line {
   margin-bottom: 4px;
   font-size: 10px;
   line-height: 1;
   color: #9d9689;
 }
 
-.battle-window-v23g .encounter-enemy-grid {
+.battle-window-v29a .encounter-enemy-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
 }
 
-.battle-window-v23g .enemy-image-frame {
+.battle-window-v29a .enemy-image-frame {
   width: min(24vw, 92px);
 }
 
-.battle-window-v23g .enemy-card {
+.battle-window-v29a .enemy-card {
   gap: 3px;
 }
 
-.battle-window-v23g .enemy-card-label,
-.battle-window-v23g .enemy-card-status {
+.battle-window-v29a .enemy-card-label,
+.battle-window-v29a .enemy-card-status {
   font-size: 10px;
   line-height: 1.08;
 }
@@ -1871,18 +1871,18 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 @media (max-width: 390px) {
-  .battle-window-v23g {
+  .battle-window-v29a {
     height: min(82svh, 590px);
     max-height: min(82svh, 590px);
     padding: 7px;
     gap: 5px;
   }
 
-  .battle-window-v23g .battle-enemy-frame {
+  .battle-window-v29a .battle-enemy-frame {
     padding: 6px 34px 5px 6px;
   }
 
-  .battle-window-v23g .enemy-image-frame {
+  .battle-window-v29a .enemy-image-frame {
     width: min(23vw, 86px);
   }
 
@@ -1928,7 +1928,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 /* v23g: iPhone実機確認結果を受けた戦闘画面・ステータス詳細の再配置 */
-.battle-window-v23g {
+.battle-window-v29a {
   width: min(96vw, 720px);
   height: auto;
   max-height: min(84svh, 620px);
@@ -1938,14 +1938,14 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   overflow: hidden;
 }
 
-.battle-window-v23g .battle-enemy-frame {
+.battle-window-v29a .battle-enemy-frame {
   position: relative;
   margin: 0;
   padding: 6px 40px 6px 8px;
   min-height: 122px;
 }
 
-.battle-window-v23g .encounter-enemy-grid {
+.battle-window-v29a .encounter-enemy-grid {
   width: min(48%, 300px);
   grid-template-columns: repeat(auto-fit, minmax(82px, 92px));
   justify-content: start;
@@ -1953,12 +1953,12 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   gap: 6px;
 }
 
-.battle-window-v23g .enemy-image-frame {
+.battle-window-v29a .enemy-image-frame {
   width: min(23vw, 88px);
 }
 
-.battle-window-v23g .enemy-card-label,
-.battle-window-v23g .enemy-card-status {
+.battle-window-v29a .enemy-card-label,
+.battle-window-v29a .enemy-card-status {
   font-size: 10.5px;
 }
 
@@ -2021,6 +2021,40 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .battle-command-list button:disabled {
   border-color: rgba(232, 226, 212, .08);
   background: transparent;
+}
+
+.battle-reward-summary {
+  display: grid;
+  gap: 5px;
+  margin: 4px 0 8px;
+  font-size: 12px;
+}
+
+.battle-reward-totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.battle-reward-totals div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  border: 1px solid rgba(232, 226, 212, .16);
+  background: rgba(232, 226, 212, .035);
+  padding: 5px 7px;
+}
+
+.battle-reward-totals span,
+.battle-reward-note {
+  color: rgba(232, 226, 212, .70);
+  letter-spacing: .12em;
+}
+
+.battle-reward-totals strong {
+  color: #f1eee6;
+  text-align: right;
 }
 
 .battle-log-float {
@@ -2195,23 +2229,23 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 @media (max-width: 390px) {
-  .battle-window-v23g {
+  .battle-window-v29a {
     max-height: min(82svh, 590px);
     padding: 7px;
     gap: 5px;
   }
 
-  .battle-window-v23g .battle-enemy-frame {
+  .battle-window-v29a .battle-enemy-frame {
     min-height: 112px;
     padding: 6px 36px 5px 7px;
   }
 
-  .battle-window-v23g .encounter-enemy-grid {
+  .battle-window-v29a .encounter-enemy-grid {
     width: 48%;
     grid-template-columns: repeat(auto-fit, minmax(76px, 84px));
   }
 
-  .battle-window-v23g .enemy-image-frame {
+  .battle-window-v29a .enemy-image-frame {
     width: min(22vw, 82px);
   }
 
@@ -2286,18 +2320,18 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* v23g: iPhone実機スクリーンショット確認後のバランス調整。
    - 戦闘: 敵欄の縦伸びを抑え、コマンドパッドとLOGを拡大。
    - ステータス: 所持アイテムを上寄せ固定。 */
-.battle-window-v23g {
+.battle-window-v29a {
   max-height: min(88svh, 650px);
   gap: 7px;
   padding: 9px;
 }
 
-.battle-window-v23g .battle-enemy-frame {
+.battle-window-v29a .battle-enemy-frame {
   min-height: 158px;
   padding: 7px 38px 7px 8px;
 }
 
-.battle-window-v23g .encounter-enemy-grid {
+.battle-window-v29a .encounter-enemy-grid {
   width: 52%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: start;
@@ -2305,11 +2339,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   gap: 6px;
 }
 
-.battle-window-v23g .enemy-image-frame {
+.battle-window-v29a .enemy-image-frame {
   width: min(20vw, 76px);
 }
 
-.battle-window-v23g .enemy-card {
+.battle-window-v29a .enemy-card {
   gap: 3px;
 }
 
@@ -2409,24 +2443,24 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 @media (max-width: 390px) {
-  .battle-window-v23g {
+  .battle-window-v29a {
     max-height: min(87svh, 635px);
     gap: 6px;
     padding: 8px;
   }
 
-  .battle-window-v23g .battle-enemy-frame {
+  .battle-window-v29a .battle-enemy-frame {
     min-height: 152px;
     padding: 7px 36px 7px 8px;
   }
 
-  .battle-window-v23g .encounter-enemy-grid {
+  .battle-window-v29a .encounter-enemy-grid {
     width: 54%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
   }
 
-  .battle-window-v23g .enemy-image-frame {
+  .battle-window-v29a .enemy-image-frame {
     width: min(19vw, 72px);
   }
 
@@ -2478,5 +2512,180 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .status-detail-v23g-item-list li {
     grid-template-columns: 18px minmax(0, 1fr);
+  }
+}
+
+/* v23h: タイトル反映とiPhone実機確認後の最終バランス調整。
+   - LOG小窓はv23gより少しだけ縮小し、敵欄の右側圧迫を抑える。
+   - コマンドパッドの押しやすさはv23gから維持する。 */
+.battle-log-float {
+  width: min(46%, 292px);
+  height: 104px;
+  min-height: 104px;
+  max-height: 104px;
+  padding: 7px 8px;
+}
+
+.battle-log-float .encounter-log-lines {
+  height: 62px;
+  max-height: 62px;
+}
+
+.battle-log-toggle {
+  min-width: 68px;
+  min-height: 36px;
+}
+
+@media (max-width: 390px) {
+  .battle-log-float {
+    width: 46%;
+    height: 98px;
+    min-height: 98px;
+    max-height: 98px;
+    padding: 7px 8px;
+  }
+
+  .battle-log-float .encounter-log-lines {
+    height: 58px;
+    max-height: 58px;
+  }
+}
+
+/* v28: camp item operation screens */
+.item-manage-frame {
+  max-height: min(46svh, 330px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.item-select-row,
+.item-empty-row {
+  width: 100%;
+  grid-template-columns: 32px minmax(0, 1fr) 46px;
+  border: 0;
+  border-bottom: 1px solid rgba(232, 226, 212, .22);
+  background: transparent;
+  color: #f1eee6;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+}
+
+.item-select-row {
+  min-height: 40px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.item-select-row:active,
+.item-select-row:focus-visible {
+  background: rgba(232, 226, 212, .10);
+  outline: 1px solid rgba(232, 226, 212, .46);
+}
+
+.item-select-row em,
+.item-empty-row em {
+  color: #c7bfae;
+  font-style: normal;
+  text-align: right;
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+
+.item-selected-frame {
+  margin: 0 10px 8px;
+  padding: 10px;
+  border: 2px solid #e8e2d4;
+  background: #050607;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.25;
+  letter-spacing: .05em;
+}
+
+.item-selected-frame div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  border-bottom: 1px solid rgba(232, 226, 212, .18);
+  padding-bottom: 5px;
+}
+
+.item-selected-frame span {
+  color: #c7bfae;
+}
+
+.item-selected-frame strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 390px) {
+  .item-select-row {
+    min-height: 38px;
+  }
+  .item-selected-frame {
+    margin: 0 8px 8px;
+    padding: 8px;
+    font-size: 12px;
+  }
+}
+
+
+/* v29: equipment display and item equip state */
+.equip-v29-head,
+.equip-select-row {
+  grid-template-columns: minmax(0, .75fr) 42px 42px minmax(0, 1.8fr);
+}
+
+.equip-select-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid rgba(232, 226, 212, .22);
+  background: transparent;
+  color: #f1eee6;
+  font: inherit;
+  text-align: left;
+  min-height: 38px;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.equip-select-row:active,
+.equip-select-row:focus-visible {
+  background: rgba(232, 226, 212, .10);
+  outline: 1px solid rgba(232, 226, 212, .46);
+}
+
+.item-select-row.equipped strong::before,
+.status-detail-v23g-item-list li::before {
+  color: #c7bfae;
+}
+
+.item-select-row.equipped strong::before {
+  content: "[E] ";
+}
+
+@media (max-width: 390px) {
+  .equip-v29-head,
+  .equip-select-row {
+    grid-template-columns: minmax(0, .7fr) 36px 36px minmax(0, 1.55fr);
+    gap: 5px;
+  }
+}
+
+
+/* v29: item status column width */
+.item-select-row,
+.item-empty-row {
+  grid-template-columns: 32px minmax(0, 1fr) 68px;
+}
+
+@media (max-width: 390px) {
+  .item-select-row,
+  .item-empty-row {
+    grid-template-columns: 28px minmax(0, 1fr) 58px;
   }
 }
