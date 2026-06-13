@@ -65,13 +65,13 @@
   // v31では所持品上限、全状態異常の基盤、宝箱の罠種別選択を接続する。
   // v32では戦闘勝利後の戦利品を宝箱・罠処理へ接続する。
   // v33aではキャンプ機能を整理し、ASLEEP/AFRAIDは戦闘終了時回復に寄せる。
-  // v34bでは街機能仕様v01eに合わせ、宿屋・寺院・商店のUI器を個人単位/金操作前提へ整える。
+  // town_impl_v01では街機能仕様v01eに合わせ、街施設の最小実処理と中断/遭難/救助状態を接続する。
   // ENCOUNTER_DEMOS は実機確認用の一時的なUIデモデータであり、正本の遭遇テーブルではない。
   // データファイル data/encounters_v23.json / data/enemy_definitions_v23.json は参照用として同梱しているが、
   // v28時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
-  const BUILD_VERSION = "v34b";
+  const BUILD_VERSION = "town_impl_v01";
   const PROTOTYPE_TITLE = "暗澹の石櫃";
   const PROTOTYPE_SUBTITLE = "Stone Casket of Gloom";
   const FLOOR_META = {
@@ -94,6 +94,27 @@
   const RANDOM_ENCOUNTER_MIN_STEPS = 4;
   const RANDOM_ENCOUNTER_STEP_CHANCE = 0.16;
   const LEVEL_XP_THRESHOLDS = [0, 60, 160, 320, 560, 900];
+  const MAX_PARTY_SIZE = 6;
+  const RACE_MIN_STATS = {
+    HUM: { str: 8, iq: 8, pie: 5, vit: 8, agi: 8, luc: 9 },
+    ELF: { str: 7, iq: 10, pie: 10, vit: 6, agi: 9, luc: 6 },
+    DWF: { str: 10, iq: 7, pie: 10, vit: 10, agi: 5, luc: 6 },
+    GNM: { str: 7, iq: 7, pie: 10, vit: 8, agi: 10, luc: 7 },
+    HOB: { str: 5, iq: 7, pie: 7, vit: 6, agi: 10, luc: 15 },
+  };
+  const INN_ROOMS = [
+    { id: "stable", name: "馬小屋", hpPerWeek: 0, costPerWeek: 0, term: "1週固定" },
+    { id: "barracks", name: "大部屋", hpPerWeek: 1, costPerWeek: 10, term: "必要週数" },
+    { id: "double", name: "二人部屋", hpPerWeek: 3, costPerWeek: 50, term: "必要週数" },
+    { id: "private", name: "個室", hpPerWeek: 7, costPerWeek: 200, term: "必要週数" },
+    { id: "royal", name: "王室", hpPerWeek: 10, costPerWeek: 500, term: "必要週数" },
+  ];
+  const SHOP_CATALOG = [
+    { item: "HEALING HERB", price: 20 },
+    { item: "DAGGER", price: 35 },
+    { item: "SMALL KNIFE", price: 45 },
+    { item: "LEATHER ARMOR", price: 80 },
+  ];
   const BATTLE_PARTY_ACTION_MARKS = { current: "▶", queued: "✓", waiting: "-", unable: "×" };
   const STATUS_DEFINITIONS = {
     OK: { label: "OK", alive: true, canAct: true, canTarget: true, canHealHp: true, canReceiveReward: true, stepDamage: 0 },
@@ -331,8 +352,24 @@
     randomEncounterSteps: 0,
     currentBattle: null,
     focus: "town",
+    adventurers: PARTY_MEMBERS.slice(),
+    parties: [{
+      id: "party-town-1",
+      name: "第1パーティー",
+      memberIds: PARTY_MEMBERS.map((member) => member.id),
+      status: "IN_TOWN",
+      floor: null,
+      x: null,
+      z: null,
+      dir: null,
+      objective: "NORMAL",
+    }],
+    activePartyId: null,
+    currentTownPartyId: "party-town-1",
     suspendedParties: [],
-    strandedParties: [],
+    strandedRecords: [],
+    nextAdventurerSeq: 1,
+    nextPartySeq: 2,
   };
 
   const visual = {
@@ -649,6 +686,213 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function clampNumber(min, max, value) {
+    return Math.max(min, Math.min(max, Number(value || 0)));
+  }
+
+  function randomChoice(items) {
+    const list = Array.isArray(items) ? items : [];
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function initializeTownState() {
+    state.adventurers.forEach((member) => {
+      if (!member.location) member.location = { type: "PARTY", partyId: state.currentTownPartyId };
+      if (!Number.isFinite(Number(member.ageDays))) member.ageDays = Math.max(0, Number(member.age || 18)) * 365;
+      if (!member.knownSpells) member.knownSpells = { mage: [], priest: [] };
+      if (!member.carriedFromStrandedId) member.carriedFromStrandedId = null;
+    });
+    syncPartyMembersToCurrentTownParty();
+  }
+
+  function getAdventurerById(id) {
+    return state.adventurers.find((member) => member.id === id) || null;
+  }
+
+  function getPartyById(id) {
+    return state.parties.find((party) => party.id === id) || null;
+  }
+
+  function activeParty() {
+    const party = getPartyById(state.activePartyId);
+    return party && party.status === "ACTIVE" ? party : null;
+  }
+
+  function activePartyMembers() {
+    const party = activeParty();
+    return party ? party.memberIds.map(getAdventurerById).filter(Boolean) : PARTY_MEMBERS;
+  }
+
+  function currentTownParty() {
+    let party = getPartyById(state.currentTownPartyId);
+    if (!party || party.status !== "IN_TOWN") {
+      party = state.parties.find((item) => item.status === "IN_TOWN") || createTownParty();
+      state.currentTownPartyId = party.id;
+    }
+    return party;
+  }
+
+  function currentTownPartyMembers() {
+    const party = currentTownParty();
+    return party.memberIds.map(getAdventurerById).filter(Boolean);
+  }
+
+  function syncPartyMembersToParty(party) {
+    const members = party ? party.memberIds.map(getAdventurerById).filter(Boolean) : [];
+    PARTY_MEMBERS.splice(0, PARTY_MEMBERS.length, ...members);
+    updateRowsFromPartyOrder();
+    renderPartyCards();
+  }
+
+  function syncPartyMembersToActiveParty() {
+    syncPartyMembersToParty(activeParty());
+  }
+
+  function syncPartyMembersToCurrentTownParty() {
+    syncPartyMembersToParty(currentTownParty());
+  }
+
+  function createTownParty(objective = state.strandedRecords.length ? "RESCUE" : "NORMAL") {
+    const party = {
+      id: `party-${state.nextPartySeq++}`,
+      name: `街パーティー${state.nextPartySeq - 1}`,
+      memberIds: [],
+      status: "IN_TOWN",
+      floor: null,
+      x: null,
+      z: null,
+      dir: null,
+      objective,
+    };
+    state.parties.push(party);
+    state.currentTownPartyId = party.id;
+    return party;
+  }
+
+  function createEmptyTownPartyAndFocus(objective = state.strandedRecords.length ? "RESCUE" : "NORMAL") {
+    const existing = state.parties.find((party) => party.status === "IN_TOWN");
+    const party = existing || createTownParty(objective);
+    state.currentTownPartyId = party.id;
+    state.activePartyId = null;
+    state.focus = "town";
+    syncPartyMembersToParty(party);
+    return party;
+  }
+
+  function townAdventurers() {
+    return state.adventurers.filter((member) => member.location && member.location.type === "TOWN" && normalizeStatusKey(member.status) !== "LOST");
+  }
+
+  function isTownPartyMember(member) {
+    const party = currentTownParty();
+    return Boolean(member && party.memberIds.includes(member.id));
+  }
+
+  function isInTownFacilityLocation(member, includeRecovered = true) {
+    if (!member || !member.location) return false;
+    if (member.location.type === "TOWN") return true;
+    if (member.location.type === "PARTY" && isTownPartyMember(member)) return true;
+    return includeRecovered && member.location.type === "RECOVERED";
+  }
+
+  function tavernAddCandidates() {
+    return townAdventurers();
+  }
+
+  function innCandidates() {
+    const allowed = new Set(["OK", "POISONED", "AFRAID", "ASLEEP", "OUT"]);
+    return state.adventurers.filter((member) => isInTownFacilityLocation(member, true) && allowed.has(normalizeStatusKey(member.status)));
+  }
+
+  function templeCandidates() {
+    const allowed = new Set(["PARALYZED", "STONED", "DEAD", "ASHES"]);
+    return state.adventurers.filter((member) => isInTownFacilityLocation(member, true) && allowed.has(normalizeStatusKey(member.status)));
+  }
+
+  function payerCandidates() {
+    const allowed = new Set(["OK", "POISONED"]);
+    return currentTownPartyMembers().filter((member) => allowed.has(normalizeStatusKey(member.status)) && normalizeStatusKey(member.status) !== "LOST");
+  }
+
+  function shopCandidates() {
+    return payerCandidates();
+  }
+
+  function memberAgeText(member) {
+    const days = Number.isFinite(Number(member && member.ageDays)) ? Number(member.ageDays) : Number(member && member.age || 0) * 365;
+    const years = Math.floor(days / 365);
+    const weeks = Math.floor((days % 365) / 7);
+    return `${years}歳 ${weeks}週`;
+  }
+
+  function ageMemberDays(member, days) {
+    if (!member) return;
+    member.ageDays = Math.max(0, Number(member.ageDays || 0) + Math.max(0, Number(days || 0)));
+    member.age = Math.floor(member.ageDays / 365);
+  }
+
+  function setMemberLocation(member, location) {
+    if (!member) return;
+    member.location = location;
+    if (location.type === "LOST") {
+      member.carriedFromStrandedId = null;
+      setMemberStatus(member, "LOST");
+    }
+  }
+
+  function distributeTownPartyGoldEvenly() {
+    const members = currentTownPartyMembers();
+    if (!members.length) return { ok: false, notice: "分配する街パーティーがありません。" };
+    const total = members.reduce((sum, member) => sum + Number(member.gold || 0), 0);
+    const base = Math.floor(total / members.length);
+    let rest = total % members.length;
+    members.forEach((member) => {
+      member.gold = base + (rest > 0 ? 1 : 0);
+      if (rest > 0) rest -= 1;
+    });
+    return { ok: true, notice: `${members.length}人に ${total}G を均等配分した。` };
+  }
+
+  function gatherTownPartyGoldTo(memberId) {
+    const members = currentTownPartyMembers();
+    const receiver = members.find((member) => member.id === memberId);
+    if (!receiver) return { ok: false, notice: "受取先が現在街パーティーにいません。" };
+    const total = members.reduce((sum, member) => sum + Number(member.gold || 0), 0);
+    members.forEach((member) => { member.gold = member.id === receiver.id ? total : 0; });
+    return { ok: true, notice: `${receiver.name}に ${total}G を集めた。` };
+  }
+
+  function addMemberToTownParty(memberId) {
+    const party = currentTownParty();
+    const member = getAdventurerById(memberId);
+    if (!member || !tavernAddCandidates().includes(member)) return { ok: false, notice: "加えられる冒険者ではありません。" };
+    if (party.memberIds.length >= MAX_PARTY_SIZE) return { ok: false, notice: "パーティーは6人までです。" };
+    party.memberIds.push(member.id);
+    setMemberLocation(member, { type: "PARTY", partyId: party.id });
+    syncPartyMembersToParty(party);
+    return { ok: true, notice: `${member.name}を加えた。` };
+  }
+
+  function removeMemberFromTownParty(memberId) {
+    const party = currentTownParty();
+    const member = getAdventurerById(memberId);
+    if (!member || !party.memberIds.includes(member.id)) return { ok: false, notice: "外せるメンバーではありません。" };
+    party.memberIds = party.memberIds.filter((id) => id !== member.id);
+    setMemberLocation(member, { type: "TOWN" });
+    syncPartyMembersToParty(party);
+    return { ok: true, notice: `${member.name}を外した。` };
+  }
+
+  function disbandCurrentTownParty() {
+    const party = currentTownParty();
+    party.memberIds.forEach((id) => setMemberLocation(getAdventurerById(id), { type: "TOWN" }));
+    party.memberIds = [];
+    party.status = "DISBANDED";
+    const next = createTownParty();
+    syncPartyMembersToParty(next);
+    return { ok: true, notice: "街パーティーを解散した。" };
   }
 
   function normalizeStatusKey(status) {
@@ -1398,9 +1642,10 @@
 
   function recordCurrentPartyStranded(reason = "全員行動不能") {
     if (actionablePartyMembers().length) return null;
+    const party = activeParty() || getPartyById(state.activePartyId);
     const snapshot = currentPartyLocationSnapshot();
     const key = currentPartyStrandedKey(snapshot);
-    const existing = state.strandedParties.find((party) => party.key === key);
+    const existing = state.strandedRecords.find((record) => record.key === key);
     if (existing) {
       existing.reason = existing.reason || reason;
       existing.status = existing.status || "未回収";
@@ -1416,10 +1661,21 @@
       memberIds: snapshot.memberIds,
       memberNames: snapshot.memberNames,
       memberStatuses: snapshot.memberStatuses,
+      remainingMemberIds: snapshot.memberIds.slice(),
+      carriedMemberIds: [],
       status: "未回収",
       reason,
     };
-    state.strandedParties.push(record);
+    state.strandedRecords.push(record);
+    if (party) {
+      party.status = "STRANDED";
+      party.floor = snapshot.floor;
+      party.x = snapshot.x;
+      party.z = snapshot.z;
+      party.dir = snapshot.dir;
+      party.memberIds.forEach((id) => setMemberLocation(getAdventurerById(id), { type: "STRANDED", strandedId: record.id }));
+    }
+    state.activePartyId = null;
     return record;
   }
 
@@ -1448,13 +1704,16 @@
           <div class="return-summary-line">${escapeHtml(assessment.summary)}</div>
           <div class="return-party-list">${partyStatusSummaryRows()}</div>
         </div>
-        <div class="camp-note-frame"><span>v34bでは全滅時の自動帰還を行わない。救出隊・周辺探索・街側処置へ後続接続する。</span></div>
+        <div class="camp-note-frame"><span>全滅時の自動帰還は行わない。救助隊がキャンプの周辺探索で発見する。</span></div>
         <div class="event-command-frame character-detail-actions">
           <div class="event-actions"><button data-action="close">閉じる</button></div>
         </div>
       </div>`;
     bindWindowActions(overlay, (action) => {
-      if (action === "close") closeEventWindow();
+      if (action === "close") {
+        createEmptyTownPartyAndFocus("RESCUE");
+        openTownWindow("パーティーは迷宮内に残された。救助隊を編成してください。");
+      }
     });
   }
 
@@ -1958,23 +2217,48 @@
     return LEVEL_XP_THRESHOLDS[currentLevel] || null;
   }
 
+  function spellSlotsForMember(member, school) {
+    if (!member) return [0,0,0,0,0,0,0];
+    const level = Math.max(1, Number(member.level || 1));
+    const slots = [0,0,0,0,0,0,0];
+    const className = member.className;
+    const canUse = school === "mage"
+      ? className === "MAG" || className === "BIS"
+      : className === "PRI" || className === "BIS";
+    if (!canUse) return slots;
+    slots[0] = Math.max(1, Math.min(9, Math.ceil(level / 2)));
+    if (level >= 5) slots[1] = Math.max(1, Math.floor((level - 3) / 3));
+    if (level >= 9) slots[2] = 1;
+    return slots;
+  }
+
+  function restoreMemberSpellUses(member) {
+    if (!member) return;
+    if (!member.spells) member.spells = { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] };
+    const currentMage = Array.isArray(member.spells.mage) ? member.spells.mage : [];
+    const currentPriest = Array.isArray(member.spells.priest) ? member.spells.priest : [];
+    member.spells.mage = spellSlotsForMember(member, "mage").map((value, index) => Math.max(value, Number(currentMage[index] || 0)));
+    member.spells.priest = spellSlotsForMember(member, "priest").map((value, index) => Math.max(value, Number(currentPriest[index] || 0)));
+  }
+
   function tryApplyLevelUp(member) {
     const lines = [];
     if (!member) return lines;
-    let next = xpForNextLevel(member);
-    while (next !== null && Number(member.xp || 0) >= next) {
+    const next = xpForNextLevel(member);
+    if (next !== null && Number(member.xp || 0) >= next) {
       member.level = Number(member.level || 1) + 1;
       const hpGain = Math.max(2, rollDice(member.className === "FIG" ? "1d8" : member.className === "THI" ? "1d6" : "1d4"));
       member.maxHp = Number(member.maxHp || 1) + hpGain;
       member.hp = member.maxHp;
-      if (member.spells && (member.className === "PRI" || member.className === "BIS")) {
+      if (!member.spells) member.spells = { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] };
+      if (member.className === "PRI" || member.className === "BIS") {
         member.spells.priest[0] = Number(member.spells.priest[0] || 0) + 1;
       }
-      if (member.spells && (member.className === "MAG" || member.className === "BIS")) {
+      if (member.className === "MAG" || member.className === "BIS") {
         member.spells.mage[0] = Number(member.spells.mage[0] || 0) + 1;
       }
+      restoreMemberSpellUses(member);
       lines.push(`${member.name}はLV ${member.level}になった。`);
-      next = xpForNextLevel(member);
     }
     return lines;
   }
@@ -1996,7 +2280,6 @@
       member.xp = Number(member.xp || 0) + xpShare;
       member.gold = Number(member.gold || 0) + goldShare;
       battle.reward.shares.push({ memberId: member.id, name: member.name, xp: xpShare, gold: goldShare });
-      lines.push(...tryApplyLevelUp(member));
     });
 
     lines.unshift(`${recipients.length}人に配分した。`);
@@ -2661,7 +2944,9 @@
 
   function townPartyRows(options = {}) {
     const compact = Boolean(options.compact);
-    return PARTY_MEMBERS.map((member, index) => `
+    const members = currentTownPartyMembers();
+    if (!members.length) return `<div class="town-empty-row">編成中のメンバーはいません。</div>`;
+    return members.map((member, index) => `
       <div class="town-party-row">
         <span>${escapeHtml(index + 1)}</span>
         <strong>${escapeHtml(member.name)}</strong>
@@ -2673,37 +2958,38 @@
   }
 
   function townRosterRows() {
-    return PARTY_MEMBERS.map((member) => `
+    return state.adventurers.map((member) => `
       <button class="town-roster-row" data-action="trainingDetail:${escapeHtml(member.id)}">
         <span>${escapeHtml(member.name)}</span>
         <span>${escapeHtml(member.race)} ${escapeHtml(member.className)}</span>
         <span>LV ${escapeHtml(member.level)}</span>
-        <strong>${escapeHtml(statusLabel(member))}</strong>
+        <strong>${escapeHtml(statusLabel(member))} / ${escapeHtml(member.location ? member.location.type : "TOWN")}</strong>
       </button>`).join("");
   }
 
 
   function suspendedPartyRows() {
-    if (!state.suspendedParties.length) {
+    const parties = state.parties.filter((party) => party.status === "SUSPENDED");
+    if (!parties.length) {
       return `<div class="town-empty-row">休止中の冒険はありません。</div>`;
     }
-    return state.suspendedParties.map((party) => `
+    return parties.map((party) => `
       <button class="town-list-row" data-action="resumeParty:${escapeHtml(party.id)}">
         <span>${escapeHtml(party.floor)} x${escapeHtml(party.x)} y${escapeHtml(party.z)} ${escapeHtml(DIRS[party.dir].label)}</span>
-        <strong>${escapeHtml(party.memberNames.join("・"))}</strong>
+        <strong>${escapeHtml(party.memberIds.map((id) => getAdventurerById(id)).filter(Boolean).map((member) => member.name).join("・"))}</strong>
         <em>再開</em>
       </button>`).join("");
   }
 
   function strandedPartyRows() {
-    if (!state.strandedParties.length) {
+    if (!state.strandedRecords.length) {
       return `<div class="town-empty-row">迷宮内に記録された全滅・遭難パーティーはありません。</div>`;
     }
-    return state.strandedParties.map((party) => `
+    return state.strandedRecords.map((party) => `
       <div class="town-static-row">
         <span>${escapeHtml(party.floor)} x${escapeHtml(party.x)} y${escapeHtml(party.z)}</span>
-        <strong>${escapeHtml(party.memberNames.join("・"))}</strong>
-        <em>${escapeHtml(party.status || "未回収")}</em>
+        <strong>${escapeHtml((party.remainingMemberIds || []).map((id) => getAdventurerById(id)).filter(Boolean).map((member) => member.name).join("・") || party.memberNames.join("・"))}</strong>
+        <em>${escapeHtml(party.status || "未回収")} / 搬送中 ${escapeHtml((party.carriedMemberIds || []).length)}</em>
       </div>`).join("");
   }
 
@@ -2714,6 +3000,27 @@
   }
 
   function enterDungeonFromTown(notice = "迷宮へ入った。") {
+    const party = currentTownParty();
+    if (!party.memberIds.length) {
+      renderTownWindow("迷宮へ入るには街パーティーに1人以上必要です。");
+      return;
+    }
+    party.status = "ACTIVE";
+    party.floor = party.floor || "B1F";
+    party.x = Number.isFinite(Number(party.x)) ? party.x : START_POS.x;
+    party.z = Number.isFinite(Number(party.z)) ? party.z : START_POS.z;
+    party.dir = Number.isFinite(Number(party.dir)) ? party.dir : START_POS.dir;
+    party.memberIds.forEach((id) => setMemberLocation(getAdventurerById(id), { type: "PARTY", partyId: party.id }));
+    state.activePartyId = party.id;
+    state.currentTownPartyId = null;
+    state.floor = party.floor;
+    state.x = party.x;
+    state.z = party.z;
+    state.dir = party.dir;
+    visual.x = state.x;
+    visual.z = state.z;
+    visual.dir = state.dir;
+    syncPartyMembersToParty(party);
     state.focus = "dungeon";
     closeEventWindow();
     setMessage(notice, true);
@@ -2722,30 +3029,33 @@
   }
 
   function suspendCurrentAdventure() {
-    if (state.suspendedParties.length) {
-      openTownWindow("v34bでは休止中の冒険は1件のみ扱う。既存の冒険を再開してください。");
+    const party = activeParty();
+    if (!party) {
+      openTownWindow("中断できる迷宮内パーティーがありません。");
       return;
     }
-    const id = `suspend-${Date.now()}`;
-    // v34bでは、街側の新規/救助隊編成が未実装のため休止中パーティーは1件のみ保持する。
-    state.suspendedParties = [{
-      id,
-      floor: state.floor,
-      x: state.x,
-      z: state.z,
-      dir: state.dir,
-      memberIds: PARTY_MEMBERS.map((member) => member.id),
-      memberNames: PARTY_MEMBERS.map((member) => member.name),
-    }];
+    party.status = "SUSPENDED";
+    party.floor = state.floor;
+    party.x = state.x;
+    party.z = state.z;
+    party.dir = state.dir;
+    party.memberIds.forEach((id) => setMemberLocation(getAdventurerById(id), { type: "SUSPENDED", partyId: party.id }));
+    if (!state.suspendedParties.includes(party.id)) state.suspendedParties.push(party.id);
+    state.activePartyId = null;
+    createEmptyTownPartyAndFocus(state.strandedRecords.length ? "RESCUE" : "NORMAL");
     openTownWindow("冒険を中断した。パーティーは迷宮内の現在位置に留まっている。");
   }
 
   function resumeSuspendedParty(partyId) {
-    const party = state.suspendedParties.find((item) => item.id === partyId);
-    if (!party) {
+    const party = getPartyById(partyId);
+    if (!party || party.status !== "SUSPENDED") {
       renderResumeAdventureWindow("再開できる冒険が見つからない。");
       return;
     }
+    party.status = "ACTIVE";
+    party.memberIds.forEach((id) => setMemberLocation(getAdventurerById(id), { type: "PARTY", partyId: party.id }));
+    state.activePartyId = party.id;
+    state.currentTownPartyId = null;
     state.floor = party.floor;
     state.x = party.x;
     state.z = party.z;
@@ -2753,14 +3063,19 @@
     visual.x = state.x;
     visual.z = state.z;
     visual.dir = state.dir;
-    state.suspendedParties = state.suspendedParties.filter((item) => item.id !== partyId);
-    enterDungeonFromTown("冒険を再開した。");
+    state.suspendedParties = state.suspendedParties.filter((id) => id !== partyId);
+    syncPartyMembersToParty(party);
+    state.focus = "dungeon";
+    closeEventWindow();
+    setMessage("冒険を再開した。", true);
+    updateHud();
+    renderPartyCards();
   }
 
   function townSelectableMemberRows(actionPrefix, options = {}) {
     const showGold = options.showGold !== false;
     const showStatus = options.showStatus !== false;
-    const members = PARTY_MEMBERS;
+    const members = options.members || currentTownPartyMembers();
     if (!members.length) return `<div class="town-empty-row">対象者がいません。</div>`;
     return members.map((member) => `
       <button class="town-roster-row" data-action="${escapeHtml(actionPrefix)}:${escapeHtml(member.id)}">
@@ -2806,15 +3121,20 @@
       </div>`;
     bindWindowActions(overlay, (action) => {
       if (action === "tavern") { renderTavernWindow(); return; }
-      if (action === "training") { renderTrainingGroundWindow(); return; }
+      if (action === "training") {
+        if (currentTownPartyMembers().length) renderTrainingGroundDisbandConfirmWindow();
+        else renderTrainingGroundWindow();
+        return;
+      }
       if (action === "inn") { renderInnWindow(); return; }
       if (action === "temple") { renderTempleWindow(); return; }
       if (action === "shop") { renderShopWindow(); return; }
       if (action === "resume") { renderResumeAdventureWindow(); return; }
       if (action === "stranded") { renderStrandedRecordWindow(); return; }
       if (action === "enterDungeon") {
-        if (state.suspendedParties.length) {
-          renderTownWindow("休止中の冒険があります。v34bでは新規/救助隊編成が未実装のため、先に「冒険を再開する」を選んでください。");
+        const members = currentTownPartyMembers();
+        if (members.length >= MAX_PARTY_SIZE && state.strandedRecords.some((record) => (record.remainingMemberIds || []).length)) {
+          enterDungeonFromTown("救助対象を連れ帰る空き枠がありません。通常探索として迷宮へ入った。");
           return;
         }
         enterDungeonFromTown();
@@ -2824,6 +3144,14 @@
 
   function renderTavernWindow(notice = "") {
     const overlay = getEventOverlay();
+    const addRows = tavernAddCandidates().map((member) => `
+      <button class="town-roster-row" data-action="tavernAddMember:${escapeHtml(member.id)}">
+        <span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.race)} ${escapeHtml(member.className)}</span><span>LV ${escapeHtml(member.level)}</span><strong>${escapeHtml(member.gold || 0)}G</strong>
+      </button>`).join("") || `<div class="town-empty-row">街で待機中の加入候補はいません。</div>`;
+    const removeRows = currentTownPartyMembers().map((member) => `
+      <button class="town-roster-row" data-action="tavernRemoveMember:${escapeHtml(member.id)}">
+        <span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.className)}</span><span>HP ${escapeHtml(partyHpText(member))}</span><strong>外す</strong>
+      </button>`).join("") || `<div class="town-empty-row">外せるメンバーはいません。</div>`;
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
         <div class="event-message-box town-message-box" aria-live="polite">
@@ -2837,13 +3165,18 @@
         </div>
         <div class="town-status-frame">
           <div class="town-frame-title">ADVENTURERS IN TOWN</div>
-          <div class="town-empty-row">v34bでは全員が現在パーティー所属。後続実装では街所在の冒険者だけを加入候補に出す。</div>
+          <div class="town-roster-list">${addRows}</div>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">REMOVE FROM PARTY</div>
+          <div class="town-roster-list">${removeRows}</div>
         </div>
         <div class="event-command-frame character-detail-actions town-actions-frame">
           <div class="event-actions">
             <button data-action="tavernAdd">加える</button>
             <button data-action="tavernRemove">外す</button>
             <button data-action="tavernGold">金を分配する</button>
+            <button data-action="tavernDisband">パーティーを解散する</button>
             <button data-action="backToTown">街へ戻る</button>
           </div>
         </div>
@@ -2851,9 +3184,143 @@
       </div>`;
     bindWindowActions(overlay, (action) => {
       if (action === "backToTown") { renderTownWindow(""); return; }
-      if (action === "tavernAdd") { renderTavernWindow("加入候補は街にいる冒険者のみ。候補管理は後続実装。"); return; }
-      if (action === "tavernRemove") { renderTavernWindow("外した冒険者は街所在になる。実処理は後続実装。"); return; }
-      if (action === "tavernGold") { renderTavernWindow("酒場の金を分配するは、現在街パーティー内の金を均等配分する機能として後続実装。"); return; }
+      if (action === "tavernAdd") { renderTavernWindow("下の加入候補から冒険者を選んでください。"); return; }
+      if (action === "tavernRemove") { renderTavernWindow("下のCURRENT PARTYから外す相手を選んでください。"); return; }
+      if (action === "tavernGold") { const result = distributeTownPartyGoldEvenly(); renderTavernWindow(result.notice); return; }
+      if (action === "tavernDisband") { const result = disbandCurrentTownParty(); renderTavernWindow(result.notice); return; }
+      if (action.startsWith("tavernAddMember:")) { const result = addMemberToTownParty(action.slice("tavernAddMember:".length)); renderTavernWindow(result.notice); return; }
+      if (action.startsWith("tavernRemoveMember:")) { const result = removeMemberFromTownParty(action.slice("tavernRemoveMember:".length)); renderTavernWindow(result.notice); return; }
+    });
+  }
+
+  function createTrainingAdventurer() {
+    const seq = state.nextAdventurerSeq++;
+    const member = {
+      id: `adventurer-${Date.now()}-${seq}`,
+      name: `新米${seq}`,
+      className: "FIG",
+      level: 1,
+      age: 18,
+      ageDays: 18 * 365,
+      alignment: "GOOD",
+      race: "HUM",
+      hp: 24,
+      maxHp: 24,
+      ac: 8,
+      status: "OK",
+      row: "back",
+      gold: 100,
+      xp: 0,
+      stats: { ...RACE_MIN_STATS.HUM },
+      spells: { mage: [0,0,0,0,0,0,0], priest: [0,0,0,0,0,0,0] },
+      knownSpells: { mage: [], priest: [] },
+      items: ["DAGGER", "LEATHER ARMOR"],
+      location: { type: "TOWN" },
+      carriedFromStrandedId: null,
+    };
+    state.adventurers.push(member);
+    normalizeMemberItems(member);
+    return member;
+  }
+
+  function trainingCandidates() {
+    return state.adventurers.filter((member) => {
+      const location = member.location && member.location.type;
+      return location === "TOWN" || location === "RECOVERED";
+    });
+  }
+
+  function classChangeMember(memberId) {
+    const member = getAdventurerById(memberId);
+    if (!member || !trainingCandidates().includes(member) || normalizeStatusKey(member.status) === "LOST") {
+      return { ok: false, notice: "転職できる対象ではありません。" };
+    }
+    member.className = member.className === "FIG" ? "THI" : "FIG";
+    member.level = 1;
+    member.xp = 0;
+    member.stats = { ...(RACE_MIN_STATS[member.race] || RACE_MIN_STATS.HUM) };
+    (member.items || []).forEach((item) => { if (item && typeof item === "object") item.equippedSlot = null; });
+    ageMemberDays(member, randomChoice([252, 304, 356]) * 7);
+    restoreMemberSpellUses(member);
+    return { ok: true, notice: `${member.name}は${member.className}へ転職した。LV1、経験値0、装備解除、加齢を適用した。` };
+  }
+
+  function retireMember(memberId) {
+    const member = getAdventurerById(memberId);
+    if (!member || !trainingCandidates().includes(member)) return { ok: false, notice: "削除できる対象ではありません。" };
+    state.parties.forEach((party) => { party.memberIds = party.memberIds.filter((id) => id !== member.id); });
+    const index = state.adventurers.findIndex((item) => item.id === member.id);
+    if (index >= 0) state.adventurers.splice(index, 1);
+    syncPartyMembersToCurrentTownParty();
+    return { ok: true, notice: `${member.name}を名簿から削除した。` };
+  }
+
+  function renderTrainingGroundDisbandConfirmWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">訓練場</span>
+          <span class="event-prompt">${escapeHtml(notice || "訓練場に入る前に、街の編成中パーティーを解散しますか")}</span>
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>訓練場は冒険者個人管理施設です。パーティー編成は酒場で行います。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame">
+          <div class="event-actions">
+            <button data-action="confirmDisband">解散して入る</button>
+            <button data-action="backToTown">街へ戻る</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action === "confirmDisband") {
+        disbandCurrentTownParty();
+        renderTrainingGroundWindow("街パーティーを解散して訓練場に入った。");
+      }
+    });
+  }
+
+  function renderTrainingSelectWindow(mode, notice = "") {
+    const title = mode === "classChange" ? "転職する冒険者" : "引退/削除する冒険者";
+    const prefix = mode === "classChange" ? "classChangeMember" : "retireMember";
+    const rows = trainingCandidates().map((member) => `
+      <button class="town-roster-row" data-action="${prefix}:${escapeHtml(member.id)}">
+        <span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.race)} ${escapeHtml(member.className)}</span><span>LV ${escapeHtml(member.level)}</span><strong>${escapeHtml(member.location.type)}</strong>
+      </button>`).join("") || `<div class="town-empty-row">対象者がいません。</div>`;
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">訓練場 / ${escapeHtml(title)}</span>
+          <span class="event-prompt">${escapeHtml(notice || "対象者を選ぶ")}</span>
+        </div>
+        <div class="town-status-frame"><div class="town-frame-title">ROSTER</div><div class="town-roster-list">${rows}</div></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToTraining">訓練場へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTraining") { renderTrainingGroundWindow(""); return; }
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("classChangeMember:")) { const result = classChangeMember(action.slice("classChangeMember:".length)); renderTrainingGroundWindow(result.notice); return; }
+      if (action.startsWith("retireMember:")) { renderRetireConfirmWindow(action.slice("retireMember:".length)); }
+    });
+  }
+
+  function renderRetireConfirmWindow(memberId, notice = "") {
+    const member = getAdventurerById(memberId);
+    if (!member) { renderTrainingGroundWindow("対象者が見つからない。"); return; }
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">引退/削除 確認</span>
+          <span class="event-prompt">${escapeHtml(notice || `${member.name}を本当に削除しますか`)}</span>
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>2段階確認です。この操作は現在の名簿から対象者を外します。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="confirmRetire">削除する</button><button data-action="cancel">戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "cancel") { renderTrainingSelectWindow("retire"); return; }
+      if (action === "confirmRetire") { const result = retireMember(member.id); renderTrainingGroundWindow(result.notice); }
     });
   }
 
@@ -2877,15 +3344,46 @@
             <button data-action="backToTown">街へ戻る</button>
           </div>
         </div>
-        <div class="camp-note-frame town-note-frame"><span>訓練場は個人管理施設。後続実装では、訓練場に入る際に街の編成中パーティー解散を確認する。</span></div>
+        <div class="camp-note-frame town-note-frame"><span>訓練場は個人管理施設。街の編成中パーティーがある場合は入場前に解散確認を行う。</span></div>
       </div>`;
     bindWindowActions(overlay, (action) => {
       if (action === "backToTown") { renderTownWindow(""); return; }
-      if (action === "create") { renderTrainingGroundWindow("新規作成はプリセット名・種族・属性・職業選択の最小実装として後続で扱う。"); return; }
-      if (action === "classChange") { renderTrainingGroundWindow("転職は個人単位。レベル1化、経験値0、能力値低下、装備解除、数年加齢を伴う後続実装。"); return; }
-      if (action === "retire") { renderTrainingGroundWindow("削除/引退は誤操作対策を含めて後続仕様で扱う。迷宮内未回収者は通常削除対象にしない。"); return; }
+      if (action === "create") { const member = createTrainingAdventurer(); renderTrainingGroundWindow(`${member.name}を作成した。`); return; }
+      if (action === "classChange") { renderTrainingSelectWindow("classChange"); return; }
+      if (action === "retire") { renderTrainingSelectWindow("retire"); return; }
       if (action.startsWith("trainingDetail:")) { openCharacterWindow(action.slice("trainingDetail:".length), "trainingGround"); }
     });
+  }
+
+  function innRoomById(roomId) {
+    return INN_ROOMS.find((room) => room.id === roomId) || INN_ROOMS[0];
+  }
+
+  function innWeeksToStay(member, room) {
+    if (room.id === "stable") return 1;
+    const missingHp = Math.max(0, Number(member.maxHp || 0) - Number(member.hp || 0));
+    return Math.max(1, Math.ceil(missingHp / Math.max(1, Number(room.hpPerWeek || 1))));
+  }
+
+  function stayAtInn(memberId, roomId) {
+    const member = getAdventurerById(memberId);
+    const room = innRoomById(roomId);
+    if (!member || !innCandidates().includes(member)) return { ok: false, notice: "宿泊できる対象ではありません。" };
+    const plannedWeeks = innWeeksToStay(member, room);
+    let processedWeeks = 0;
+    for (let week = 0; week < plannedWeeks; week += 1) {
+      if (room.costPerWeek > 0 && Number(member.gold || 0) < room.costPerWeek) break;
+      member.gold = Math.max(0, Number(member.gold || 0) - room.costPerWeek);
+      member.hp = Math.min(Number(member.maxHp || 1), Number(member.hp || 0) + room.hpPerWeek);
+      ageMemberDays(member, 7);
+      processedWeeks += 1;
+    }
+    if (!processedWeeks) return { ok: false, notice: `${member.name}は宿泊費が足りない。` };
+    restoreMemberSpellUses(member);
+    const levelLines = tryApplyLevelUp(member);
+    renderPartyCards();
+    const levelText = levelLines.length ? ` ${levelLines.join(" ")}` : " レベルアップはなかった。";
+    return { ok: true, notice: `${member.name}は${room.name}に${processedWeeks}週泊まった。${levelText}` };
   }
 
   function renderInnWindow(notice = "") {
@@ -2898,7 +3396,7 @@
         </div>
         <div class="town-status-frame">
           <div class="town-frame-title">LODGING TARGET</div>
-          <div class="town-roster-list">${townSelectableMemberRows("innMember")}</div>
+          <div class="town-roster-list">${townSelectableMemberRows("innMember", { members: innCandidates() })}</div>
         </div>
         <div class="camp-note-frame town-note-frame"><span>宿屋は個人単位。宿泊対象本人の所持金で支払い、宿泊後にHP/呪文回復とレベルアップ判定を行う。</span></div>
         <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToTown">街へ戻る</button></div></div>
@@ -2910,17 +3408,11 @@
   }
 
   function renderInnRoomWindow(memberId, notice = "") {
-    const member = findPartyMember(memberId);
+    const member = getAdventurerById(memberId);
     if (!member) { renderInnWindow("対象者が見つからない。"); return; }
-    const rooms = [
-      ["stable", "馬小屋", "HP 0/週", "0G", "1週固定"],
-      ["barracks", "大部屋", "HP 1/週", "10G/週", "必要週数"],
-      ["double", "二人部屋", "HP 3/週", "50G/週", "必要週数"],
-      ["private", "個室", "HP 7/週", "200G/週", "必要週数"],
-      ["royal", "王室", "HP 10/週", "500G/週", "必要週数"],
-    ].map(([id, name, heal, cost, term]) => `
-      <button class="town-roster-row" data-action="innRoom:${escapeHtml(id)}">
-        <span>${escapeHtml(name)}</span><span>${escapeHtml(heal)}</span><span>${escapeHtml(cost)}</span><strong>${escapeHtml(term)}</strong>
+    const rooms = INN_ROOMS.map((room) => `
+      <button class="town-roster-row" data-action="innRoom:${escapeHtml(room.id)}">
+        <span>${escapeHtml(room.name)}</span><span>HP ${escapeHtml(room.hpPerWeek)}/週</span><span>${escapeHtml(room.costPerWeek)}G/週</span><strong>${escapeHtml(room.term)} / ${escapeHtml(innWeeksToStay(member, room))}週</strong>
       </button>`).join("");
     const overlay = getEventOverlay();
     overlay.innerHTML = `
@@ -2933,14 +3425,68 @@
           <div class="town-frame-title">ROOM RANK</div>
           <div class="town-roster-list">${rooms}</div>
         </div>
-        <div class="camp-note-frame town-note-frame"><span>v34bではUI器のみ。実処理では馬小屋は1週固定、他の部屋は必要週数、1週以上で呪文回復とレベルアップ判定を行う。</span></div>
+        <div class="camp-note-frame town-note-frame"><span>宿泊費は${escapeHtml(member.name)}本人の所持金から支払う。POISONEDは宿泊しても治療されない。</span></div>
         <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToInn">宿屋へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
       </div>`;
     bindWindowActions(overlay, (action) => {
       if (action === "backToInn") { renderInnWindow(""); return; }
       if (action === "backToTown") { renderTownWindow(""); return; }
-      if (action.startsWith("innRoom:")) { renderInnRoomWindow(member.id, "宿泊処理は後続実装。支払いは宿泊者本人の所持金から行う。"); return; }
+      if (action.startsWith("innRoom:")) { const result = stayAtInn(member.id, action.slice("innRoom:".length)); renderInnRoomWindow(member.id, result.notice); return; }
     });
+  }
+
+  function templeServiceForStatus(status) {
+    const key = normalizeStatusKey(status);
+    if (key === "PARALYZED") return { id: "cureParalysis", label: "麻痺治療", costFactor: 100, success: 100 };
+    if (key === "STONED") return { id: "cureStone", label: "石化解除", costFactor: 200, success: 100 };
+    if (key === "DEAD") return { id: "raiseDead", label: "蘇生", costFactor: 250, success: null };
+    if (key === "ASHES") return { id: "raiseAshes", label: "灰から蘇生", costFactor: 500, success: null };
+    return null;
+  }
+
+  function templeSuccessPercent(member, service) {
+    if (!service) return 0;
+    if (service.success === 100) return 100;
+    const vit = Number(member && member.stats && member.stats.vit ? member.stats.vit : 0);
+    if (service.id === "raiseDead") return clampNumber(0, 100, 50 + 3 * vit);
+    if (service.id === "raiseAshes") return clampNumber(0, 100, 40 + 3 * vit);
+    return 0;
+  }
+
+  function templeServiceCost(member, service) {
+    return Math.max(0, Number(service && service.costFactor || 0) * Math.max(1, Number(member && member.level || 1)));
+  }
+
+  function templeAgeCostDays() {
+    return rollRange(1, 52) * 7;
+  }
+
+  function performTempleService(targetId, payerId) {
+    const target = getAdventurerById(targetId);
+    const payer = getAdventurerById(payerId);
+    const service = templeServiceForStatus(target && target.status);
+    if (!target || !templeCandidates().includes(target) || !service) return { ok: false, notice: "処置できる対象ではありません。" };
+    if (!payer || !payerCandidates().includes(payer)) return { ok: false, notice: "支払者を選べません。" };
+    if (payer.id === target.id) return { ok: false, notice: "寺院では処置対象本人を支払者にしません。" };
+    const cost = templeServiceCost(target, service);
+    if (Number(payer.gold || 0) < cost) return { ok: false, notice: `${payer.name}の所持金が足りない。必要 ${cost}G。` };
+    payer.gold = Number(payer.gold || 0) - cost;
+    const ageDays = templeAgeCostDays();
+    ageMemberDays(target, ageDays);
+    const rate = templeSuccessPercent(target, service);
+    const success = rate >= 100 || rollRange(1, 100) <= rate;
+    const before = normalizeStatusKey(target.status);
+    if (success) {
+      applyStatusToMember(target, "OK");
+      if (before === "DEAD") target.hp = 1;
+      if (before === "ASHES") target.hp = Number(target.maxHp || 1);
+    } else if (before === "DEAD") {
+      setMemberStatus(target, "ASHES");
+    } else if (before === "ASHES") {
+      setMemberLocation(target, { type: "LOST" });
+    }
+    renderPartyCards();
+    return { ok: success, notice: `${payer.name}が${cost}Gを支払った。${target.name}の${service.label}は${success ? "成功" : "失敗"}。${Math.floor(ageDays / 7)}週加齢した。` };
   }
 
   function renderTempleWindow(notice = "") {
@@ -2953,7 +3499,7 @@
         </div>
         <div class="town-status-frame">
           <div class="town-frame-title">TEMPLE TARGET</div>
-          <div class="town-roster-list">${townSelectableMemberRows("templeTarget")}</div>
+          <div class="town-roster-list">${townSelectableMemberRows("templeTarget", { members: templeCandidates() })}</div>
         </div>
         <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="templeGatherGold">お金を集める</button><button data-action="backToTown">街へ戻る</button></div></div>
         <div class="camp-note-frame town-note-frame"><span>寺院は回収済み対象のみ処置する。処置対象本人から支払わず、別に支払者を選ぶ。寺院サービスの加齢は1d52週。</span></div>
@@ -2966,23 +3512,29 @@
   }
 
   function renderTemplePayerWindow(targetId, notice = "") {
-    const target = findPartyMember(targetId);
+    const target = getAdventurerById(targetId);
     if (!target) { renderTempleWindow("処置対象が見つからない。"); return; }
+    const service = templeServiceForStatus(target.status);
+    const cost = templeServiceCost(target, service);
+    const payerRows = payerCandidates().map((member) => `
+      <button class="town-roster-row" data-action="templePayer:${escapeHtml(member.id)}" ${member.id === target.id ? "disabled" : ""}>
+        <span>${escapeHtml(member.name)}</span><span>${escapeHtml(statusLabel(member))}</span><span>${escapeHtml(member.gold || 0)}G</span><strong>${Number(member.gold || 0) >= cost ? "支払可" : "不足"}</strong>
+      </button>`).join("") || `<div class="town-empty-row">支払者候補がいません。</div>`;
     const overlay = getEventOverlay();
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
         <div class="event-message-box town-message-box" aria-live="polite">
           <span id="eventWindowTitle">寺院 / 支払者選択</span>
-          <span class="event-prompt">${notice ? escapeHtml(notice) : `${escapeHtml(target.name)}の処置費を誰が払いますか`}</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : `${escapeHtml(target.name)}の${escapeHtml(service ? service.label : "処置")} ${escapeHtml(cost)}Gを誰が払いますか`}</span>
         </div>
-        <div class="town-status-frame"><div class="town-frame-title">PAYER</div><div class="town-roster-list">${townSelectableMemberRows("templePayer")}</div></div>
-        <div class="camp-note-frame town-note-frame"><span>後続実装ではOK/POISONEDの街パーティーメンバーだけを支払者候補に出す。死亡・灰化・石化・麻痺者は支払者にしない。</span></div>
+        <div class="town-status-frame"><div class="town-frame-title">PAYER</div><div class="town-roster-list">${payerRows}</div></div>
+        <div class="camp-note-frame town-note-frame"><span>支払者は現在街パーティー内のOK/POISONEDのみ。処置対象本人の所持金は直接使わない。</span></div>
         <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToTemple">寺院へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
       </div>`;
     bindWindowActions(overlay, (action) => {
       if (action === "backToTemple") { renderTempleWindow(""); return; }
       if (action === "backToTown") { renderTownWindow(""); return; }
-      if (action.startsWith("templePayer:")) { renderTemplePayerWindow(target.id, "処置実行は後続実装。支払いは選択した支払者の所持金から行う。"); return; }
+      if (action.startsWith("templePayer:")) { const result = performTempleService(target.id, action.slice("templePayer:".length)); renderTempleWindow(result.notice); return; }
     });
   }
 
@@ -2994,15 +3546,80 @@
           <span id="eventWindowTitle">寺院 / お金を集める</span>
           <span class="event-prompt">${notice ? escapeHtml(notice) : "誰に集めますか"}</span>
         </div>
-        <div class="town-status-frame"><div class="town-frame-title">RECEIVER</div><div class="town-roster-list">${townSelectableMemberRows("templeGoldTo")}</div></div>
+        <div class="town-status-frame"><div class="town-frame-title">RECEIVER</div><div class="town-roster-list">${townSelectableMemberRows("templeGoldTo", { members: payerCandidates() })}</div></div>
         <div class="camp-note-frame town-note-frame"><span>寺院のお金を集めるは、現在街パーティーの金を選択した1人へ集中する機能。酒場の均等配分とは別。</span></div>
         <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToTemple">寺院へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
       </div>`;
     bindWindowActions(overlay, (action) => {
       if (action === "backToTemple") { renderTempleWindow(""); return; }
       if (action === "backToTown") { renderTownWindow(""); return; }
-      if (action.startsWith("templeGoldTo:")) { renderTempleMoneyGatherWindow("金集中の実処理は後続実装。受取先以外の同Partyメンバーの金は0になる仕様。"); return; }
+      if (action.startsWith("templeGoldTo:")) { const result = gatherTownPartyGoldTo(action.slice("templeGoldTo:".length)); renderTempleMoneyGatherWindow(result.notice); return; }
     });
+  }
+
+  function itemBaseValue(item) {
+    const name = itemDisplayName(item);
+    const catalog = SHOP_CATALOG.find((entry) => entry.item === name);
+    if (catalog) return catalog.price;
+    if (ITEM_DEFINITIONS[name]) return 60;
+    if (name.includes("UNIDENTIFIED")) return 25;
+    return 20;
+  }
+
+  function buyShopItem(memberId, itemName) {
+    const member = getAdventurerById(memberId);
+    const entry = SHOP_CATALOG.find((item) => item.item === itemName);
+    if (!member || !shopCandidates().includes(member)) return { ok: false, notice: "商店の対象者ではありません。" };
+    if (!entry) return { ok: false, notice: "商品が見つかりません。" };
+    if (!hasItemCapacity(member, 1)) return { ok: false, notice: `${member.name}はこれ以上持てない。` };
+    if (Number(member.gold || 0) < entry.price) return { ok: false, notice: `${member.name}の所持金が足りない。` };
+    member.gold = Number(member.gold || 0) - entry.price;
+    addItemToMember(member, entry.item);
+    renderPartyCards();
+    return { ok: true, notice: `${member.name}は${entry.item}を買った。` };
+  }
+
+  function sellShopItem(memberId, itemIndex) {
+    const member = getAdventurerById(memberId);
+    const item = itemAtIndex(member, itemIndex);
+    if (!member || !shopCandidates().includes(member)) return { ok: false, notice: "商店の対象者ではありません。" };
+    if (!item) return { ok: false, notice: "売る品が見つかりません。" };
+    if (item && typeof item === "object" && item.equippedSlot) item.equippedSlot = null;
+    const price = Math.max(1, Math.floor(itemBaseValue(item) / 2));
+    const name = itemDisplayName(item);
+    member.items.splice(Number(itemIndex), 1);
+    member.gold = Number(member.gold || 0) + price;
+    renderPartyCards();
+    return { ok: true, notice: `${member.name}は${name}を${price}Gで売った。` };
+  }
+
+  function identifyShopItem(memberId, itemIndex) {
+    const member = getAdventurerById(memberId);
+    const item = itemAtIndex(member, itemIndex);
+    if (!member || !shopCandidates().includes(member)) return { ok: false, notice: "商店の対象者ではありません。" };
+    if (!item) return { ok: false, notice: "鑑定対象が見つかりません。" };
+    const cost = 20 * Math.max(1, Number(member.level || 1));
+    if (Number(member.gold || 0) < cost) return { ok: false, notice: `${member.name}の所持金が足りない。` };
+    member.gold = Number(member.gold || 0) - cost;
+    if (item && typeof item === "object") item.identified = true;
+    renderPartyCards();
+    return { ok: true, notice: `${member.name}は${itemDisplayName(item)}を鑑定した。` };
+  }
+
+  function uncurseShopItem(memberId, itemIndex) {
+    const member = getAdventurerById(memberId);
+    const item = itemAtIndex(member, itemIndex);
+    if (!member || !shopCandidates().includes(member)) return { ok: false, notice: "商店の対象者ではありません。" };
+    if (!item) return { ok: false, notice: "解呪対象が見つかりません。" };
+    const cost = 50 * Math.max(1, Number(member.level || 1));
+    if (Number(member.gold || 0) < cost) return { ok: false, notice: `${member.name}の所持金が足りない。` };
+    member.gold = Number(member.gold || 0) - cost;
+    if (item && typeof item === "object") {
+      item.cursed = false;
+      item.equippedSlot = null;
+    }
+    renderPartyCards();
+    return { ok: true, notice: `${member.name}は${itemDisplayName(item)}を解呪した。` };
   }
 
   function renderShopWindow(notice = "") {
@@ -3045,14 +3662,57 @@
           <span id="eventWindowTitle">商店 / ${escapeHtml(label)}</span>
           <span class="event-prompt">${notice ? escapeHtml(notice) : "対象者を選ぶ"}</span>
         </div>
-        <div class="town-status-frame"><div class="town-frame-title">CUSTOMER</div><div class="town-roster-list">${townSelectableMemberRows("shopMember")}</div></div>
+        <div class="town-status-frame"><div class="town-frame-title">CUSTOMER</div><div class="town-roster-list">${townSelectableMemberRows("shopMember", { members: shopCandidates() })}</div></div>
         <div class="camp-note-frame town-note-frame"><span>${escapeHtml(label)}は対象者個人の所持金・所持品を処理対象にする。暗黙の共有財布は使わない。</span></div>
         <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToShop">商店へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
       </div>`;
     bindWindowActions(overlay, (action) => {
       if (action === "backToShop") { renderShopWindow(""); return; }
       if (action === "backToTown") { renderTownWindow(""); return; }
-      if (action.startsWith("shopMember:")) { renderShopMemberSelectWindow(shopAction, `${label}の本処理は後続実装。選択者本人の所持金・所持品だけを対象にする。`); return; }
+      if (action.startsWith("shopMember:")) { renderShopTransactionWindow(shopAction, action.slice("shopMember:".length)); return; }
+    });
+  }
+
+  function renderShopTransactionWindow(shopAction, memberId, notice = "") {
+    const member = getAdventurerById(memberId);
+    if (!member) { renderShopMemberSelectWindow(shopAction, "対象者が見つからない。"); return; }
+    const label = shopActionLabel(shopAction);
+    let rows = "";
+    if (shopAction === "shopBuy") {
+      rows = SHOP_CATALOG.map((entry) => `
+        <button class="town-roster-row" data-action="shopBuyItem:${escapeHtml(entry.item)}">
+          <span>${escapeHtml(entry.item)}</span><span>${escapeHtml(entry.price)}G</span><span>所持 ${escapeHtml(memberItemCount(member))}/${escapeHtml(ITEM_CAPACITY_PER_MEMBER)}</span><strong>買う</strong>
+        </button>`).join("");
+    } else {
+      rows = (member.items || []).map((item, index) => {
+        const value = shopAction === "shopSell" ? `${Math.max(1, Math.floor(itemBaseValue(item) / 2))}G` : shopAction === "shopIdentify" ? `${20 * Math.max(1, Number(member.level || 1))}G` : `${50 * Math.max(1, Number(member.level || 1))}G`;
+        return `
+          <button class="town-roster-row" data-action="shopItem:${escapeHtml(index)}">
+            <span>${escapeHtml(itemDisplayName(item))}</span><span>${escapeHtml(itemStatusLabel(item))}</span><span>${escapeHtml(value)}</span><strong>${escapeHtml(label)}</strong>
+          </button>`;
+      }).join("") || `<div class="town-empty-row">${escapeHtml(member.name)}の所持品はありません。</div>`;
+    }
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">商店 / ${escapeHtml(label)} / ${escapeHtml(member.name)}</span>
+          <span class="event-prompt">${escapeHtml(notice || `${member.gold || 0}G 所持`)}</span>
+        </div>
+        <div class="town-status-frame"><div class="town-frame-title">${escapeHtml(label)}</div><div class="town-roster-list">${rows}</div></div>
+        <div class="camp-note-frame town-note-frame"><span>この画面の支払い・所持品処理は${escapeHtml(member.name)}本人だけを対象にする。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToMembers">対象者選択へ戻る</button><button data-action="backToShop">商店へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToMembers") { renderShopMemberSelectWindow(shopAction); return; }
+      if (action === "backToShop") { renderShopWindow(""); return; }
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("shopBuyItem:")) { const result = buyShopItem(member.id, action.slice("shopBuyItem:".length)); renderShopTransactionWindow(shopAction, member.id, result.notice); return; }
+      if (action.startsWith("shopItem:")) {
+        const index = Number(action.slice("shopItem:".length));
+        const result = shopAction === "shopSell" ? sellShopItem(member.id, index) : shopAction === "shopIdentify" ? identifyShopItem(member.id, index) : uncurseShopItem(member.id, index);
+        renderShopTransactionWindow(shopAction, member.id, result.notice);
+      }
     });
   }
 
@@ -3064,14 +3724,14 @@
           <span id="eventWindowTitle">商店 / お金を集める</span>
           <span class="event-prompt">${notice ? escapeHtml(notice) : "誰に集めますか"}</span>
         </div>
-        <div class="town-status-frame"><div class="town-frame-title">RECEIVER</div><div class="town-roster-list">${townSelectableMemberRows("shopGoldTo")}</div></div>
+        <div class="town-status-frame"><div class="town-frame-title">RECEIVER</div><div class="town-roster-list">${townSelectableMemberRows("shopGoldTo", { members: shopCandidates() })}</div></div>
         <div class="camp-note-frame town-note-frame"><span>商店のお金を集めるは買い物担当者へ金を集中する補助機能。購入・鑑定・解呪はその人物本人の所持金から支払う。</span></div>
         <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToShop">商店へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
       </div>`;
     bindWindowActions(overlay, (action) => {
       if (action === "backToShop") { renderShopWindow(""); return; }
       if (action === "backToTown") { renderTownWindow(""); return; }
-      if (action.startsWith("shopGoldTo:")) { renderShopMoneyGatherWindow("金集中の実処理は後続実装。買い物の対象者個人へ資金を寄せる。"); return; }
+      if (action.startsWith("shopGoldTo:")) { const result = gatherTownPartyGoldTo(action.slice("shopGoldTo:".length)); renderShopMoneyGatherWindow(result.notice); return; }
     });
   }
 
@@ -3119,7 +3779,46 @@
     });
   }
 
+  function nearbyStrandedRecords() {
+    return state.strandedRecords.filter((record) => {
+      if (!(record.remainingMemberIds || []).length) return false;
+      if (record.floor !== state.floor) return false;
+      return Math.abs(Number(record.x) - Number(state.x)) + Math.abs(Number(record.z) - Number(state.z)) <= 1;
+    });
+  }
+
+  function rescueStrandedMember(recordId, memberId) {
+    const party = activeParty();
+    const record = state.strandedRecords.find((item) => item.id === recordId);
+    const member = getAdventurerById(memberId);
+    if (!party) return { ok: false, notice: "救助隊が迷宮内にいません。" };
+    if (party.memberIds.length >= MAX_PARTY_SIZE) return { ok: false, notice: "6人満員のため、誰も連れ帰れません。" };
+    if (!record || !(record.remainingMemberIds || []).includes(memberId) || !member) return { ok: false, notice: "救助対象が見つかりません。" };
+    record.remainingMemberIds = record.remainingMemberIds.filter((id) => id !== memberId);
+    if (!record.carriedMemberIds) record.carriedMemberIds = [];
+    record.carriedMemberIds.push(memberId);
+    record.status = record.remainingMemberIds.length ? "一部搬送中" : "全員搬送中";
+    party.memberIds.push(memberId);
+    setMemberLocation(member, { type: "CARRIED", partyId: party.id, strandedId: record.id });
+    member.carriedFromStrandedId = record.id;
+    syncPartyMembersToParty(party);
+    return { ok: true, notice: `${member.name}を発見し、搬送に加えた。` };
+  }
+
   function renderCampSearchWindow(notice = "") {
+    const records = nearbyStrandedRecords();
+    const party = activeParty();
+    const freeSlots = party ? Math.max(0, MAX_PARTY_SIZE - party.memberIds.length) : 0;
+    const resultRows = records.length ? records.map((record) => {
+      const memberRows = (record.remainingMemberIds || []).map((id) => {
+        const member = getAdventurerById(id);
+        if (!member) return "";
+        return `<button class="town-roster-row" data-action="rescue:${escapeHtml(record.id)}:${escapeHtml(member.id)}" ${freeSlots <= 0 ? "disabled" : ""}>
+          <span>${escapeHtml(member.name)}</span><span>${escapeHtml(statusLabel(member))}</span><span>${escapeHtml(record.floor)} x${escapeHtml(record.x)} y${escapeHtml(record.z)}</span><strong>${freeSlots <= 0 ? "満員" : "搬送"}</strong>
+        </button>`;
+      }).join("");
+      return memberRows;
+    }).join("") : `<div class="town-empty-row">この周辺に目立つ痕跡はない。</div>`;
     const overlay = getEventOverlay();
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel camp-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
@@ -3128,10 +3827,10 @@
           <span class="event-prompt">${notice ? escapeHtml(notice) : "周囲の痕跡を調べる"}</span>
           <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
         </div>
-        <div class="camp-note-frame"><span>v34bでは発見処理の器のみ。後続で全滅パーティー・別冒険者・遺体・荷物の発見判定に接続する。</span></div>
+        <div class="camp-note-frame"><span>同一階層かつマンハッタン距離1以内の遭難記録を確定発見する。空き枠: ${escapeHtml(freeSlots)}。</span></div>
         <div class="town-status-frame">
           <div class="town-frame-title">SEARCH RESULT</div>
-          <div class="town-empty-row">この周辺に目立つ痕跡はない。</div>
+          <div class="town-roster-list">${resultRows}</div>
         </div>
         <div class="event-command-frame character-detail-actions">
           <div class="event-actions">
@@ -3145,6 +3844,11 @@
       if (action === "close") { closeEventWindow(); return; }
       if (action === "backToCamp") { renderCampWindow(""); return; }
       if (action === "searchAgain") { renderCampSearchWindow("今は何も見つからない。"); }
+      if (action.startsWith("rescue:")) {
+        const [, recordId, memberId] = action.split(":");
+        const result = rescueStrandedMember(recordId, memberId);
+        renderCampSearchWindow(result.notice);
+      }
     });
   }
 
@@ -3295,6 +3999,8 @@
     if (nextIndex < 0 || nextIndex >= PARTY_MEMBERS.length) return false;
     const [member] = PARTY_MEMBERS.splice(index, 1);
     PARTY_MEMBERS.splice(nextIndex, 0, member);
+    const party = activeParty() || getPartyById(state.currentTownPartyId);
+    if (party) party.memberIds = PARTY_MEMBERS.map((item) => item.id);
     updateRowsFromPartyOrder();
     renderPartyCards();
     return true;
@@ -3430,7 +4136,7 @@
             <em>戦闘中のみ</em>
           </div>
         </div>
-        <div class="camp-note-frame"><span>v34bでは迷宮内PRIEST呪文でHP・毒・麻痺・石化・OUT・死亡・灰化を処置する。ASLEEP/AFRAIDは戦闘終了で回復し、LOSTは迷宮内回復不可。</span></div>
+        <div class="camp-note-frame"><span>迷宮内PRIEST呪文でHP・毒・麻痺・石化・OUT・死亡・灰化を処置する。ASLEEP/AFRAIDは戦闘終了で回復し、LOSTは迷宮内回復不可。</span></div>
         <div class="event-command-frame character-detail-actions">
           <div class="event-actions">
             <button data-action="backToMembers">メンバーへ戻る</button>
@@ -3781,7 +4487,7 @@
   }
 
   function openCharacterWindow(memberId, returnMode = "explore") {
-    const member = PARTY_MEMBERS.find((item) => item.id === memberId);
+    const member = getAdventurerById(memberId) || PARTY_MEMBERS.find((item) => item.id === memberId);
     if (!member) return;
     state.eventWindowOpen = true;
     const overlay = getEventOverlay();
@@ -3810,7 +4516,7 @@
                 <div><span>ALIGN</span><strong>${escapeHtml(member.alignment)}</strong></div>
                 <div><span>RACE</span><strong>${escapeHtml(member.race)}</strong></div>
                 <div><span>CLASS</span><strong>${escapeHtml(member.className)}</strong></div>
-                <div><span>AGE</span><strong>${escapeHtml(member.age ?? "-")}</strong></div>
+                <div><span>AGE</span><strong>${escapeHtml(memberAgeText(member))}</strong></div>
               </div>
               <div class="status-detail-v23g-list status-detail-v23g-basic">
                 <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
@@ -5113,6 +5819,7 @@
     if (key === " " || key === "Enter") inspectFront();
   });
 
+  initializeTownState();
   normalizePartyStatuses();
   normalizePartyEquipment();
   renderPartyCards();
