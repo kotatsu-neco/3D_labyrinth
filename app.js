@@ -60,13 +60,18 @@
   // v27では戦闘中の呪文・回復道具に対象選択を追加する。
   // v28ではキャンプ内アイテム操作として、戦闘外HEALING HERB使用・受け渡し・破棄を接続する。
   // v29ではアイテム個体ごとの装備状態、装備/外す、装備による攻撃ダイスと有効ACを接続する。
-  // v29aでは装備入口から所持品画面へ進んだ場合の戻り先保持を修正する。
+  // v29bではキャンプ系ウィンドウのフォントサイズをステータス詳細画面のサイズ感に寄せる。
+  // v30ではキャンプ内でPRIEST 治癒を使用できるようにする。
+  // v31では所持品上限、全状態異常の基盤、宝箱の罠種別選択を接続する。
+  // v32では戦闘勝利後の戦利品を宝箱・罠処理へ接続する。
+  // v33aではキャンプ機能を整理し、ASLEEP/AFRAIDは戦闘終了時回復に寄せる。
+  // v34bでは街機能仕様v01eに合わせ、宿屋・寺院・商店のUI器を個人単位/金操作前提へ整える。
   // ENCOUNTER_DEMOS は実機確認用の一時的なUIデモデータであり、正本の遭遇テーブルではない。
   // データファイル data/encounters_v23.json / data/enemy_definitions_v23.json は参照用として同梱しているが、
   // v28時点の画面表示は外部JSON読み込みではなく、このローカル定数を使う。
   const START_POS = { x: 9, z: 10, dir: 3 };
 
-  const BUILD_VERSION = "v29a";
+  const BUILD_VERSION = "v34b";
   const PROTOTYPE_TITLE = "暗澹の石櫃";
   const PROTOTYPE_SUBTITLE = "Stone Casket of Gloom";
   const FLOOR_META = {
@@ -85,10 +90,45 @@
   const BATTLE_LOG_HISTORY_LIMIT = 1;
   const BATTLE_LOG_NEXT_DELAY_MS = 180;
   const BATTLE_ESCAPE_BASE_CHANCE = 0.58;
+  const ITEM_CAPACITY_PER_MEMBER = 10;
   const RANDOM_ENCOUNTER_MIN_STEPS = 4;
   const RANDOM_ENCOUNTER_STEP_CHANCE = 0.16;
   const LEVEL_XP_THRESHOLDS = [0, 60, 160, 320, 560, 900];
   const BATTLE_PARTY_ACTION_MARKS = { current: "▶", queued: "✓", waiting: "-", unable: "×" };
+  const STATUS_DEFINITIONS = {
+    OK: { label: "OK", alive: true, canAct: true, canTarget: true, canHealHp: true, canReceiveReward: true, stepDamage: 0 },
+    POISONED: { label: "POISON", alive: true, canAct: true, canTarget: true, canHealHp: true, canReceiveReward: true, stepDamage: 1 },
+    ASLEEP: { label: "SLEEP", alive: true, canAct: false, canTarget: true, canHealHp: true, canReceiveReward: false, stepDamage: 0 },
+    AFRAID: { label: "AFRAID", alive: true, canAct: false, canTarget: true, canHealHp: true, canReceiveReward: false, stepDamage: 0 },
+    PARALYZED: { label: "PARALYZE", alive: true, canAct: false, canTarget: true, canHealHp: false, canReceiveReward: false, stepDamage: 0 },
+    STONED: { label: "STONE", alive: true, canAct: false, canTarget: true, canHealHp: false, canReceiveReward: false, stepDamage: 0 },
+    OUT: { label: "OUT", alive: false, canAct: false, canTarget: false, canHealHp: false, canReceiveReward: false, stepDamage: 0 },
+    DEAD: { label: "DEAD", alive: false, canAct: false, canTarget: false, canHealHp: false, canReceiveReward: false, stepDamage: 0 },
+    ASHES: { label: "ASHES", alive: false, canAct: false, canTarget: false, canHealHp: false, canReceiveReward: false, stepDamage: 0 },
+    LOST: { label: "LOST", alive: false, canAct: false, canTarget: false, canHealHp: false, canReceiveReward: false, stepDamage: 0 },
+  };
+  const STATUS_ORDER = ["OK", "POISONED", "ASLEEP", "AFRAID", "PARALYZED", "STONED", "OUT", "DEAD", "ASHES", "LOST"];
+  const TEMPORARY_STATUS_KEYS = ["ASLEEP", "AFRAID"];
+  const CAMP_PRIEST_SPELLS = [
+    { id: "heal", levelIndex: 0, levelLabel: "PRIEST 1", name: "治癒", kind: "hp", targetStatus: null, note: "負傷を回復する。" },
+    { id: "curePoison", levelIndex: 1, levelLabel: "PRIEST 2", name: "毒消し", kind: "status", targetStatus: "POISONED", note: "毒を取り除く。" },
+    { id: "cureParalysis", levelIndex: 2, levelLabel: "PRIEST 3", name: "麻痺回復", kind: "status", targetStatus: "PARALYZED", note: "麻痺を解く。" },
+    { id: "cureStone", levelIndex: 3, levelLabel: "PRIEST 4", name: "石化解除", kind: "status", targetStatus: "STONED", note: "石化を解く。" },
+    { id: "reviveOut", levelIndex: 4, levelLabel: "PRIEST 5", name: "気付け", kind: "revive", targetStatus: "OUT", successRate: 100, failureStatus: "OUT", note: "OUTから復帰させる。" },
+    { id: "raiseDead", levelIndex: 4, levelLabel: "PRIEST 5", name: "蘇生", kind: "revive", targetStatus: "DEAD", successRate: 70, failureStatus: "ASHES", note: "失敗すると灰化する。" },
+    { id: "raiseAshes", levelIndex: 6, levelLabel: "PRIEST 7", name: "灰から蘇生", kind: "revive", targetStatus: "ASHES", successRate: 55, failureStatus: "LOST", note: "失敗するとロストする。" },
+  ];
+  const DUNGEON_TRAPS = [
+    { id: "poison_needle", label: "毒針", difficulty: 48, effect: "poison_actor", description: "解除者または開封者を毒にする。" },
+    { id: "poison_gas", label: "毒煙", difficulty: 54, effect: "poison_party", description: "生存者を毒にする。" },
+    { id: "needle_volley", label: "針の雨", difficulty: 56, effect: "needle_party", description: "生存者全体に小ダメージ。" },
+    { id: "paralysis_wire", label: "麻痺針", difficulty: 58, effect: "paralyze_actor", description: "解除者または開封者を麻痺させる。" },
+    { id: "stone_mist", label: "石化の霧", difficulty: 66, effect: "stone_actor", description: "解除者または開封者を石化させる。" },
+    { id: "crossbow_bolt", label: "石弓", difficulty: 44, effect: "bolt_actor", description: "解除者または開封者にダメージ。" },
+    { id: "explosion", label: "爆発", difficulty: 62, effect: "blast_party", description: "パーティ全体にダメージ。" },
+    { id: "ashes_curse", label: "灰化の呪い", difficulty: 72, effect: "ashes_actor", description: "解除者または開封者を灰にする。" },
+    { id: "lost_seal", label: "喪失の封印", difficulty: 84, effect: "lost_actor", description: "解除者または開封者をロストさせる。" },
+  ];
   let battleLogTimer = 0;
 
   const TREASURE_TABLES = {
@@ -128,6 +168,7 @@
   ];
 
   let nextItemInstanceSeq = 1;
+  let nextBattleInstanceSeq = 1;
 
   const ENEMY_DEFINITIONS = {
     enemy_black_slime_proto: {
@@ -212,7 +253,7 @@
 
   const DUNGEON_OBJECTS = [
     // 配置物は通路中央を塞がず、壁寄せ・床面模様・確認用の大型表示として扱う。
-    { id: "chest01", type: "chest", x: 8, z: 10, side: "S", blocking: false, mapChar: "C", treasureTableId: "shallow_chest_basic" },
+    { id: "chest01", type: "chest", x: 8, z: 10, side: "S", blocking: false, mapChar: "C", treasureTableId: "shallow_chest_basic", trapId: "poison_needle" },
     { id: "lever01", type: "lever", x: 9, z: 5, side: "E", blocking: false, mapChar: "L", targetDoor: { x: 5, z: 4 } },
     { id: "altar01", type: "altar", x: 4, z: 9, side: "N", blocking: false, mapChar: "A" },
     { id: "statue01", type: "statue", x: 5, z: 10, side: "S", blocking: false, mapChar: "P" },
@@ -279,6 +320,7 @@
     openedChests: new Set(),
     checkedChestTraps: new Set(),
     disarmedChests: new Set(),
+    chestStates: new Map(),
     activatedLevers: new Set(),
     trapDetectionActive: false,
     eventWindowOpen: false,
@@ -288,6 +330,9 @@
     encounterIndex: 0,
     randomEncounterSteps: 0,
     currentBattle: null,
+    focus: "town",
+    suspendedParties: [],
+    strandedParties: [],
   };
 
   const visual = {
@@ -471,6 +516,7 @@
 
   function moveForward(step) {
     if (state.eventWindowOpen || state.animation) return;
+    if (!ensurePartyCanActOrShow("全員が行動不能で、移動できない。")) return;
     const d = DIRS[state.dir];
     const nx = state.x + d.x * step;
     const nz = state.z + d.z * step;
@@ -484,12 +530,14 @@
 
   function turn(delta) {
     if (state.eventWindowOpen || state.animation) return;
+    if (!ensurePartyCanActOrShow("全員が行動不能で、向きを変えられない。")) return;
     const ndir = (state.dir + delta + 4) % 4;
     startTurnAnimation(ndir, delta);
   }
 
   function inspectFront() {
     if (state.eventWindowOpen || state.animation) return;
+    if (!ensurePartyCanActOrShow("全員が行動不能で、調べられない。")) return;
 
     const wallLever = leverOnCurrentWall(state.x, state.z, state.dir);
     if (wallLever) {
@@ -603,6 +651,230 @@
       .replace(/'/g, "&#39;");
   }
 
+  function normalizeStatusKey(status) {
+    const key = String(status || "OK").toUpperCase();
+    if (key === "DOWN") return "DEAD";
+    return STATUS_DEFINITIONS[key] ? key : "OK";
+  }
+
+  function statusDefinition(status) {
+    return STATUS_DEFINITIONS[normalizeStatusKey(status)] || STATUS_DEFINITIONS.OK;
+  }
+
+  function statusLabel(memberOrStatus) {
+    const status = typeof memberOrStatus === "string" ? memberOrStatus : memberOrStatus && memberOrStatus.status;
+    return statusDefinition(status).label;
+  }
+
+  function setMemberStatus(member, status) {
+    if (!member) return;
+    member.status = normalizeStatusKey(status);
+    if (!statusDefinition(member.status).alive) member.hp = 0;
+  }
+
+  function isMemberAlive(member) {
+    return Boolean(member && statusDefinition(member.status).alive && Number(member.hp || 0) > 0);
+  }
+
+  function canMemberAct(member) {
+    return Boolean(isMemberAlive(member) && statusDefinition(member.status).canAct);
+  }
+
+  function canMemberBeTargeted(member) {
+    return Boolean(member && statusDefinition(member.status).canTarget && Number(member.hp || 0) > 0);
+  }
+
+  function canMemberReceiveHpHealing(member) {
+    return Boolean(isMemberAlive(member) && statusDefinition(member.status).canHealHp);
+  }
+
+  function canMemberReceiveReward(member) {
+    return Boolean(isMemberAlive(member) && statusDefinition(member.status).canReceiveReward);
+  }
+
+  function normalizePartyStatuses() {
+    PARTY_MEMBERS.forEach((member) => {
+      member.status = normalizeStatusKey(member.status);
+      if (!statusDefinition(member.status).alive) member.hp = 0;
+    });
+  }
+
+  function applyDamageToMember(member, amount, defeatStatus = "DEAD") {
+    if (!member || !canMemberBeTargeted(member)) return 0;
+    const damage = Math.max(0, Number(amount || 0));
+    member.hp = Math.max(0, Number(member.hp || 0) - damage);
+    if (member.hp <= 0) setMemberStatus(member, defeatStatus);
+    return damage;
+  }
+
+  function applyStatusToMember(member, status) {
+    if (!member || !status) return false;
+    const key = normalizeStatusKey(status);
+    if (key === "OK") {
+      member.status = "OK";
+      if (Number(member.hp || 0) <= 0) member.hp = 1;
+      return true;
+    }
+    if (!statusDefinition(key).alive || isMemberAlive(member)) {
+      setMemberStatus(member, key);
+      return true;
+    }
+    return false;
+  }
+
+  function memberItemCount(member) {
+    return Array.isArray(member && member.items) ? member.items.length : 0;
+  }
+
+  function memberFreeItemSlots(member) {
+    return Math.max(0, ITEM_CAPACITY_PER_MEMBER - memberItemCount(member));
+  }
+
+  function hasItemCapacity(member, count = 1) {
+    return Boolean(member && memberFreeItemSlots(member) >= Math.max(1, Number(count || 1)));
+  }
+
+  function livingOrRecoverablePartyMembers() {
+    return PARTY_MEMBERS.filter((member) => statusDefinition(member.status).alive && Number(member.hp || 0) > 0);
+  }
+
+  function actionablePartyMembers() {
+    return PARTY_MEMBERS.filter((member) => canMemberAct(member));
+  }
+
+  function targetablePartyMembers() {
+    return PARTY_MEMBERS.filter((member) => canMemberBeTargeted(member));
+  }
+
+  function applyDungeonStepStatusEffects() {
+    const lines = [];
+    PARTY_MEMBERS.forEach((member) => {
+      const def = statusDefinition(member.status);
+      const damage = Number(def.stepDamage || 0);
+      if (damage > 0 && isMemberAlive(member)) {
+        applyDamageToMember(member, damage, "DEAD");
+        if (member.status === "DEAD") lines.push(`${member.name}は毒で倒れた。`);
+        else lines.push(`${member.name}は毒で${damage}のダメージ。`);
+      }
+    });
+    if (lines.length) renderPartyCards();
+    return lines;
+  }
+
+  function trapById(trapId) {
+    return DUNGEON_TRAPS.find((trap) => trap.id === trapId) || DUNGEON_TRAPS[0];
+  }
+
+  function trapLabel(trapId) {
+    const trap = trapById(trapId);
+    return trap ? trap.label : "不明な罠";
+  }
+
+  function randomTrapId(exceptId = "") {
+    const candidates = DUNGEON_TRAPS.filter((trap) => trap.id !== exceptId);
+    const table = candidates.length ? candidates : DUNGEON_TRAPS;
+    return table[Math.floor(Math.random() * table.length)].id;
+  }
+
+  function memberTrapSkill(member) {
+    if (!member) return 0;
+    const agi = Number((member.stats && member.stats.agi) || 10);
+    const luc = Number((member.stats && member.stats.luc) || 10);
+    let bonus = Math.floor((agi + luc) / 2);
+    if (member.className === "THI") bonus += 35;
+    else if (member.className === "NIN") bonus += 28;
+    else if (member.className === "BIS") bonus += 10;
+    else bonus += 2;
+    return bonus;
+  }
+
+  function trapCheckRoll(member, difficulty) {
+    const roll = rollRange(1, 100);
+    const score = roll + memberTrapSkill(member);
+    return { roll, score, ok: score >= Number(difficulty || 50) };
+  }
+
+  function getChestRuntimeState(chest, key = objectKey(chest)) {
+    if (!state.chestStates.has(key)) {
+      state.chestStates.set(key, {
+        key,
+        trapId: chest && chest.trapId ? chest.trapId : randomTrapId(),
+        checked: state.checkedChestTraps.has(key),
+        disarmed: state.disarmedChests.has(key),
+        opened: state.openedChests.has(key),
+        suspectedTrapId: null,
+        pendingDisarmerId: null,
+        pendingLoot: null,
+        trapTriggered: false,
+      });
+    }
+    const chestState = state.chestStates.get(key);
+    chestState.opened = chestState.opened || state.openedChests.has(key);
+    chestState.disarmed = chestState.disarmed || state.disarmedChests.has(key);
+    chestState.checked = chestState.checked || state.checkedChestTraps.has(key);
+    return chestState;
+  }
+
+  function setChestChecked(key, chestState) {
+    chestState.checked = true;
+    state.checkedChestTraps.add(key);
+  }
+
+  function setChestDisarmed(key, chestState) {
+    chestState.disarmed = true;
+    state.disarmedChests.add(key);
+  }
+
+  function setChestOpened(key, chestState) {
+    chestState.opened = true;
+    state.openedChests.add(key);
+  }
+
+  function applyTrapEffect(trapId, actor, context = "trap") {
+    const trap = trapById(trapId);
+    const lines = [];
+    const activeTargets = targetablePartyMembers();
+    const chosenActor = actor && canMemberBeTargeted(actor) ? actor : (activeTargets[0] || null);
+    if (!trap) return ["罠が作動した。"];
+    lines.push(`${trap.label}が作動した。`);
+    if (trap.effect === "poison_actor") {
+      if (chosenActor) { applyStatusToMember(chosenActor, "POISONED"); lines.push(`${chosenActor.name}は毒を受けた。`); }
+    } else if (trap.effect === "poison_party") {
+      activeTargets.forEach((member) => { applyStatusToMember(member, "POISONED"); lines.push(`${member.name}は毒を受けた。`); });
+    } else if (trap.effect === "needle_party") {
+      activeTargets.forEach((member) => {
+        const damage = Math.max(1, rollDice("1d3") + 1);
+        applyDamageToMember(member, damage, "DEAD");
+        lines.push(`${member.name}は${damage}のダメージ。`);
+      });
+    } else if (trap.effect === "paralyze_actor") {
+      if (chosenActor) { applyStatusToMember(chosenActor, "PARALYZED"); lines.push(`${chosenActor.name}は麻痺した。`); }
+    } else if (trap.effect === "stone_actor") {
+      if (chosenActor) { applyStatusToMember(chosenActor, "STONED"); lines.push(`${chosenActor.name}は石化した。`); }
+    } else if (trap.effect === "bolt_actor") {
+      if (chosenActor) {
+        const damage = Math.max(1, rollDice("1d8") + 2);
+        applyDamageToMember(chosenActor, damage, "DEAD");
+        lines.push(`${chosenActor.name}は${damage}のダメージ。`);
+      }
+    } else if (trap.effect === "blast_party") {
+      activeTargets.forEach((member) => {
+        const damage = Math.max(1, rollDice("1d6") + 1);
+        applyDamageToMember(member, damage, "DEAD");
+        lines.push(`${member.name}は${damage}のダメージ。`);
+      });
+    } else if (trap.effect === "ashes_actor") {
+      if (chosenActor) { applyStatusToMember(chosenActor, "ASHES"); lines.push(`${chosenActor.name}は灰になった。`); }
+    } else if (trap.effect === "lost_actor") {
+      if (chosenActor) { applyStatusToMember(chosenActor, "LOST"); lines.push(`${chosenActor.name}は失われた。`); }
+    }
+    renderPartyCards();
+    if (actionablePartyMembers().length === 0) {
+      lines.push("パーティは全員行動不能になった。");
+    }
+    return lines;
+  }
+
   function partyHpText(member) {
     return `${member.hp}/${member.maxHp}`;
   }
@@ -638,7 +910,7 @@
           <span class="party-card-class">${escapeHtml(member.className)}</span>
         </span>
         <span class="party-card-line"><span>HP ${escapeHtml(partyHpText(member))}</span><span>AC ${escapeHtml(effectiveMemberAc(member))}</span></span>
-        <span class="party-card-line party-card-status"><span>${escapeHtml(member.row === "front" ? "前衛" : "後衛")}</span><span>${escapeHtml(member.status)}</span></span>
+        <span class="party-card-line party-card-status"><span>${escapeHtml(member.row === "front" ? "前衛" : "後衛")}</span><span>${escapeHtml(statusLabel(member))}</span></span>
       </button>
     `).join("");
 
@@ -664,7 +936,7 @@
     return `
       <div class="event-party-head"><span>${labels.map(escapeHtml).join("</span><span>")}</span></div>
       ${PARTY_MEMBERS.map((member) => `
-        <div class="event-party-row"><span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.className)}</span><span>${escapeHtml(partyHpText(member))}</span><span>${escapeHtml(effectiveMemberAc(member))}</span><span>${escapeHtml(member.status)}</span></div>
+        <div class="event-party-row"><span>${escapeHtml(member.name)}</span><span>${escapeHtml(member.className)}</span><span>${escapeHtml(partyHpText(member))}</span><span>${escapeHtml(effectiveMemberAc(member))}</span><span>${escapeHtml(statusLabel(member))}</span></div>
       `).join("")}
     `;
   }
@@ -797,7 +1069,12 @@
     return total;
   }
 
-  function rollRange(range) {
+  function rollRange(range, maxArg = null) {
+    if (Number.isFinite(Number(range)) && Number.isFinite(Number(maxArg))) {
+      const min = Math.floor(Number(range));
+      const max = Math.max(min, Math.floor(Number(maxArg)));
+      return min + Math.floor(Math.random() * (max - min + 1));
+    }
     const min = Math.max(0, Number(range && range.min ? range.min : 0));
     const max = Math.max(min, Number(range && range.max ? range.max : min));
     return min + Math.floor(Math.random() * (max - min + 1));
@@ -966,11 +1243,11 @@
   }
 
   function isLivingMember(member) {
-    return Boolean(member && member.status === "OK" && Number(member.hp || 0) > 0);
+    return isMemberAlive(member);
   }
 
   function isWoundedLivingMember(member) {
-    return Boolean(isLivingMember(member) && Number(member.hp || 0) < Number(member.maxHp || 0));
+    return Boolean(canMemberReceiveHpHealing(member) && Number(member.hp || 0) < Number(member.maxHp || 0));
   }
 
   function isBattleUsableItem(item) {
@@ -979,6 +1256,212 @@
 
   function isCampUsableItem(item) {
     return itemDisplayName(item) === "HEALING HERB";
+  }
+
+  function campPriestSpellById(spellId) {
+    return CAMP_PRIEST_SPELLS.find((spell) => spell.id === spellId) || null;
+  }
+
+  function priestSpellPoints(member) {
+    return member && member.spells && Array.isArray(member.spells.priest) ? member.spells.priest : [];
+  }
+
+  function canSpendPriestSpellPoint(member, levelIndex) {
+    const points = priestSpellPoints(member);
+    return Number(points[levelIndex] || 0) > 0;
+  }
+
+  function spendPriestSpellPoint(member, levelIndex) {
+    const points = priestSpellPoints(member);
+    points[levelIndex] = Math.max(0, Number(points[levelIndex] || 0) - 1);
+  }
+
+  function memberMatchesCampSpellTarget(member, spell) {
+    if (!member || !spell) return false;
+    const status = normalizeStatusKey(member.status);
+    if (spell.kind === "hp") return isWoundedLivingMember(member);
+    if (spell.kind === "status") {
+      if (status !== spell.targetStatus) return false;
+      return statusDefinition(status).alive ? Number(member.hp || 0) > 0 : true;
+    }
+    if (spell.kind === "statusAny") {
+      if (!Array.isArray(spell.targetStatuses) || !spell.targetStatuses.includes(status)) return false;
+      return statusDefinition(status).alive ? Number(member.hp || 0) > 0 : true;
+    }
+    if (spell.kind === "revive") return status === spell.targetStatus;
+    return false;
+  }
+
+  function campSpellTargets(spell) {
+    return PARTY_MEMBERS.filter((member) => memberMatchesCampSpellTarget(member, spell));
+  }
+
+  function canCastCampPriestSpell(member, spell) {
+    return Boolean(canMemberAct(member) && spell && canSpendPriestSpellPoint(member, spell.levelIndex));
+  }
+
+  function campPriestSpellStatus(member, spell) {
+    if (!spell) return "未定義";
+    if (!canMemberAct(member)) return "術者行動不可";
+    if (!canSpendPriestSpellPoint(member, spell.levelIndex)) return "回数なし";
+    if (!campSpellTargets(spell).length) return "対象なし";
+    return "使用可能";
+  }
+
+  function canCastCampPriestHeal(member) {
+    return canCastCampPriestSpell(member, campPriestSpellById("heal"));
+  }
+
+  function hasCampPriestHealTarget() {
+    return PARTY_MEMBERS.some((member) => isWoundedLivingMember(member));
+  }
+
+  function campPriestHealTargetNotice() {
+    return hasCampPriestHealTarget() ? "誰を治癒しますか" : "回復対象はいない。";
+  }
+
+  function useCampPriestSpell(caster, spellId, targetMemberId) {
+    const spell = campPriestSpellById(spellId);
+    if (!caster) return { ok: false, notice: "術者が見つからない。" };
+    if (!spell) return { ok: false, notice: "呪文が見つからない。" };
+    if (!canMemberAct(caster)) return { ok: false, notice: `${caster.name}は呪文を使えない。` };
+    if (!canSpendPriestSpellPoint(caster, spell.levelIndex)) return { ok: false, notice: `${caster.name}は${spell.levelLabel} ${spell.name}を使えない。` };
+    const target = findPartyMember(targetMemberId);
+    if (!memberMatchesCampSpellTarget(target, spell)) return { ok: false, notice: "対象を回復できない。" };
+
+    spendPriestSpellPoint(caster, spell.levelIndex);
+    let notice = "";
+    if (spell.kind === "hp") {
+      const pieBonus = Math.max(0, Math.floor((Number((caster.stats && caster.stats.pie) || 10) - 10) / 3));
+      const amount = Math.max(1, rollDice("1d8") + 2 + pieBonus);
+      target.hp = Math.min(Number(target.maxHp || 1), Number(target.hp || 0) + amount);
+      notice = `${caster.name}は${target.name}を${amount}回復した。`;
+    } else if (spell.kind === "status" || spell.kind === "statusAny") {
+      const beforeStatus = normalizeStatusKey(target.status);
+      applyStatusToMember(target, "OK");
+      notice = `${caster.name}は${target.name}の${statusLabel(spell.targetStatus || beforeStatus)}を解いた。`;
+    } else if (spell.kind === "revive") {
+      const rate = Math.max(0, Math.min(100, Number(spell.successRate || 0)));
+      const success = rate >= 100 || rollRange(1, 100) <= rate;
+      if (success) {
+        applyStatusToMember(target, "OK");
+        target.hp = Math.max(1, Math.min(Number(target.maxHp || 1), Math.floor(Number(target.maxHp || 1) / 2) || 1));
+        notice = `${caster.name}は${target.name}を復帰させた。`;
+      } else {
+        applyStatusToMember(target, spell.failureStatus || target.status);
+        notice = `${caster.name}は${target.name}の復帰に失敗した。${target.name}は${statusLabel(target)}になった。`;
+      }
+    }
+    renderPartyCards();
+    return { ok: true, notice };
+  }
+
+  function useCampPriestHeal(caster, targetMemberId) {
+    return useCampPriestSpell(caster, "heal", targetMemberId);
+  }
+
+  function recoverTemporaryStatusesAfterBattle() {
+    const recovered = [];
+    PARTY_MEMBERS.forEach((member) => {
+      const status = normalizeStatusKey(member.status);
+      if (TEMPORARY_STATUS_KEYS.includes(status) && Number(member.hp || 0) > 0) {
+        applyStatusToMember(member, "OK");
+        recovered.push(member.name);
+      }
+    });
+    if (recovered.length) renderPartyCards();
+    return recovered.length ? [`${recovered.join(" / ")}は戦闘終了で行動可能になった。`] : [];
+  }
+
+  function partyStatusSummaryRows() {
+    return PARTY_MEMBERS.map((member) => `
+      <div class="return-party-row"><span>${escapeHtml(member.name)}</span><span>HP ${escapeHtml(partyHpText(member))}</span><strong>${escapeHtml(statusLabel(member))}</strong></div>
+    `).join("");
+  }
+
+  function currentPartyLocationSnapshot() {
+    return {
+      floor: state.floor,
+      x: state.x,
+      z: state.z,
+      dir: state.dir,
+      memberIds: PARTY_MEMBERS.map((member) => member.id),
+      memberNames: PARTY_MEMBERS.map((member) => member.name),
+      memberStatuses: PARTY_MEMBERS.map((member) => ({ id: member.id, name: member.name, status: normalizeStatusKey(member.status), hp: Number(member.hp || 0) })),
+    };
+  }
+
+  function currentPartyStrandedKey(snapshot) {
+    const base = snapshot || currentPartyLocationSnapshot();
+    return `${base.floor}:${base.x}:${base.z}:${base.memberIds.join("|")}`;
+  }
+
+  function recordCurrentPartyStranded(reason = "全員行動不能") {
+    if (actionablePartyMembers().length) return null;
+    const snapshot = currentPartyLocationSnapshot();
+    const key = currentPartyStrandedKey(snapshot);
+    const existing = state.strandedParties.find((party) => party.key === key);
+    if (existing) {
+      existing.reason = existing.reason || reason;
+      existing.status = existing.status || "未回収";
+      return existing;
+    }
+    const record = {
+      id: `stranded-${Date.now()}`,
+      key,
+      floor: snapshot.floor,
+      x: snapshot.x,
+      z: snapshot.z,
+      dir: snapshot.dir,
+      memberIds: snapshot.memberIds,
+      memberNames: snapshot.memberNames,
+      memberStatuses: snapshot.memberStatuses,
+      status: "未回収",
+      reason,
+    };
+    state.strandedParties.push(record);
+    return record;
+  }
+
+  function partyReturnAssessment() {
+    const lost = PARTY_MEMBERS.filter((member) => normalizeStatusKey(member.status) === "LOST");
+    return {
+      canReturn: false,
+      lostCount: lost.length,
+      recoverableCount: PARTY_MEMBERS.length - lost.length,
+      summary: lost.length ? `${lost.length}人はLOST。街機能実装後に回収可否を扱う。` : "街機能実装後に救出・寺院処理へ接続する。",
+    };
+  }
+
+  function renderPartyIncapacitatedWindow(notice = "") {
+    recordCurrentPartyStranded(notice || "全員行動不能");
+    state.eventWindowOpen = true;
+    const overlay = getEventOverlay();
+    const assessment = partyReturnAssessment();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel return-window-panel party-incapacitated-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">全員行動不能</span>
+          <span class="event-prompt">${escapeHtml(notice || "パーティはこれ以上行動できない。")}</span>
+        </div>
+        <div class="return-summary-frame">
+          <div class="return-summary-line">${escapeHtml(assessment.summary)}</div>
+          <div class="return-party-list">${partyStatusSummaryRows()}</div>
+        </div>
+        <div class="camp-note-frame"><span>v34bでは全滅時の自動帰還を行わない。救出隊・周辺探索・街側処置へ後続接続する。</span></div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions"><button data-action="close">閉じる</button></div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") closeEventWindow();
+    });
+  }
+
+  function ensurePartyCanActOrShow(notice = "パーティは行動できない。") {
+    if (actionablePartyMembers().length) return true;
+    renderPartyIncapacitatedWindow(notice);
+    return false;
   }
 
   function itemAtIndex(member, itemIndex) {
@@ -995,7 +1478,7 @@
     if (!item) return { ok: false, notice: "道具が見つからない。" };
     if (!isCampUsableItem(item)) return { ok: false, notice: `${itemName}はまだ使えない。` };
     const target = findPartyMember(targetMemberId);
-    if (!isLivingMember(target)) return { ok: false, notice: "対象を回復できない。" };
+    if (!canMemberReceiveHpHealing(target)) return { ok: false, notice: "対象を回復できない。" };
     if (!isWoundedLivingMember(target)) return { ok: false, notice: `${target.name}に傷はない。` };
     member.items.splice(index, 1);
     const amount = Math.max(1, rollDice("1d6") + 3);
@@ -1012,6 +1495,7 @@
     if (!item) return { ok: false, notice: "道具が見つからない。" };
     if (!target) return { ok: false, notice: "渡す相手が見つからない。" };
     if (target.id === member.id) return { ok: false, notice: "同じメンバーには渡せない。" };
+    if (!hasItemCapacity(target, 1)) return { ok: false, notice: `${target.name}はこれ以上持てない。` };
     if (item && typeof item === "object") item.equippedSlot = null;
     member.items.splice(index, 1);
     addItemToMember(target, item);
@@ -1033,6 +1517,7 @@
   function addItemToMember(member, item) {
     if (!member || !item) return false;
     if (!Array.isArray(member.items)) member.items = [];
+    if (!hasItemCapacity(member, 1)) return false;
     if (item && typeof item === "object" && item.name) {
       item.equippedSlot = null;
       if (!item.instanceId) item.instanceId = `item-${nextItemInstanceSeq++}`;
@@ -1041,6 +1526,16 @@
     }
     member.items.push(createItemInstance(item));
     return true;
+  }
+
+  function addItemsToMember(member, items) {
+    const list = Array.isArray(items) ? items : [];
+    if (!member || !hasItemCapacity(member, list.length)) return { ok: false, accepted: [], rejected: list.slice() };
+    const accepted = [];
+    list.forEach((itemName) => {
+      if (addItemToMember(member, itemName)) accepted.push(itemName);
+    });
+    return { ok: accepted.length === list.length, accepted, rejected: list.slice(accepted.length) };
   }
 
   function createBattleReward(groups, encounter) {
@@ -1081,6 +1576,7 @@
     });
     return {
       id: encounter.id,
+      instanceId: `battle-${nextBattleInstanceSeq++}`,
       floor: encounter.floor,
       layer: encounter.layer,
       title: encounter.title,
@@ -1109,7 +1605,7 @@
   }
 
   function battleActionableMembers() {
-    return PARTY_MEMBERS.map((member, index) => ({ member, index })).filter(({ member }) => member.status === "OK" && member.hp > 0);
+    return PARTY_MEMBERS.map((member, index) => ({ member, index })).filter(({ member }) => canMemberAct(member));
   }
 
   function normalizeBattleInputIndex(battle) {
@@ -1118,6 +1614,8 @@
     if (!members.length) {
       battle.inputIndex = 0;
       battle.inputPhase = "battle_result";
+      battle.finished = true;
+      battle.result = battle.result || "lost";
       return;
     }
     battle.inputIndex = Math.max(0, Math.min(Number(battle.inputIndex || 0), members.length - 1));
@@ -1129,12 +1627,12 @@
   }
 
   function canMemberCast(member) {
-    if (!member || !member.spells) return false;
+    if (!member || !canMemberAct(member) || !member.spells) return false;
     return hasSpellPoints(member.spells.mage) || hasSpellPoints(member.spells.priest);
   }
 
   function canMemberUseItem(member) {
-    return Boolean(member && Array.isArray(member.items) && member.items.some((item) => isBattleUsableItem(item)));
+    return Boolean(member && canMemberAct(member) && Array.isArray(member.items) && member.items.some((item) => isBattleUsableItem(item)));
   }
 
   function resetBattleInputForRound(battle) {
@@ -1151,7 +1649,7 @@
     if (current && current.member.id === memberId && !battle.finished && battle.inputPhase !== "round_resolving" && battle.inputPhase !== "battle_result") return BATTLE_PARTY_ACTION_MARKS.current;
     if ((battle.actionQueue || []).some((action) => action.characterId === memberId)) return BATTLE_PARTY_ACTION_MARKS.queued;
     const member = PARTY_MEMBERS.find((item) => item.id === memberId);
-    if (!member || member.status !== "OK" || member.hp <= 0) return BATTLE_PARTY_ACTION_MARKS.unable;
+    if (!member || !canMemberAct(member)) return BATTLE_PARTY_ACTION_MARKS.unable;
     return BATTLE_PARTY_ACTION_MARKS.waiting;
   }
 
@@ -1370,11 +1868,11 @@
   }
 
   function livingPartyMembers() {
-    return PARTY_MEMBERS.filter((member) => member.status === "OK" && member.hp > 0);
+    return PARTY_MEMBERS.filter((member) => canMemberReceiveReward(member));
   }
 
   function isPartyDefeated() {
-    return livingPartyMembers().length === 0;
+    return actionablePartyMembers().length === 0;
   }
 
   function hitTargetNumberForAc(ac) {
@@ -1426,7 +1924,7 @@
   }
 
   function chooseEnemyTarget() {
-    const living = livingPartyMembers();
+    const living = targetablePartyMembers();
     const front = living.filter((member) => member.row === "front");
     const candidates = front.length ? front : living;
     if (!candidates.length) return null;
@@ -1438,8 +1936,7 @@
   }
 
   function setMemberDown(member) {
-    member.hp = 0;
-    member.status = "DOWN";
+    setMemberStatus(member, "DEAD");
   }
 
   function distributeRewardAmount(total, recipients) {
@@ -1507,13 +2004,11 @@
     lines.unshift(`EXP ${battle.reward.totalXp} を得た。`);
 
     const loot = Array.isArray(battle.reward.items) ? battle.reward.items : [];
+    battle.reward.hasTreasureChest = loot.length > 0;
     if (loot.length) {
-      const recipient = firstLivingMember();
-      loot.forEach((itemName) => addItemToMember(recipient, itemName));
-      battle.reward.itemRecipient = recipient ? recipient.name : null;
-      lines.push(`${recipient ? recipient.name : "隊"}は${loot.join(" / ")}を得た。`);
+      lines.push("宝箱が残されている。罠を調べてから開けるべきだ。");
     } else {
-      lines.push("戦利品はなかった。");
+      lines.push("宝箱は見つからなかった。");
     }
     renderPartyCards();
     return lines;
@@ -1609,9 +2104,8 @@
     }
     let damage = Math.max(1, rollDice(attack.damageDice || "1d3") + Number(attack.damageBonus || 0));
     if (defending) damage = Math.max(1, Math.ceil(damage / 2));
-    target.hp = Math.max(0, Number(target.hp || 0) - damage);
-    if (target.hp <= 0) {
-      setMemberDown(target);
+    applyDamageToMember(target, damage, "DEAD");
+    if (target.hp <= 0 || target.status === "DEAD") {
       return `${enemyName}は${target.name}に${damage}のダメージ。${target.name}は倒れた。`;
     }
     return `${enemyName}は${target.name}に${damage}のダメージ。`;
@@ -1657,13 +2151,13 @@
     const defendingMembers = new Set(queue.filter((action) => action.command === "defend").map((action) => action.characterId));
     const runAction = queue.find((action) => action.command === "run");
     if (runAction) {
-      const runner = PARTY_MEMBERS.find((item) => item.id === runAction.characterId && item.status === "OK" && item.hp > 0);
+      const runner = PARTY_MEMBERS.find((item) => item.id === runAction.characterId && canMemberAct(item));
       lines.push(resolveEscapeAttempt(battle, runner));
     } else {
       for (const action of queue) {
         if (battle.finished) break;
         const member = PARTY_MEMBERS.find((item) => item.id === action.characterId);
-        if (!member || member.status !== "OK" || member.hp <= 0) {
+        if (!member || !canMemberAct(member)) {
           lines.push("行動できない者がいる。");
           continue;
         }
@@ -1680,10 +2174,14 @@
           battle.finished = true;
           battle.result = "won";
           lines.push("敵を倒した。");
+          lines.push(...recoverTemporaryStatusesAfterBattle());
           lines.push(...applyBattleVictoryRewards(battle));
           break;
         }
       }
+    }
+    if (battle.finished && battle.result !== "won") {
+      lines.push(...recoverTemporaryStatusesAfterBattle());
     }
     if (!battle.finished) {
       lines.push(...resolveEnemyCounterattacks(battle, defendingMembers));
@@ -1728,7 +2226,7 @@
           <span class="battle-party-rowpos">${escapeHtml(rowLabel)}</span>
           <span class="battle-party-hp">${escapeHtml(partyHpText(member))}</span>
           <span class="battle-party-ac">AC${escapeHtml(effectiveMemberAc(member))}</span>
-          <span class="battle-party-status">${escapeHtml(member.status)}</span>
+          <span class="battle-party-status">${escapeHtml(statusLabel(member))}</span>
         </div>
       `;
     }).join("");
@@ -1765,7 +2263,7 @@
       const living = isLivingMember(partyMember);
       const wounded = isWoundedLivingMember(partyMember);
       const disabled = !living || (woundedOnly && !wounded);
-      const label = `${partyMember.name} ${partyHpText(partyMember)} ${partyMember.status}`;
+      const label = `${partyMember.name} ${partyHpText(partyMember)} ${statusLabel(partyMember)}`;
       return `<button data-action="${escapeHtml(actionPrefix)}:${escapeHtml(partyMember.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
     }).join("");
     if (woundedOnly && !PARTY_MEMBERS.some((partyMember) => isWoundedLivingMember(partyMember))) {
@@ -1774,11 +2272,50 @@
     return rows;
   }
 
+  function createPostBattleChest(battle) {
+    if (!battle || !battle.reward || !Array.isArray(battle.reward.items) || !battle.reward.items.length) return null;
+    if (battle.reward.postBattleChest) return battle.reward.postBattleChest;
+    battle.reward.postBattleChest = {
+      id: `${battle.instanceId || battle.id || "battle"}-treasure`,
+      type: "battleChest",
+      source: "battle",
+      treasureTableId: null,
+      trapId: battle.reward.trapId || randomTrapId(),
+      fixedLoot: battle.reward.items.slice(),
+    };
+    return battle.reward.postBattleChest;
+  }
+
+  function postBattleChestState(battle) {
+    const chest = createPostBattleChest(battle);
+    if (!chest) return null;
+    return getChestRuntimeState(chest, objectKey(chest));
+  }
+
+  function isPostBattleChestPending(battle) {
+    const chestState = postBattleChestState(battle);
+    return Boolean(chestState && !chestState.opened);
+  }
+
+  function openPostBattleChest(battle) {
+    const chest = createPostBattleChest(battle);
+    if (!chest) return false;
+    const chestState = getChestRuntimeState(chest, objectKey(chest));
+    if (!Array.isArray(chestState.pendingLoot)) chestState.pendingLoot = chest.fixedLoot.slice();
+    renderChestWindow(chest, "戦闘後の宝箱だ。どうしますか", "main");
+    return true;
+  }
+
   function renderBattleRewardSummary(battle) {
     const reward = battle && battle.reward;
     if (!reward || battle.result !== "won") return "";
     const distributed = Number(reward.eligibleCount || 0);
     const loot = Array.isArray(reward.items) && reward.items.length ? reward.items.join(" / ") : "なし";
+    let chestStatus = "なし";
+    const chestState = postBattleChestState(battle);
+    if (chestState) {
+      chestStatus = chestState.opened ? "開封済み" : chestState.disarmed ? "解除済み" : chestState.checked ? "調査済み" : "未開封";
+    }
     return `
       <div class="battle-reward-summary" aria-label="戦闘報酬">
         <div class="battle-reward-totals">
@@ -1786,6 +2323,7 @@
           <div><span>GOLD</span><strong>${escapeHtml(reward.totalGold || 0)}</strong></div>
         </div>
         <div class="battle-reward-note">${escapeHtml(distributed)}人に配分済み。</div>
+        <div class="battle-reward-note">CHEST ${escapeHtml(chestStatus)}</div>
         <div class="battle-reward-note">ITEM ${escapeHtml(loot)}</div>
       </div>
     `;
@@ -1797,11 +2335,17 @@
     if (battle.finished || battle.inputPhase === "battle_result") {
       const title = battle.result === "lost" ? "全滅" : battle.result === "escaped" ? "逃走" : "戦闘終了";
       const note = battle.result === "lost" ? "全員が行動不能になった。" : battle.result === "escaped" ? "隊は戦闘から離脱した。" : "敵を倒した。";
+      const pendingChest = battle.result === "won" && isPostBattleChestPending(battle);
+      const resultButtons = battle.result === "lost"
+        ? `<button data-action="close">その場に残る</button>`
+        : pendingChest
+          ? `<button data-action="battle:postChest">宝箱へ</button><button data-action="close">立ち去る</button>`
+          : `<button data-action="close">探索へ戻る</button>`;
       return `
         <div class="battle-input-title">${escapeHtml(title)}</div>
         <div class="battle-input-note">${escapeHtml(note)}</div>
         ${renderBattleRewardSummary(battle)}
-        <div class="battle-command-list"><button data-action="close">閉じる</button></div>
+        <div class="battle-command-list">${resultButtons}</div>
       `;
     }
     if (battle.inputPhase === "round_resolving") {
@@ -1906,6 +2450,10 @@
       ensureBattleLogState(battle);
       battle.logPanelOpen = true;
       renderEncounterWindow(battle);
+      return;
+    }
+    if (action === "battle:postChest") {
+      openPostBattleChest(battle);
       return;
     }
     if (action === "battle:back" || action === "battle:target:back") {
@@ -2019,6 +2567,7 @@
 
   function openEncounterWindow(encounter = null) {
     if (state.eventWindowOpen || state.animation) return;
+    if (!ensurePartyCanActOrShow("全員が行動不能で、戦闘できない。")) return;
     state.eventWindowOpen = true;
     const selected = encounter || ENCOUNTER_DEMOS[state.encounterIndex % ENCOUNTER_DEMOS.length];
     if (!encounter) state.encounterIndex += 1;
@@ -2048,7 +2597,7 @@
     const enemyCards = buildEnemyCards(battle);
     const inputPanel = renderBattleInputPanel(battle);
     overlay.innerHTML = `
-      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v29a" role="dialog" aria-modal="true" aria-label="戦闘画面">
+      <div class="event-window-panel wizardry-event-panel encounter-window-panel battle-window-v34b" role="dialog" aria-modal="true" aria-label="戦闘画面">
         <button class="event-close-btn panel-close-btn encounter-close-btn" data-action="close" aria-label="閉じる">×</button>
         <div class="encounter-body-frame battle-enemy-frame">
           <div class="encounter-round-line">ROUND ${escapeHtml(battle.round)} / ${escapeHtml(BUILD_VERSION)}</div>
@@ -2069,6 +2618,10 @@
       if (action === "close") {
         clearBattleLogTimer();
         state.currentBattle = null;
+        if (battle && battle.finished && battle.result === "lost") {
+          renderPartyIncapacitatedWindow("パーティは迷宮内に残された。救出隊が必要になる。");
+          return;
+        }
         closeEventWindow();
         return;
       }
@@ -2101,14 +2654,510 @@
     startBattleLogTyping(battle);
   }
 
+
+  function currentDungeonPositionText() {
+    return `${state.floor} x${state.x} y${state.z} ${DIRS[state.dir].label}`;
+  }
+
+  function townPartyRows(options = {}) {
+    const compact = Boolean(options.compact);
+    return PARTY_MEMBERS.map((member, index) => `
+      <div class="town-party-row">
+        <span>${escapeHtml(index + 1)}</span>
+        <strong>${escapeHtml(member.name)}</strong>
+        <span>${escapeHtml(member.className)}</span>
+        <span>HP ${escapeHtml(partyHpText(member))}</span>
+        <span>${escapeHtml(statusLabel(member))}</span>
+        ${compact ? "" : `<span>${escapeHtml(member.row === "front" ? "前" : "後")}</span>`}
+      </div>`).join("");
+  }
+
+  function townRosterRows() {
+    return PARTY_MEMBERS.map((member) => `
+      <button class="town-roster-row" data-action="trainingDetail:${escapeHtml(member.id)}">
+        <span>${escapeHtml(member.name)}</span>
+        <span>${escapeHtml(member.race)} ${escapeHtml(member.className)}</span>
+        <span>LV ${escapeHtml(member.level)}</span>
+        <strong>${escapeHtml(statusLabel(member))}</strong>
+      </button>`).join("");
+  }
+
+
+  function suspendedPartyRows() {
+    if (!state.suspendedParties.length) {
+      return `<div class="town-empty-row">休止中の冒険はありません。</div>`;
+    }
+    return state.suspendedParties.map((party) => `
+      <button class="town-list-row" data-action="resumeParty:${escapeHtml(party.id)}">
+        <span>${escapeHtml(party.floor)} x${escapeHtml(party.x)} y${escapeHtml(party.z)} ${escapeHtml(DIRS[party.dir].label)}</span>
+        <strong>${escapeHtml(party.memberNames.join("・"))}</strong>
+        <em>再開</em>
+      </button>`).join("");
+  }
+
+  function strandedPartyRows() {
+    if (!state.strandedParties.length) {
+      return `<div class="town-empty-row">迷宮内に記録された全滅・遭難パーティーはありません。</div>`;
+    }
+    return state.strandedParties.map((party) => `
+      <div class="town-static-row">
+        <span>${escapeHtml(party.floor)} x${escapeHtml(party.x)} y${escapeHtml(party.z)}</span>
+        <strong>${escapeHtml(party.memberNames.join("・"))}</strong>
+        <em>${escapeHtml(party.status || "未回収")}</em>
+      </div>`).join("");
+  }
+
+  function openTownWindow(notice = "") {
+    state.eventWindowOpen = true;
+    state.focus = "town";
+    renderTownWindow(notice);
+  }
+
+  function enterDungeonFromTown(notice = "迷宮へ入った。") {
+    state.focus = "dungeon";
+    closeEventWindow();
+    setMessage(notice, true);
+    updateHud();
+    renderPartyCards();
+  }
+
+  function suspendCurrentAdventure() {
+    if (state.suspendedParties.length) {
+      openTownWindow("v34bでは休止中の冒険は1件のみ扱う。既存の冒険を再開してください。");
+      return;
+    }
+    const id = `suspend-${Date.now()}`;
+    // v34bでは、街側の新規/救助隊編成が未実装のため休止中パーティーは1件のみ保持する。
+    state.suspendedParties = [{
+      id,
+      floor: state.floor,
+      x: state.x,
+      z: state.z,
+      dir: state.dir,
+      memberIds: PARTY_MEMBERS.map((member) => member.id),
+      memberNames: PARTY_MEMBERS.map((member) => member.name),
+    }];
+    openTownWindow("冒険を中断した。パーティーは迷宮内の現在位置に留まっている。");
+  }
+
+  function resumeSuspendedParty(partyId) {
+    const party = state.suspendedParties.find((item) => item.id === partyId);
+    if (!party) {
+      renderResumeAdventureWindow("再開できる冒険が見つからない。");
+      return;
+    }
+    state.floor = party.floor;
+    state.x = party.x;
+    state.z = party.z;
+    state.dir = party.dir;
+    visual.x = state.x;
+    visual.z = state.z;
+    visual.dir = state.dir;
+    state.suspendedParties = state.suspendedParties.filter((item) => item.id !== partyId);
+    enterDungeonFromTown("冒険を再開した。");
+  }
+
+  function townSelectableMemberRows(actionPrefix, options = {}) {
+    const showGold = options.showGold !== false;
+    const showStatus = options.showStatus !== false;
+    const members = PARTY_MEMBERS;
+    if (!members.length) return `<div class="town-empty-row">対象者がいません。</div>`;
+    return members.map((member) => `
+      <button class="town-roster-row" data-action="${escapeHtml(actionPrefix)}:${escapeHtml(member.id)}">
+        <span>${escapeHtml(member.name)}</span>
+        <span>${escapeHtml(member.className)} LV ${escapeHtml(member.level)}</span>
+        ${showStatus ? `<span>${escapeHtml(statusLabel(member))}</span>` : ""}
+        ${showGold ? `<strong>${escapeHtml(member.gold || 0)} G</strong>` : ""}
+      </button>`).join("");
+  }
+
+  function renderTownWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">街</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "どこへ行きますか"}</span>
+        </div>
+        <div class="event-main-grid camp-main-grid town-main-grid">
+          <div class="event-art-frame camp-art-frame town-art-frame" aria-hidden="true">
+            <div class="character-rune">TOWN</div>
+          </div>
+          <div class="event-command-frame">
+            <div class="event-command-title">FACILITY</div>
+            <div class="event-actions">
+              <button data-action="tavern">酒場</button>
+              <button data-action="training">訓練場</button>
+              <button data-action="inn">宿屋</button>
+              <button data-action="temple">寺院</button>
+              <button data-action="shop">商店</button>
+              <button data-action="resume">冒険を再開する</button>
+              <button data-action="stranded">遭難記録</button>
+              <button data-action="enterDungeon">迷宮へ</button>
+            </div>
+          </div>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">CURRENT PARTY</div>
+          <div class="town-party-head"><span>#</span><span>NAME</span><span>CLS</span><span>HITS</span><span>ST</span><span>ROW</span></div>
+          ${townPartyRows()}
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>街は操作フォーカスの拠点であり、全滅パーティーを自動回収しない。酒場は編成、訓練場は個人管理。宿屋・商店は個人単位、寺院は処置対象と支払者を分ける。</span></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "tavern") { renderTavernWindow(); return; }
+      if (action === "training") { renderTrainingGroundWindow(); return; }
+      if (action === "inn") { renderInnWindow(); return; }
+      if (action === "temple") { renderTempleWindow(); return; }
+      if (action === "shop") { renderShopWindow(); return; }
+      if (action === "resume") { renderResumeAdventureWindow(); return; }
+      if (action === "stranded") { renderStrandedRecordWindow(); return; }
+      if (action === "enterDungeon") {
+        if (state.suspendedParties.length) {
+          renderTownWindow("休止中の冒険があります。v34bでは新規/救助隊編成が未実装のため、先に「冒険を再開する」を選んでください。");
+          return;
+        }
+        enterDungeonFromTown();
+      }
+    });
+  }
+
+  function renderTavernWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">酒場</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "パーティーを編成する"}</span>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">CURRENT PARTY</div>
+          <div class="town-party-head"><span>#</span><span>NAME</span><span>CLS</span><span>HITS</span><span>ST</span><span>ROW</span></div>
+          ${townPartyRows()}
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">ADVENTURERS IN TOWN</div>
+          <div class="town-empty-row">v34bでは全員が現在パーティー所属。後続実装では街所在の冒険者だけを加入候補に出す。</div>
+        </div>
+        <div class="event-command-frame character-detail-actions town-actions-frame">
+          <div class="event-actions">
+            <button data-action="tavernAdd">加える</button>
+            <button data-action="tavernRemove">外す</button>
+            <button data-action="tavernGold">金を分配する</button>
+            <button data-action="backToTown">街へ戻る</button>
+          </div>
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>酒場は編成施設。金を分配するは均等配分。訓練場の新規作成・転職・削除とは混同しない。</span></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action === "tavernAdd") { renderTavernWindow("加入候補は街にいる冒険者のみ。候補管理は後続実装。"); return; }
+      if (action === "tavernRemove") { renderTavernWindow("外した冒険者は街所在になる。実処理は後続実装。"); return; }
+      if (action === "tavernGold") { renderTavernWindow("酒場の金を分配するは、現在街パーティー内の金を均等配分する機能として後続実装。"); return; }
+    });
+  }
+
+  function renderTrainingGroundWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">訓練場</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "冒険者を管理する"}</span>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">ROSTER</div>
+          <div class="town-roster-list">${townRosterRows()}</div>
+        </div>
+        <div class="event-command-frame character-detail-actions town-actions-frame">
+          <div class="event-actions">
+            <button data-action="create">新規作成</button>
+            <button data-action="classChange">転職</button>
+            <button data-action="retire">引退/削除</button>
+            <button data-action="backToTown">街へ戻る</button>
+          </div>
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>訓練場は個人管理施設。後続実装では、訓練場に入る際に街の編成中パーティー解散を確認する。</span></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action === "create") { renderTrainingGroundWindow("新規作成はプリセット名・種族・属性・職業選択の最小実装として後続で扱う。"); return; }
+      if (action === "classChange") { renderTrainingGroundWindow("転職は個人単位。レベル1化、経験値0、能力値低下、装備解除、数年加齢を伴う後続実装。"); return; }
+      if (action === "retire") { renderTrainingGroundWindow("削除/引退は誤操作対策を含めて後続仕様で扱う。迷宮内未回収者は通常削除対象にしない。"); return; }
+      if (action.startsWith("trainingDetail:")) { openCharacterWindow(action.slice("trainingDetail:".length), "trainingGround"); }
+    });
+  }
+
+  function renderInnWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">宿屋</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "誰を泊めますか"}</span>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">LODGING TARGET</div>
+          <div class="town-roster-list">${townSelectableMemberRows("innMember")}</div>
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>宿屋は個人単位。宿泊対象本人の所持金で支払い、宿泊後にHP/呪文回復とレベルアップ判定を行う。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToTown">街へ戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("innMember:")) { renderInnRoomWindow(action.slice("innMember:".length)); return; }
+    });
+  }
+
+  function renderInnRoomWindow(memberId, notice = "") {
+    const member = findPartyMember(memberId);
+    if (!member) { renderInnWindow("対象者が見つからない。"); return; }
+    const rooms = [
+      ["stable", "馬小屋", "HP 0/週", "0G", "1週固定"],
+      ["barracks", "大部屋", "HP 1/週", "10G/週", "必要週数"],
+      ["double", "二人部屋", "HP 3/週", "50G/週", "必要週数"],
+      ["private", "個室", "HP 7/週", "200G/週", "必要週数"],
+      ["royal", "王室", "HP 10/週", "500G/週", "必要週数"],
+    ].map(([id, name, heal, cost, term]) => `
+      <button class="town-roster-row" data-action="innRoom:${escapeHtml(id)}">
+        <span>${escapeHtml(name)}</span><span>${escapeHtml(heal)}</span><span>${escapeHtml(cost)}</span><strong>${escapeHtml(term)}</strong>
+      </button>`).join("");
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">宿屋 / ${escapeHtml(member.name)}</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "部屋を選ぶ"}</span>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">ROOM RANK</div>
+          <div class="town-roster-list">${rooms}</div>
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>v34bではUI器のみ。実処理では馬小屋は1週固定、他の部屋は必要週数、1週以上で呪文回復とレベルアップ判定を行う。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToInn">宿屋へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToInn") { renderInnWindow(""); return; }
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("innRoom:")) { renderInnRoomWindow(member.id, "宿泊処理は後続実装。支払いは宿泊者本人の所持金から行う。"); return; }
+    });
+  }
+
+  function renderTempleWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">寺院</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "誰を処置しますか"}</span>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">TEMPLE TARGET</div>
+          <div class="town-roster-list">${townSelectableMemberRows("templeTarget")}</div>
+        </div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="templeGatherGold">お金を集める</button><button data-action="backToTown">街へ戻る</button></div></div>
+        <div class="camp-note-frame town-note-frame"><span>寺院は回収済み対象のみ処置する。処置対象本人から支払わず、別に支払者を選ぶ。寺院サービスの加齢は1d52週。</span></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action === "templeGatherGold") { renderTempleMoneyGatherWindow(); return; }
+      if (action.startsWith("templeTarget:")) { renderTemplePayerWindow(action.slice("templeTarget:".length)); return; }
+    });
+  }
+
+  function renderTemplePayerWindow(targetId, notice = "") {
+    const target = findPartyMember(targetId);
+    if (!target) { renderTempleWindow("処置対象が見つからない。"); return; }
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">寺院 / 支払者選択</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : `${escapeHtml(target.name)}の処置費を誰が払いますか`}</span>
+        </div>
+        <div class="town-status-frame"><div class="town-frame-title">PAYER</div><div class="town-roster-list">${townSelectableMemberRows("templePayer")}</div></div>
+        <div class="camp-note-frame town-note-frame"><span>後続実装ではOK/POISONEDの街パーティーメンバーだけを支払者候補に出す。死亡・灰化・石化・麻痺者は支払者にしない。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToTemple">寺院へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTemple") { renderTempleWindow(""); return; }
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("templePayer:")) { renderTemplePayerWindow(target.id, "処置実行は後続実装。支払いは選択した支払者の所持金から行う。"); return; }
+    });
+  }
+
+  function renderTempleMoneyGatherWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">寺院 / お金を集める</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "誰に集めますか"}</span>
+        </div>
+        <div class="town-status-frame"><div class="town-frame-title">RECEIVER</div><div class="town-roster-list">${townSelectableMemberRows("templeGoldTo")}</div></div>
+        <div class="camp-note-frame town-note-frame"><span>寺院のお金を集めるは、現在街パーティーの金を選択した1人へ集中する機能。酒場の均等配分とは別。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToTemple">寺院へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTemple") { renderTempleWindow(""); return; }
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("templeGoldTo:")) { renderTempleMoneyGatherWindow("金集中の実処理は後続実装。受取先以外の同Partyメンバーの金は0になる仕様。"); return; }
+    });
+  }
+
+  function renderShopWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">商店</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "何をしますか"}</span>
+        </div>
+        <div class="event-command-frame character-detail-actions town-actions-frame">
+          <div class="event-actions">
+            <button data-action="shopBuy">買う</button>
+            <button data-action="shopSell">売る</button>
+            <button data-action="shopIdentify">鑑定</button>
+            <button data-action="shopUncurse">解呪</button>
+            <button data-action="shopGatherGold">お金を集める</button>
+            <button data-action="backToTown">街へ戻る</button>
+          </div>
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>商店は個人単位。買う/売る/鑑定/解呪は対象キャラクターを選び、その人物の所持金・所持品だけを処理する。</span></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action === "shopGatherGold") { renderShopMoneyGatherWindow(); return; }
+      if (["shopBuy", "shopSell", "shopIdentify", "shopUncurse"].includes(action)) { renderShopMemberSelectWindow(action); return; }
+    });
+  }
+
+  function shopActionLabel(action) {
+    return { shopBuy: "買う", shopSell: "売る", shopIdentify: "鑑定", shopUncurse: "解呪" }[action] || "商店";
+  }
+
+  function renderShopMemberSelectWindow(shopAction, notice = "") {
+    const label = shopActionLabel(shopAction);
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">商店 / ${escapeHtml(label)}</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "対象者を選ぶ"}</span>
+        </div>
+        <div class="town-status-frame"><div class="town-frame-title">CUSTOMER</div><div class="town-roster-list">${townSelectableMemberRows("shopMember")}</div></div>
+        <div class="camp-note-frame town-note-frame"><span>${escapeHtml(label)}は対象者個人の所持金・所持品を処理対象にする。暗黙の共有財布は使わない。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToShop">商店へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToShop") { renderShopWindow(""); return; }
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("shopMember:")) { renderShopMemberSelectWindow(shopAction, `${label}の本処理は後続実装。選択者本人の所持金・所持品だけを対象にする。`); return; }
+    });
+  }
+
+  function renderShopMoneyGatherWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">商店 / お金を集める</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "誰に集めますか"}</span>
+        </div>
+        <div class="town-status-frame"><div class="town-frame-title">RECEIVER</div><div class="town-roster-list">${townSelectableMemberRows("shopGoldTo")}</div></div>
+        <div class="camp-note-frame town-note-frame"><span>商店のお金を集めるは買い物担当者へ金を集中する補助機能。購入・鑑定・解呪はその人物本人の所持金から支払う。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame"><div class="event-actions"><button data-action="backToShop">商店へ戻る</button><button data-action="backToTown">街へ戻る</button></div></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToShop") { renderShopWindow(""); return; }
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("shopGoldTo:")) { renderShopMoneyGatherWindow("金集中の実処理は後続実装。買い物の対象者個人へ資金を寄せる。"); return; }
+    });
+  }
+
+  function renderResumeAdventureWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">冒険を再開する</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "休止中パーティーを選ぶ"}</span>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">SUSPENDED PARTIES</div>
+          <div class="town-list-frame">${suspendedPartyRows()}</div>
+        </div>
+        <div class="event-command-frame character-detail-actions town-actions-frame">
+          <div class="event-actions"><button data-action="backToTown">街へ戻る</button></div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTown") { renderTownWindow(""); return; }
+      if (action.startsWith("resumeParty:")) { resumeSuspendedParty(action.slice("resumeParty:".length)); }
+    });
+  }
+
+  function renderStrandedRecordWindow() {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel town-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box town-message-box" aria-live="polite">
+          <span id="eventWindowTitle">遭難記録</span>
+          <span class="event-prompt">迷宮内に残された者</span>
+        </div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">STRANDED / LOST PARTIES</div>
+          <div class="town-list-frame">${strandedPartyRows()}</div>
+        </div>
+        <div class="camp-note-frame town-note-frame"><span>発見・回収は街で自動処理しない。救助隊が迷宮でキャンプを開き、「周辺を探索する」ことで発見する。</span></div>
+        <div class="event-command-frame character-detail-actions town-actions-frame">
+          <div class="event-actions"><button data-action="backToTown">街へ戻る</button></div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "backToTown") renderTownWindow("");
+    });
+  }
+
+  function renderCampSearchWindow(notice = "") {
+    const overlay = getEventOverlay();
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel camp-window-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">周辺を探索する</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : "周囲の痕跡を調べる"}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="camp-note-frame"><span>v34bでは発見処理の器のみ。後続で全滅パーティー・別冒険者・遺体・荷物の発見判定に接続する。</span></div>
+        <div class="town-status-frame">
+          <div class="town-frame-title">SEARCH RESULT</div>
+          <div class="town-empty-row">この周辺に目立つ痕跡はない。</div>
+        </div>
+        <div class="event-command-frame character-detail-actions">
+          <div class="event-actions">
+            <button data-action="searchAgain">もう一度調べる</button>
+            <button data-action="backToCamp">キャンプへ戻る</button>
+            <button data-action="close">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") { closeEventWindow(); return; }
+      if (action === "backToCamp") { renderCampWindow(""); return; }
+      if (action === "searchAgain") { renderCampSearchWindow("今は何も見つからない。"); }
+    });
+  }
+
   function openCampWindow() {
     if (state.eventWindowOpen || state.animation) return;
+    if (!ensurePartyCanActOrShow("全員が行動不能で、キャンプを開けない。")) return;
     state.eventWindowOpen = true;
     renderCampWindow("");
   }
 
   function openFormationWindow() {
     if (state.eventWindowOpen || state.animation) return;
+    if (!ensurePartyCanActOrShow("全員が行動不能で、隊列を変えられない。")) return;
     state.eventWindowOpen = true;
     renderFormationWindow("");
   }
@@ -2134,6 +3183,8 @@
               <button data-action="equipAll">装備</button>
               <button data-action="spells">呪文</button>
               <button data-action="items">アイテム</button>
+              <button data-action="searchArea">周辺を探索する</button>
+              <button data-action="suspendAdventure">冒険を中断する</button>
               <button data-action="close">出る</button>
             </div>
           </div>
@@ -2166,7 +3217,17 @@
       }
       if (action === "items") {
         renderCampMemberSelectWindow("items");
+        return;
       }
+      if (action === "searchArea") {
+        renderCampSearchWindow();
+        return;
+      }
+      if (action === "suspendAdventure") {
+        suspendCurrentAdventure();
+        return;
+      }
+      return;
     });
   }
 
@@ -2333,17 +3394,27 @@
     });
   }
 
-  function renderSpellWindow(memberId) {
+  function renderSpellWindow(memberId, notice = "") {
     const member = PARTY_MEMBERS.find((item) => item.id === memberId);
     if (!member) return;
     const overlay = getEventOverlay();
     const mage = spellLine(member.spells && member.spells.mage);
     const priest = spellLine(member.spells && member.spells.priest);
+    const spellRows = CAMP_PRIEST_SPELLS.map((spell) => {
+      const status = campPriestSpellStatus(member, spell);
+      const disabled = status === "使用可能" ? "" : "disabled";
+      return `
+        <button class="spell-cast-row" data-action="castCampSpell:${escapeHtml(spell.id)}" ${disabled}>
+          <span>${escapeHtml(spell.levelLabel)}</span>
+          <strong>${escapeHtml(spell.name)}</strong>
+          <em>${escapeHtml(status)}</em>
+        </button>`;
+    }).join("");
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
         <div class="event-message-box" aria-live="polite">
           <span id="eventWindowTitle">SPELL POINTS</span>
-          <span class="event-prompt">${escapeHtml(member.name)}</span>
+          <span class="event-prompt">${notice ? escapeHtml(notice) : escapeHtml(member.name)}</span>
           <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
         </div>
         <div class="spell-detail-frame">
@@ -2351,7 +3422,15 @@
           <div class="spell-table-row"><span>MAGE</span>${mage.split("/").map((value) => `<strong>${escapeHtml(value)}</strong>`).join("")}</div>
           <div class="spell-table-row"><span>PRIEST</span>${priest.split("/").map((value) => `<strong>${escapeHtml(value)}</strong>`).join("")}</div>
         </div>
-        <div class="camp-note-frame"><span>呪文使用はまだ行わない。</span></div>
+        <div class="spell-cast-frame spell-camp-v30-frame spell-camp-v34b-frame">
+          ${spellRows}
+          <div class="spell-cast-row spell-cast-row-disabled" aria-disabled="true">
+            <span>MAGE 1</span>
+            <strong>火花</strong>
+            <em>戦闘中のみ</em>
+          </div>
+        </div>
+        <div class="camp-note-frame"><span>v34bでは迷宮内PRIEST呪文でHP・毒・麻痺・石化・OUT・死亡・灰化を処置する。ASLEEP/AFRAIDは戦闘終了で回復し、LOSTは迷宮内回復不可。</span></div>
         <div class="event-command-frame character-detail-actions">
           <div class="event-actions">
             <button data-action="backToMembers">メンバーへ戻る</button>
@@ -2361,9 +3440,75 @@
         </div>
       </div>`;
     bindWindowActions(overlay, (action) => {
-      if (action === "close") closeEventWindow();
-      if (action === "backToMembers") renderCampMemberSelectWindow("spells");
-      if (action === "backToCamp") renderCampWindow("");
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "backToMembers") {
+        renderCampMemberSelectWindow("spells");
+        return;
+      }
+      if (action === "backToCamp") {
+        renderCampWindow("");
+        return;
+      }
+      if (action.startsWith("castCampSpell:")) {
+        const spellId = action.slice("castCampSpell:".length);
+        const spell = campPriestSpellById(spellId);
+        if (!spell) {
+          renderSpellWindow(member.id, "呪文が見つからない。");
+          return;
+        }
+        const status = campPriestSpellStatus(member, spell);
+        if (status !== "使用可能") {
+          renderSpellWindow(member.id, `${spell.name}: ${status}`);
+          return;
+        }
+        renderCampSpellTargetWindow(member.id, spell.id);
+      }
+    });
+  }
+
+  function renderCampSpellTargetWindow(memberId, spellId = "heal", notice = "") {
+    const caster = PARTY_MEMBERS.find((item) => item.id === memberId);
+    const spell = campPriestSpellById(spellId);
+    if (!caster || !spell) return;
+    const overlay = getEventOverlay();
+    const targetButtons = PARTY_MEMBERS.map((target) => {
+      const disabled = !memberMatchesCampSpellTarget(target, spell);
+      const label = `${target.name} HP ${partyHpText(target)} ${statusLabel(target)}`;
+      return `<button data-action="target:${escapeHtml(target.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
+    }).join("");
+    const prompt = notice || (campSpellTargets(spell).length ? `${spell.name}: 誰を対象にしますか` : `${spell.name}: 対象はいない。`);
+    overlay.innerHTML = `
+      <div class="event-window-panel wizardry-event-panel character-detail-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
+        <div class="event-message-box" aria-live="polite">
+          <span id="eventWindowTitle">${escapeHtml(spell.levelLabel)} ${escapeHtml(spell.name)}</span>
+          <span class="event-prompt">${escapeHtml(prompt)}</span>
+          <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
+        </div>
+        <div class="event-command-frame camp-member-frame">
+          <div class="event-command-title">TARGET / ${escapeHtml(caster.name)} ${escapeHtml(spellLine(caster.spells && caster.spells.priest))}</div>
+          <div class="event-actions camp-member-actions">
+            ${targetButtons}
+            <button data-action="back">戻る</button>
+          </div>
+        </div>
+        <div class="camp-note-frame"><span>${escapeHtml(spell.note || "対象がない場合は消費しない。")}</span></div>
+      </div>`;
+    bindWindowActions(overlay, (action) => {
+      if (action === "close") {
+        closeEventWindow();
+        return;
+      }
+      if (action === "back") {
+        renderSpellWindow(caster.id);
+        return;
+      }
+      if (action.startsWith("target:")) {
+        const result = useCampPriestSpell(caster, spell.id, action.slice("target:".length));
+        renderSpellWindow(caster.id, result.notice);
+      }
     });
   }
 
@@ -2391,7 +3536,7 @@
         <div class="item-detail-frame item-manage-frame">
           ${itemRows}
         </div>
-        <div class="camp-note-frame"><span>道具を選択すると、使用・装備/外す・渡す・捨てるを選べる。</span></div>
+        <div class="camp-note-frame"><span>所持 ${escapeHtml(memberItemCount(member))}/${escapeHtml(ITEM_CAPACITY_PER_MEMBER)}。道具を選択すると、使用・装備/外す・渡す・捨てるを選べる。</span></div>
         <div class="event-command-frame character-detail-actions">
           <div class="event-actions">
             <button data-action="${escapeHtml(backAction)}">${escapeHtml(backLabel)}</button>
@@ -2509,7 +3654,7 @@
     const overlay = getEventOverlay();
     const targetButtons = PARTY_MEMBERS.map((target) => {
       const disabled = !isWoundedLivingMember(target);
-      const label = `${target.name} HP ${partyHpText(target)} ${target.status}`;
+      const label = `${target.name} HP ${partyHpText(target)} ${statusLabel(target)}`;
       return `<button data-action="target:${escapeHtml(target.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
     }).join("");
     const targetNotice = notice || (PARTY_MEMBERS.some((target) => isWoundedLivingMember(target)) ? "誰に使いますか" : "回復対象はいない。");
@@ -2555,8 +3700,8 @@
     }
     const overlay = getEventOverlay();
     const targetButtons = PARTY_MEMBERS.map((target) => {
-      const disabled = target.id === member.id;
-      const label = `${target.name} ${target.className}`;
+      const disabled = target.id === member.id || !hasItemCapacity(target, 1);
+      const label = `${target.name} ${target.className} ${memberItemCount(target)}/${ITEM_CAPACITY_PER_MEMBER}`;
       return `<button data-action="target:${escapeHtml(target.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
     }).join("");
     overlay.innerHTML = `
@@ -2642,7 +3787,14 @@
     const overlay = getEventOverlay();
     const spellRows = renderSpellPointRows(member);
     const itemRows = (member.items || []).map((item) => `<li>${isItemEquipped(item) ? "[E] " : ""}${escapeHtml(itemDisplayName(item))}</li>`).join("") || `<li>なし</li>`;
-    const backButton = returnMode === "campMembers" ? `<button data-action="backToCampMembers">戻る</button>` : "";
+    let backButton = "";
+    if (returnMode === "campMembers") backButton = `<button data-action="backToCampMembers">戻る</button>`;
+    if (returnMode === "trainingGround") backButton = `<button data-action="backToTraining">訓練場へ戻る</button>`;
+    if (returnMode === "tavern") backButton = `<button data-action="backToTavern">酒場へ戻る</button>`;
+    const townDetailMode = returnMode === "trainingGround" || returnMode === "tavern";
+    const characterActionButtons = townDetailMode
+      ? `${backButton}<button data-action="close">閉じる</button>`
+      : `<button data-action="spell:${escapeHtml(member.id)}">呪文</button><button data-action="items:${escapeHtml(member.id)}">アイテム</button>${backButton}<button data-action="close">閉じる</button>`;
 
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel character-detail-panel compact-status-panel status-detail-v23g-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
@@ -2663,7 +3815,7 @@
               <div class="status-detail-v23g-list status-detail-v23g-basic">
                 <div><span>HITS</span><strong>${escapeHtml(partyHpText(member))}</strong></div>
                 <div><span>AC</span><strong>${escapeHtml(effectiveMemberAc(member))}</strong></div>
-                <div><span>STATUS</span><strong>${escapeHtml(member.status)}</strong></div>
+                <div><span>STATUS</span><strong>${escapeHtml(statusLabel(member))}</strong></div>
                 <div><span>GOLD</span><strong>${escapeHtml(member.gold)}</strong></div>
                 <div><span>EXP</span><strong>${escapeHtml(member.xp ?? 0)}</strong></div>
               </div>
@@ -2688,21 +3840,28 @@
         </div>
         <div class="event-command-frame character-detail-actions compact-status-actions status-detail-v23g-actions">
           <div class="event-actions">
-            <button data-action="spell:${escapeHtml(member.id)}">呪文</button>
-            <button data-action="items:${escapeHtml(member.id)}">アイテム</button>
-            ${backButton}
-            <button data-action="close">閉じる</button>
+            ${characterActionButtons}
           </div>
         </div>
       </div>`;
 
     bindWindowActions(overlay, (action) => {
       if (action === "close") {
+        if (returnMode === "trainingGround") { renderTrainingGroundWindow(""); return; }
+        if (returnMode === "tavern") { renderTavernWindow(""); return; }
         closeEventWindow();
         return;
       }
       if (action === "backToCampMembers") {
         renderCampMemberSelectWindow("detail");
+        return;
+      }
+      if (action === "backToTraining") {
+        renderTrainingGroundWindow("");
+        return;
+      }
+      if (action === "backToTavern") {
+        renderTavernWindow("");
         return;
       }
       if (action.startsWith("spell:")) {
@@ -2715,6 +3874,27 @@
     });
   }
 
+  function chestActorButtons(actionPrefix, disabledWhenUnable = false) {
+    return PARTY_MEMBERS.map((member) => {
+      const disabled = disabledWhenUnable && !canMemberAct(member);
+      const label = `${member.name} ${member.className} ${statusLabel(member)}`;
+      return `<button data-action="${escapeHtml(actionPrefix)}:${escapeHtml(member.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
+    }).join("");
+  }
+
+  function chestTrapChoiceButtons() {
+    return DUNGEON_TRAPS.map((trap) => `<button data-action="trapType:${escapeHtml(trap.id)}">${escapeHtml(trap.label)}</button>`).join("");
+  }
+
+  function chestRecipientButtons(pendingLoot) {
+    const itemCount = Array.isArray(pendingLoot) ? pendingLoot.length : 0;
+    return PARTY_MEMBERS.map((member) => {
+      const disabled = !canMemberReceiveReward(member) || !hasItemCapacity(member, itemCount);
+      const label = `${member.name} ${statusLabel(member)} / ${memberItemCount(member)}/${ITEM_CAPACITY_PER_MEMBER}`;
+      return `<button data-action="recipient:${escapeHtml(member.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(label)}</button>`;
+    }).join("");
+  }
+
   function renderChestWindow(chest, notice = "", mode = "main") {
     let overlay = document.getElementById("eventWindowOverlay");
     if (!overlay) {
@@ -2724,13 +3904,15 @@
       document.body.appendChild(overlay);
     }
 
-    const checked = isChestTrapChecked(chest);
-    const disarmed = isChestDisarmed(chest);
-    const opened = isChestOpen(chest);
     const key = objectKey(chest);
+    const chestState = getChestRuntimeState(chest, key);
+    const opened = chestState.opened;
+    const checked = chestState.checked;
+    const disarmed = chestState.disarmed;
+    const trap = trapById(chestState.trapId);
+    const suspected = checked && chestState.suspectedTrapId ? trapLabel(chestState.suspectedTrapId) : "未調査";
+    const pendingLoot = Array.isArray(chestState.pendingLoot) ? chestState.pendingLoot : [];
 
-    const actorButtons = CHEST_ACTORS.map((name) => `<button data-action="actor:${name}">${name}</button>`).join("");
-    const disarmButtons = CHEST_ACTORS.map((name) => `<button data-action="disarmActor:${name}">${name}</button>`).join("");
     const mainButtons = opened
       ? `<button data-action="close">離れる</button>`
       : `
@@ -2740,25 +3922,47 @@
         <button data-action="close">離れる</button>
       `;
 
-    let title = "宝箱";
+    let title = chest && chest.source === "battle" ? "戦闘後の宝箱" : "宝箱";
     let prompt = notice || "どうしますか";
     let actions = mainButtons;
+    let commandTitle = "COMMAND";
 
     if (mode === "chooseInspector") {
-      title = "宝箱";
       prompt = "誰が調べますか";
-      actions = `${actorButtons}<button data-action="back">戻る</button>`;
+      commandTitle = "INSPECT";
+      actions = `${chestActorButtons("actor", true)}<button data-action="back">戻る</button>`;
     } else if (mode === "chooseDisarmer") {
-      title = "宝箱";
       prompt = "誰が解除しますか";
-      actions = `${disarmButtons}<button data-action="back">戻る</button>`;
+      commandTitle = "DISARMER";
+      actions = `${chestActorButtons("disarmActor", true)}<button data-action="back">戻る</button>`;
+    } else if (mode === "chooseTrapType") {
+      const disarmer = findPartyMember(chestState.pendingDisarmerId);
+      prompt = `${disarmer ? disarmer.name : "解除者"}：どの罠を外しますか`;
+      commandTitle = "TRAP TYPE";
+      actions = `${chestTrapChoiceButtons()}<button data-action="backDisarm">解除者へ戻る</button>`;
+    } else if (mode === "chooseRecipient") {
+      title = "戦利品";
+      prompt = pendingLoot.length ? `${pendingLoot.join(" / ")} を誰が持ちますか` : "中は空だった。";
+      commandTitle = "RECIPIENT";
+      actions = pendingLoot.length
+        ? `${chestRecipientButtons(pendingLoot)}<button data-action="leaveLoot">受け取らない</button>`
+        : `<button data-action="finishOpen">閉じる</button>`;
     }
+
+    const trapStatus = opened
+      ? "開封済み"
+      : disarmed
+        ? `解除済み: ${trap.label}`
+        : checked
+          ? `罠推定: ${suspected}`
+          : "罠: 未調査";
+    const inventoryStatus = `所持上限: 1人${ITEM_CAPACITY_PER_MEMBER}個`;
 
     overlay.innerHTML = `
       <div class="event-window-panel wizardry-event-panel" role="dialog" aria-modal="true" aria-labelledby="eventWindowTitle">
         <div class="event-message-box" aria-live="polite">
-          <span id="eventWindowTitle">${title}</span>
-          <span class="event-prompt">${prompt}</span>
+          <span id="eventWindowTitle">${escapeHtml(title)}</span>
+          <span class="event-prompt">${escapeHtml(prompt)}</span>
           <button class="event-close-btn" data-action="close" aria-label="閉じる">×</button>
         </div>
         <div class="event-main-grid">
@@ -2766,9 +3970,11 @@
             <div class="event-chest-visual ${opened ? "opened" : "closed"}">
               <img class="event-chest-image" src="assets/ui/${opened ? "chest_open.svg" : "chest_closed.svg"}" alt="" />
             </div>
+            <div class="event-object-caption">${escapeHtml(trapStatus)}</div>
+            <div class="event-object-caption">${escapeHtml(inventoryStatus)}</div>
           </div>
           <div class="event-command-frame">
-            <div class="event-command-title">COMMAND</div>
+            <div class="event-command-title">${escapeHtml(commandTitle)}</div>
             <div class="event-actions">
               ${actions}
             </div>
@@ -2793,23 +3999,93 @@
     });
   }
 
-  function grantChestLoot(chest) {
-    const loot = rollTreasureItems(chest && chest.treasureTableId, 100);
-    if (!loot.length) return "中は空だった。";
-    const recipient = firstLivingMember();
-    loot.forEach((itemName) => addItemToMember(recipient, itemName));
-    renderPartyCards();
-    return `${recipient ? recipient.name : "隊"}は${loot.join(" / ")}を得た。`;
+  function rollChestLoot(chest, chestState) {
+    if (Array.isArray(chestState.pendingLoot)) return chestState.pendingLoot;
+    if (chest && Array.isArray(chest.fixedLoot)) {
+      chestState.pendingLoot = chest.fixedLoot.slice();
+      return chestState.pendingLoot;
+    }
+    chestState.pendingLoot = rollTreasureItems(chest && chest.treasureTableId, 100);
+    return chestState.pendingLoot;
+  }
+
+  function finishChestWithoutLoot(chest, key, chestState, notice = "宝箱を閉じた。") {
+    setChestOpened(key, chestState);
+    scene = buildSceneGeometry();
+    renderChestWindow(chest, notice, "main");
+    setMessage(notice, false);
+  }
+
+  function openChestAfterTrapCheck(chest, key, chestState, actor = null) {
+    let trapNotice = "";
+    if (!chestState.disarmed && !chestState.trapTriggered) {
+      chestState.trapTriggered = true;
+      const lines = applyTrapEffect(chestState.trapId, actor, "open");
+      if (chest && chest.source === "battle") lines.push(...recoverTemporaryStatusesAfterBattle());
+      trapNotice = lines.join(" ");
+      if (isPartyDefeated()) {
+        renderChestWindow(chest, `${trapNotice} 隊は行動不能になった。`, "main");
+        setMessage("隊は行動不能になった。", true);
+        return;
+      }
+    }
+    const loot = rollChestLoot(chest, chestState);
+    if (!loot.length) {
+      finishChestWithoutLoot(chest, key, chestState, `${trapNotice ? trapNotice + " " : ""}開いた。中は空だった。`);
+      return;
+    }
+    renderChestWindow(chest, `${trapNotice ? trapNotice + " " : ""}開いた。中身を誰が持つか選ぶ。`, "chooseRecipient");
+  }
+
+  function inspectChestTrap(chest, key, chestState, member) {
+    const trap = trapById(chestState.trapId);
+    const check = trapCheckRoll(member, Number(trap.difficulty || 50) - 10);
+    setChestChecked(key, chestState);
+    chestState.suspectedTrapId = check.ok ? trap.id : randomTrapId(trap.id);
+    const guessed = trapLabel(chestState.suspectedTrapId);
+    return `${member.name}は調べた。${guessed}の気配がある。`;
+  }
+
+  function attemptDisarmChestTrap(chest, key, chestState, trapTypeId) {
+    const member = findPartyMember(chestState.pendingDisarmerId);
+    const trap = trapById(chestState.trapId);
+    if (!member || !canMemberAct(member)) {
+      chestState.pendingDisarmerId = null;
+      return { mode: "main", notice: "解除できる者がいない。", warning: true };
+    }
+    const selectedTrap = trapById(trapTypeId);
+    if (!selectedTrap || selectedTrap.id !== trap.id) {
+      chestState.trapTriggered = true;
+      const lines = applyTrapEffect(trap.id, member, "wrongDisarm");
+      chestState.pendingDisarmerId = null;
+      return { mode: "main", notice: `${member.name}は${selectedTrap ? selectedTrap.label : "不明な罠"}を外そうとした。${lines.join(" ")}`, warning: true };
+    }
+    const check = trapCheckRoll(member, trap.difficulty);
+    chestState.pendingDisarmerId = null;
+    if (check.ok) {
+      setChestDisarmed(key, chestState);
+      return { mode: "main", notice: `${member.name}は${trap.label}を解除した。`, warning: false };
+    }
+    chestState.trapTriggered = true;
+    const lines = applyTrapEffect(trap.id, member, "failedDisarm");
+    return { mode: "main", notice: `${member.name}は解除に失敗した。${lines.join(" ")}`, warning: true };
   }
 
   function handleChestAction(chest, action, key) {
+    const chestState = getChestRuntimeState(chest, key);
     if (action === "close") {
       closeEventWindow();
-      setMessage("離れた。", false);
+      if (chest && chest.source === "battle") state.currentBattle = null;
+      setMessage(chest && chest.source === "battle" ? "探索へ戻った。" : "離れた。", false);
       return;
     }
     if (action === "back") {
       renderChestWindow(chest, "", "main");
+      return;
+    }
+    if (action === "backDisarm") {
+      chestState.pendingDisarmerId = null;
+      renderChestWindow(chest, "", "chooseDisarmer");
       return;
     }
     if (action === "check") {
@@ -2817,8 +4093,13 @@
       return;
     }
     if (action.startsWith("actor:")) {
-      state.checkedChestTraps.add(key);
-      renderChestWindow(chest, "罠を発見した。", "main");
+      const member = findPartyMember(action.slice("actor:".length));
+      if (!member || !canMemberAct(member)) {
+        renderChestWindow(chest, "その者は調べられない。", "chooseInspector");
+        return;
+      }
+      const notice = inspectChestTrap(chest, key, chestState, member);
+      renderChestWindow(chest, notice, "main");
       setMessage("調べた。", false);
       return;
     }
@@ -2827,27 +4108,57 @@
       return;
     }
     if (action.startsWith("disarmActor:")) {
-      const actor = action.slice("disarmActor:".length);
-      if (actor === CHEST_SPECIALIST) {
-        state.disarmedChests.add(key);
-        renderChestWindow(chest, "解除した。", "main");
-        setMessage("解除した。", false);
-      } else {
-        renderChestWindow(chest, "解除に失敗した。", "main");
-        setMessage("解除に失敗した。", true);
+      const member = findPartyMember(action.slice("disarmActor:".length));
+      if (!member || !canMemberAct(member)) {
+        renderChestWindow(chest, "その者は解除できない。", "chooseDisarmer");
+        return;
       }
+      chestState.pendingDisarmerId = member.id;
+      renderChestWindow(chest, "罠の種類を選ぶ。", "chooseTrapType");
+      return;
+    }
+    if (action.startsWith("trapType:")) {
+      const result = attemptDisarmChestTrap(chest, key, chestState, action.slice("trapType:".length));
+      if (chest && chest.source === "battle") {
+        const recovered = recoverTemporaryStatusesAfterBattle();
+        if (recovered.length) result.notice = `${result.notice} ${recovered.join(" ")}`;
+      }
+      renderChestWindow(chest, result.notice, result.mode || "main");
+      setMessage(result.warning ? "罠が作動した。" : "解除した。", Boolean(result.warning));
       return;
     }
     if (action === "open") {
-      if (!state.disarmedChests.has(key)) {
-        renderChestWindow(chest, "開かなかった。", "main");
+      const opener = firstLivingMember();
+      openChestAfterTrapCheck(chest, key, chestState, opener);
+      return;
+    }
+    if (action.startsWith("recipient:")) {
+      const member = findPartyMember(action.slice("recipient:".length));
+      const loot = rollChestLoot(chest, chestState);
+      if (!member || !canMemberReceiveReward(member)) {
+        renderChestWindow(chest, "受け取れない。", "chooseRecipient");
         return;
       }
-      state.openedChests.add(key);
+      if (!hasItemCapacity(member, loot.length)) {
+        renderChestWindow(chest, `${member.name}は持ちきれない。`, "chooseRecipient");
+        return;
+      }
+      const result = addItemsToMember(member, loot);
+      if (!result.ok) {
+        renderChestWindow(chest, `${member.name}は持ちきれない。`, "chooseRecipient");
+        return;
+      }
+      chestState.pendingLoot = [];
+      setChestOpened(key, chestState);
       scene = buildSceneGeometry();
-      const lootNotice = grantChestLoot(chest);
-      renderChestWindow(chest, `開いた。${lootNotice}`, "main");
+      renderPartyCards();
+      renderChestWindow(chest, `${member.name}は${result.accepted.join(" / ")}を得た。`, "main");
       setMessage("宝箱を開けた。", false);
+      return;
+    }
+    if (action === "leaveLoot" || action === "finishOpen") {
+      chestState.pendingLoot = [];
+      finishChestWithoutLoot(chest, key, chestState, "宝箱を閉じた。");
     }
   }
 
@@ -2873,6 +4184,7 @@
 
   function toggleTrapDetection() {
     if (state.eventWindowOpen || state.animation) return;
+    if (!ensurePartyCanActOrShow("全員が行動不能で、罠検知を切り替えられない。")) return;
     state.trapDetectionActive = !state.trapDetectionActive;
     scene = buildSceneGeometry();
     renderMapOverlay();
@@ -2968,7 +4280,15 @@
       visual.stepBob = 0;
       visual.turnLean = 0;
       state.animation = null;
-      if (completedType === "move") maybeOpenRandomEncounterAfterMove();
+      if (completedType === "move") {
+        const statusLines = applyDungeonStepStatusEffects();
+        if (statusLines.length) setMessage(statusLines.join(" / "), isPartyDefeated());
+        if (isPartyDefeated()) {
+          ensurePartyCanActOrShow("毒や状態異常により全員が行動不能になった。");
+        } else {
+          maybeOpenRandomEncounterAfterMove();
+        }
+      }
     }
   }
 
@@ -3780,7 +5100,7 @@
   window.addEventListener("keydown", (event) => {
     const key = event.key;
     if (state.eventWindowOpen) {
-      if (key === "Escape") closeEventWindow();
+      if (key === "Escape" && state.focus !== "town") closeEventWindow();
       event.preventDefault();
       return;
     }
@@ -3793,9 +5113,11 @@
     if (key === " " || key === "Enter") inspectFront();
   });
 
+  normalizePartyStatuses();
   normalizePartyEquipment();
   renderPartyCards();
   if (state.message) setMessage(state.message, false);
   updateHud();
+  openTownWindow("街で準備する。");
   requestAnimationFrame(render);
 })();
